@@ -1479,3 +1479,20 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+
+/* A roll-up ("chartCaption") sits in the same corner, like the change:
+ * one line, never wrapped; the title gives way first (ellipsis), and
+ * only a roll-up wider than the whole row is cut, with an ellipsis. */
+.icor-sqlv-head-rollup {
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}

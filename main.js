@@ -590,30 +590,41 @@ function parseDashboardSpec(text) {
 
 /* The change over the period, shown at the right of a chart's title row.
  * Opt-in per tile; only a line or bar chart with one series has a single
- * line to measure. Returns { ok, on, days } or { ok, reason }. */
+ * line to measure. A chart may instead, or as well, carry a roll-up in
+ * the same place, "chartCaption": "range" (lowest to highest of what it
+ * plots) or "change" (the same change as headerDelta). Returns
+ * { ok, on, days, caption } or { ok, reason }. */
 const HEADER_DELTA_MAX_DAYS = 365;
+const CHART_CAPTIONS = ['range', 'change'];
 
 function checkHeaderDelta(t, viz, seriesCount, at) {
   const on = t.headerDelta;
   const days = t.headerDeltaAverageDays;
+  const caption = t.chartCaption;
   if (on !== undefined && typeof on !== 'boolean') return { ok: false, reason: at + ': "headerDelta" must be true or false.' };
   if (on === true && (viz !== 'line' && viz !== 'bar' || seriesCount !== 1)) {
     return { ok: false, reason: at + ': "headerDelta" only works on a line or bar chart with one series.' };
   }
+  if (caption !== undefined) {
+    if (!CHART_CAPTIONS.includes(caption)) return { ok: false, reason: at + ': "chartCaption" must be "range" (lowest to highest) or "change" (change over the period).' };
+    if (viz !== 'line' && viz !== 'bar' || seriesCount !== 1) {
+      return { ok: false, reason: at + ': "chartCaption" only works on a line or bar chart with one series.' };
+    }
+  }
+  const measured = on === true || caption === 'change';
   if (days !== undefined) {
-    if (on !== true) return { ok: false, reason: at + ': "headerDeltaAverageDays" needs "headerDelta": true.' };
+    if (!measured) return { ok: false, reason: at + ': "headerDeltaAverageDays" needs "headerDelta": true or "chartCaption": "change".' };
     if (!Number.isInteger(days) || days < 1 || days > HEADER_DELTA_MAX_DAYS) {
       return { ok: false, reason: at + ': "headerDeltaAverageDays" must be a whole number of days from 1 to ' + HEADER_DELTA_MAX_DAYS + '.' };
     }
   }
-  return { ok: true, on: on === true, days: on === true ? days : undefined };
+  return { ok: true, on: on === true, days: measured ? days : undefined, caption };
 }
 
 function withHeaderDelta(tile, check) {
-  if (check.on) {
-    tile.headerDelta = true;
-    if (check.days !== undefined) tile.headerDeltaAverageDays = check.days;
-  }
+  if (check.on) tile.headerDelta = true;
+  if (check.days !== undefined) tile.headerDeltaAverageDays = check.days;
+  if (check.caption) tile.chartCaption = check.caption;
   return tile;
 }
 
@@ -659,10 +670,11 @@ function specToJson(spec) {
         return out;
       });
     }
-    if (t.headerDelta === true) {
-      tile.headerDelta = true;
-      if (t.headerDeltaAverageDays !== undefined) tile.headerDeltaAverageDays = t.headerDeltaAverageDays;
+    if (t.headerDelta === true) tile.headerDelta = true;
+    if (t.headerDeltaAverageDays !== undefined && (t.headerDelta === true || t.chartCaption === 'change')) {
+      tile.headerDeltaAverageDays = t.headerDeltaAverageDays;
     }
+    if (t.chartCaption) tile.chartCaption = t.chartCaption;
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1024,7 +1036,7 @@ function prepareTileForRender(tile, table) {
     };
   }
   return {
-    spec: { title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays },
+    spec: { title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays, chartCaption: tile.chartCaption },
     table,
   };
 }
@@ -1296,6 +1308,48 @@ function headerDeltaOf(table, tile) {
   const text = arrow + Math.abs(diff).toFixed(1) + unit;
   const endText = (e) => e.v.toFixed(1) + unit + ' (' + (e.count > 1 ? 'average of ' + e.count + ', ' + e.from + ' to ' + e.to : String(e.from)) + ')';
   return { diff, direction, text, first, last, hover: 'From ' + endText(first) + ' to ' + endText(last) };
+}
+
+/* The lowest and highest of a chart's one series, over what it plots:
+ * "247.2-262.0 lb" (with an en dash). Whole numbers stay whole
+ * ("1,200-15,034 steps"); anything else gets one decimal. The tile's
+ * unit once. Pure; null when there is nothing to show. */
+function chartRangeOf(table, tile) {
+  const xIdx = columnIndex(table.columns, tile.x);
+  const yName = tile.y && tile.y.length ? tile.y[0] : '';
+  const yIdx = columnIndex(table.columns, yName);
+  if (yIdx < 0) return null;
+  let lo = null;
+  let hi = null;
+  for (const row of table.rows) {
+    const v = row[yIdx];
+    if (v === null || v === undefined || v === '' || typeof v === 'boolean') continue;
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    const at = xIdx >= 0 ? row[xIdx] : null;
+    if (!lo || n < lo.v) lo = { v: n, at };
+    if (!hi || n > hi.v) hi = { v: n, at };
+  }
+  if (!lo) return null;
+  const unit = tile.unit ? ' ' + tile.unit : '';
+  const whole = Number.isInteger(lo.v) && Number.isInteger(hi.v);
+  const num = (v) => (whole ? formatNumber(v) : v.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  const when = (e) => (e.at === null || e.at === undefined || e.at === '' ? '' : ' (' + e.at + ')');
+  return {
+    text: num(lo.v) + '\u2013' + num(hi.v) + unit,
+    hover: 'Lowest ' + num(lo.v) + unit + when(lo) + ', highest ' + num(hi.v) + unit + when(hi),
+  };
+}
+
+/* The roll-up a chart asked for, or null. */
+function chartCaptionOf(table, tile) {
+  if (tile.viz !== 'line' && tile.viz !== 'bar') return null;
+  if (tile.chartCaption === 'range') return chartRangeOf(table, tile);
+  if (tile.chartCaption === 'change') {
+    const d = headerDeltaOf(table, tile);
+    return d ? { text: d.text, hover: d.hover } : null;
+  }
+  return null;
 }
 
 /* ------------------------------------------------------- value levels -- */
@@ -2204,7 +2258,22 @@ function renderTile(tileEl, tileSpec, table, extras) {
   /* A chart may show its change over the period at the right of its
    * title row; the title ellipsizes before the change gives way. */
   const delta = tileSpec.headerDelta === true && (tileSpec.viz === 'line' || tileSpec.viz === 'bar') ? headerDeltaOf(table, tileSpec) : null;
-  if (delta) {
+  /* A roll-up ("chartCaption") sits in the same right corner, after the
+   * change when there is one, on one line. Like the change, it stays
+   * whole and the title ellipsizes first; hovering shows it all. */
+  const rollup = chartCaptionOf(table, tileSpec);
+  if (rollup) {
+    const bar = tileEl.createDiv({ cls: 'icor-sqlv-tile-titlebar has-rollup' });
+    if (tileSpec.title) bar.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title }).setAttribute('title', tileSpec.title);
+    const parts = [];
+    if (delta && tileSpec.chartCaption !== 'change') parts.push(delta);
+    parts.push(rollup);
+    const text = parts.map((p) => p.text).join(' \u00b7 ');
+    const hover = parts.map((p) => p.hover).join('\n');
+    const chip = bar.createSpan({ cls: 'icor-sqlv-head-rollup', text });
+    chip.setAttribute('title', hover);
+    chip.setAttribute('aria-label', text + '. ' + parts.map((p) => p.hover).join('. '));
+  } else if (delta) {
     const bar = tileEl.createDiv({ cls: 'icor-sqlv-tile-titlebar' });
     if (tileSpec.title) bar.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title }).setAttribute('title', tileSpec.title);
     const chip = bar.createSpan({ cls: 'icor-sqlv-head-delta is-' + delta.direction, text: delta.text });
@@ -3262,6 +3331,7 @@ class WidgetFormModal extends Modal {
       })) : [],
       headerDelta: !!(existing && existing.headerDelta === true),
       headerDeltaAverageDays: existing && existing.headerDeltaAverageDays !== undefined ? String(existing.headerDeltaAverageDays) : '',
+      chartCaption: (existing && existing.chartCaption) || '',
       advancedOpen: false,
     };
     this.schema = null;
@@ -3423,9 +3493,11 @@ class WidgetFormModal extends Modal {
    * chart type changes. */
   headerDeltaFromForm(viz, seriesCount) {
     const s = this.state;
-    if (!s.headerDelta || (viz !== 'line' && viz !== 'bar') || seriesCount !== 1) return { ok: true, on: false };
-    const text = String(s.headerDeltaAverageDays || '').trim();
-    const raw = { headerDelta: true };
+    if ((!s.headerDelta && !s.chartCaption) || (viz !== 'line' && viz !== 'bar') || seriesCount !== 1) return { ok: true, on: false };
+    const text = s.headerDelta || s.chartCaption === 'change' ? String(s.headerDeltaAverageDays || '').trim() : '';
+    const raw = {};
+    if (s.headerDelta) raw.headerDelta = true;
+    if (s.chartCaption) raw.chartCaption = s.chartCaption;
     if (text) {
       const n = Number(text);
       if (!Number.isInteger(n)) return { ok: false, reason: 'Average the ends over N days: N must be a whole number of days.' };
@@ -3445,7 +3517,13 @@ class WidgetFormModal extends Modal {
     const lbl = row.createEl('label', { text: 'Show change over the period' });
     lbl.setAttribute('for', 'icor-sqlv-header-delta');
     cb.addEventListener('change', () => { s.headerDelta = cb.checked; this.renderForm(); this.touch(); });
-    if (s.headerDelta) {
+    this.nativeSelect(form, {
+      label: 'Roll-up at the right of the title', optional: true,
+      options: [['', 'None'], ['range', 'Lowest to highest'], ['change', 'Change over the period']],
+      value: s.chartCaption,
+      onChange: (v) => { s.chartCaption = v; this.renderForm(); this.touch(); },
+    });
+    if (s.headerDelta || s.chartCaption === 'change') {
       const input = this.textInput(form, {
         label: 'Average the ends over N days', optional: true, value: s.headerDeltaAverageDays,
         placeholder: 'empty: first and last point',
@@ -5005,7 +5083,7 @@ IcorSqliteViewerPlugin.lib = {
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
   deltaBadge, nextPreviewState, canSave, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
-  headerDeltaOf, checkHeaderDelta,
+  headerDeltaOf, checkHeaderDelta, chartRangeOf, chartCaptionOf,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, normalizeLevels, normalizeLevelLooks, checkRanges, levelOf, resolveLevel, levelLookFor,
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
   adoptLegacyFolders, LEGACY_DATA_FOLDER,
