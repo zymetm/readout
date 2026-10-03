@@ -662,12 +662,15 @@ function withChartColors(tile, check) {
  * "yMaxLimit" as well, "yMax" is where the top starts and it grows to fit
  * the data, never past the limit. "yTicks" lists the y labels to draw
  * (plus the grown top, when it grew). "xLabelEvery" labels every Nth x
- * value only, still thinned when the labels would not fit. Absent means
- * the snug automatic axis, as before. Returns { ok, axis } or
+ * value only, still thinned when the labels would not fit. "yTickSuffix"
+ * puts short text after every y label ("h", "%"), and "yTickCompact"
+ * writes thousands as "k" (8,000 as 8k). Absent means the snug automatic
+ * axis with bare numbers, as before. Returns { ok, axis } or
  * { ok, reason }. */
-const CHART_AXIS_KEYS = ['yMin', 'yMax', 'yMaxLimit', 'yTicks', 'xLabelEvery'];
+const CHART_AXIS_KEYS = ['yMin', 'yMax', 'yMaxLimit', 'yTicks', 'xLabelEvery', 'yTickSuffix', 'yTickCompact'];
 const Y_TICKS_MAX = 12;
 const X_LABEL_EVERY_MAX = 1000;
+const TICK_SUFFIX_MAX = 6;
 
 function checkChartAxis(t, viz, at) {
   const axis = {};
@@ -698,7 +701,27 @@ function checkChartAxis(t, viz, at) {
   if (axis.xLabelEvery !== undefined && (!Number.isInteger(axis.xLabelEvery) || axis.xLabelEvery < 1 || axis.xLabelEvery > X_LABEL_EVERY_MAX)) {
     return { ok: false, reason: at + ': "xLabelEvery" must be a whole number from 1 to ' + X_LABEL_EVERY_MAX + ' (label every Nth value).' };
   }
+  if (axis.yTickSuffix !== undefined && (typeof axis.yTickSuffix !== 'string' || !axis.yTickSuffix.trim() || axis.yTickSuffix.length > TICK_SUFFIX_MAX)) {
+    return { ok: false, reason: at + ': "yTickSuffix" must be short text, ' + TICK_SUFFIX_MAX + ' characters at most, like "h" or "%".' };
+  }
+  if (axis.yTickCompact !== undefined && typeof axis.yTickCompact !== 'boolean') {
+    return { ok: false, reason: at + ': "yTickCompact" must be true or false (true writes 8,000 as 8k).' };
+  }
+  if (axis.yTickCompact === false) delete axis.yTickCompact;
   return { ok: true, axis };
+}
+
+/* How an axis writes its labels: the number, in thousands when compact,
+ * then the suffix. */
+function tickFormatter(axis) {
+  const suffix = axis && typeof axis.yTickSuffix === 'string' ? axis.yTickSuffix : '';
+  const compact = !!(axis && axis.yTickCompact === true);
+  return (v) => {
+    const text = compact && typeof v === 'number' && Math.abs(v) >= 1000
+      ? formatNumber(Math.round(v / 100) / 10) + 'k'
+      : formatNumber(v);
+    return text + suffix;
+  };
 }
 
 function withChartAxis(tile, check) {
@@ -913,7 +936,8 @@ function checkMarkAxis(raw, viz, where) {
  * and the rest. Returns { ok, combo } or { ok, reason }. */
 const COMBO_SERIES_MAX = 8;
 const COMBO_LABEL_MAX = 40;
-const COMBO_AXIS2_KEYS = ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks', 'y2Unit'];
+const COMBO_AXIS2_KEYS = ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks', 'y2Unit', 'y2TickSuffix', 'y2TickCompact'];
+const COMBO_AXIS2_CHECKED = ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks', 'y2TickSuffix', 'y2TickCompact'];
 const COMBO_KEYS = ['series'].concat(COMBO_AXIS2_KEYS);
 
 function checkCombo(t, at) {
@@ -964,10 +988,10 @@ function checkCombo(t, at) {
   }
   const combo = { series };
   const axis2 = {};
-  for (const key of ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks']) if (t[key] !== undefined) axis2[key.replace('y2', 'y')] = t[key];
+  for (const key of COMBO_AXIS2_CHECKED) if (t[key] !== undefined) axis2[key.replace('y2', 'y')] = t[key];
   const axisCheck = checkChartAxis(axis2, 'combo', at);
-  if (!axisCheck.ok) return { ok: false, reason: axisCheck.reason.replace(/"y(Min|Max|MaxLimit|Ticks)"/g, '"y2$1"') };
-  for (const key of ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks']) if (t[key] !== undefined) combo[key] = axisCheck.axis[key.replace('y2', 'y')];
+  if (!axisCheck.ok) return { ok: false, reason: axisCheck.reason.replace(/"y(Min|Max|MaxLimit|Ticks|TickSuffix|TickCompact)"/g, '"y2$1"') };
+  for (const key of COMBO_AXIS2_CHECKED) if (axisCheck.axis[key.replace('y2', 'y')] !== undefined) combo[key] = axisCheck.axis[key.replace('y2', 'y')];
   if (t.y2Unit !== undefined) {
     if (typeof t.y2Unit !== 'string') return { ok: false, reason: at + ': "y2Unit" must be text, like "kcal".' };
     if (t.y2Unit) combo.y2Unit = t.y2Unit;
@@ -1018,13 +1042,14 @@ function renderComboChart(parentEl, table, tile, extras) {
   const lo = (v) => (v.length ? Math.min(...v) : 0);
   const hi = (v) => (v.length ? Math.max(...v) : 1);
   const axis2 = { yMin: tile.y2Min, yMax: tile.y2Max, yMaxLimit: tile.y2MaxLimit, yTicks: tile.y2Ticks };
+  const tickTextR = tickFormatter({ yTickSuffix: tile.y2TickSuffix, yTickCompact: tile.y2TickCompact });
   const unitOf = (x) => (x.axis === 'right' ? tile.y2Unit : tile.unit) || '';
   const chart = chartBox(parentEl, series.map((x) => x.name), series.map((x) => x.paint), (svg, W, H) => {
     /* The right axis is measured first, so the left layout leaves it room. */
     const ticksFor = (h) => Math.max(2, Math.min(5, Math.floor(h / 24)));
     let R = hasRight ? chartScaleFor(axis2, lo(span.right), hi(span.right), ticksFor(H - 26)) : null;
     const showR = hasRight && W >= CHART_MIN_Y_W;
-    const rightW = showR ? Math.ceil(Math.max(...R.ticks.map((v) => formatNumber(v).length)) * TICK_CHAR_W) + 10 : 0;
+    const rightW = showR ? Math.ceil(Math.max(...R.ticks.map((v) => tickTextR(v).length)) * TICK_CHAR_W) + 10 : 0;
     const L = chartLayout(W - rightW, H, lo(span.left), hi(span.left), true, tile);
     if (hasRight) R = chartScaleFor(axis2, lo(span.right), hi(span.right), ticksFor(L.plotH));
     const yOfR = hasRight
@@ -1041,7 +1066,7 @@ function renderComboChart(parentEl, table, tile, extras) {
     if (showR) {
       for (const tick of R.ticks) {
         const label = svgEl('text', { x: L.left + L.plotW + 6, y: yOfR(tick) + 3, 'text-anchor': 'start', class: 'icor-sqlv-tick' });
-        label.textContent = formatNumber(tick);
+        label.textContent = tickTextR(tick);
         svg.appendChild(label);
       }
     }
@@ -2275,13 +2300,14 @@ function chartLayout(W, H, lo, hi, hasXLabels, axis) {
   const plotH = Math.max(1, H - top - bottom);
   const scale = chartScaleFor(axis, lo, hi, Math.max(2, Math.min(5, Math.floor(plotH / 24))));
   const showY = W >= CHART_MIN_Y_W && plotH >= 30;
-  const yText = scale.ticks.map((t) => formatNumber(t));
+  const tickText = tickFormatter(axis);
+  const yText = scale.ticks.map(tickText);
   const left = showY ? Math.ceil(Math.max(...yText.map((t) => t.length)) * TICK_CHAR_W) + 10 : 4;
   const plotW = Math.max(1, W - left - right);
   /* A value past a fixed end is drawn at that end, never outside the plot. */
   const yOf = (v) => Math.max(top, Math.min(top + plotH, top + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH));
   const xLabelEvery = axis && Number.isInteger(axis.xLabelEvery) && axis.xLabelEvery > 1 ? axis.xLabelEvery : 1;
-  return { W, H, top, right, bottom, left, plotW, plotH, scale, showX, showY, yOf, xLabelEvery };
+  return { W, H, top, right, bottom, left, plotW, plotH, scale, showX, showY, yOf, xLabelEvery, tickText };
 }
 
 /* Which x labels to draw, where, and how anchored: thinned to what fits
@@ -2315,7 +2341,7 @@ function drawAxes(svg, L, xLabels, xOf) {
     svg.appendChild(svgEl('line', { x1: L.left, y1: y, x2: L.left + L.plotW, y2: y, class: 'icor-sqlv-gridline' }));
     if (!L.showY) continue;
     const label = svgEl('text', { x: L.left - 6, y: y + 3, 'text-anchor': 'end', class: 'icor-sqlv-tick' });
-    label.textContent = formatNumber(tick);
+    label.textContent = (L.tickText || formatNumber)(tick);
     svg.appendChild(label);
   }
   /* The baseline is the axis; it separates, it does not frame. */
