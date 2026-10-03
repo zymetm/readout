@@ -703,6 +703,17 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 
 .icor-sqlv-baseline { stroke: var(--sqlv-hairline); stroke-width: 1; }
 
+/* Reference lines ("refLines"): the theme's dim ink unless the tile names a
+ * colour. Shaded zones ("zones") carry their own colour and opacity. */
+.icor-sqlv-refline { stroke-width: 1; }
+.icor-sqlv-refline:not([stroke]) { stroke: var(--sqlv-fg-dim); }
+
+.icor-sqlv-refline-label {
+  fill: var(--sqlv-fg-faint);
+  font-family: var(--sqlv-font-mono);
+  font-size: 10px;
+}
+
 .icor-sqlv-tick {
   fill: var(--sqlv-fg-faint);
   font-family: var(--sqlv-font-mono);
