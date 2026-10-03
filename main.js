@@ -553,7 +553,9 @@ function parseDashboardSpec(text) {
       const check = checkTextTile(t, layout, at);
       if (!check.ok) return check;
       if (check.tile.sql && !database) return { ok: false, reason: at + ' is an SQL tile, so the dashboard needs a top-level "database".' };
-      tiles.push(Object.assign(check.tile, { layout }));
+      const textNotes = checkTileNotes(t, at);
+      if (!textNotes.ok) return textNotes;
+      tiles.push(withTileNotes(Object.assign(check.tile, { layout }), textNotes));
       continue;
     }
 
@@ -1476,6 +1478,9 @@ function specToJson(spec) {
     if (t.compare && t.compare !== 'none') tile.compare = t.compare;
     if (t.favorable && t.favorable !== 'up') tile.favorable = t.favorable;
     if (t.viz === 'divider') return tile;
+    /* The notes ride every widget but a divider, a text widget included. */
+    if (t.hint) tile.hint = t.hint;
+    if (t.footnote) tile.footnote = t.footnote;
     if (t.viz === 'text') {
       if (t.text !== undefined) tile.text = t.text;
       if (t.sql) tile.sql = t.sql;
@@ -1506,8 +1511,6 @@ function specToJson(spec) {
     Object.assign(tile, chartAxisOf(t), chartMarksOf(t));
     if (t.segmentColors && Object.keys(t.segmentColors).length) tile.segmentColors = Object.assign({}, t.segmentColors);
     if (t.meter) tile.meter = Object.assign({}, t.meter);
-    if (t.hint) tile.hint = t.hint;
-    if (t.footnote) tile.footnote = t.footnote;
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
