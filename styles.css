@@ -1376,7 +1376,9 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
  * in from the left edge, and leaves a real 3px gap either side of the
  * heading (no fill behind it), so it works on any background. */
 .icor-sqlv-tile.is-divider,
-.icor-sqlv-tile.is-divider:hover {
+.icor-sqlv-tile.is-divider:hover,
+.icor-sqlv-tile.is-line,
+.icor-sqlv-tile.is-line:hover {
   background: none;
   border: none;
   border-radius: 0;
@@ -1441,3 +1443,30 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 /* The form's preview shows the divider at its real thin height. */
 .icor-sqlv-tile.is-preview.is-divider { height: 24px; }
+
+/* ------------------------------------------------------------ text -- */
+
+/* A text widget: plain paragraphs in the card. A text line is no card at
+ * all: one quiet line in a thin row, like a section divider's heading. */
+.icor-sqlv-text { overflow: auto; font-size: var(--font-ui-small, 13px); color: var(--sqlv-fg-dim); line-height: 1.5; }
+
+.icor-sqlv-text-para { margin: 0 0 var(--sqlv-s2); }
+
+.icor-sqlv-text-para:last-child { margin-bottom: 0; }
+
+.icor-sqlv-text-line {
+  width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: var(--font-ui-smaller, 12px);
+  color: var(--sqlv-fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-tile.is-line.is-editing {
+  outline: 1.5px dashed var(--sqlv-hairline-strong);
+  outline-offset: -1px;
+  border-radius: var(--sqlv-r-subtle);
+}
