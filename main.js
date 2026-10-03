@@ -766,6 +766,9 @@ function addTileNotes(tileEl, tileSpec) {
     }
     const chip = bar.createSpan({ cls: 'icor-sqlv-tile-hint', text: hint });
     chip.setAttribute('title', hint);
+    /* A level pill on the row stays last. */
+    const pill = Array.from(bar.children).find((c) => c.classList && c.classList.contains('icor-sqlv-level-pill'));
+    if (pill) bar.insertBefore(chip, pill);
   }
   if (footnote) tileEl.createDiv({ cls: 'icor-sqlv-tile-footnote', text: footnote }).setAttribute('title', footnote);
 }
@@ -2075,10 +2078,6 @@ function renderSegments(parentEl, table, tile, extras) {
     chip.style.setProperty('background', p.color);
     item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name });
     item.createSpan({ cls: 'icor-sqlv-segments-value', text: formatNumber(p.value) + unit });
-  }
-  const level = extras && extras.pillLevel;
-  if (level && level.known && level.label) {
-    wrap.createDiv({ cls: 'icor-sqlv-stat-foot' }).createSpan({ cls: 'icor-sqlv-level-pill', text: level.label }).setAttribute('title', level.label);
   }
   return parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
 }
@@ -3755,6 +3754,19 @@ function drawTile(tileEl, tileSpec, table, extras) {
     applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
     return;
   }
+  if (tileSpec.viz === 'segments') {
+    /* Like a stat: the level marks the whole widget. Its pill sits at the
+     * right of the title row, the title giving way first. */
+    const level = segmentsLevelOf(table, tileSpec, extras);
+    const pill = level && level.known && level.label ? level.label : '';
+    const row = pill ? tileEl.createDiv({ cls: 'icor-sqlv-tile-titlebar' }) : tileEl;
+    if (tileSpec.title) row.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title }).setAttribute('title', tileSpec.title);
+    if (pill) row.createSpan({ cls: 'icor-sqlv-level-pill', text: pill }).setAttribute('title', pill);
+    const segBody = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
+    const shown = renderSegments(segBody, table, tileSpec, extras);
+    applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
+    return;
+  }
   /* A chart may show its change over the period at the right of its
    * title row; the title ellipsizes before the change gives way. */
   const delta = tileSpec.headerDelta === true && (tileSpec.viz === 'line' || tileSpec.viz === 'bar') ? headerDeltaOf(table, tileSpec) : null;
@@ -3782,14 +3794,6 @@ function drawTile(tileEl, tileSpec, table, extras) {
   } else if (tileSpec.title) {
     const title = tileEl.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title });
     title.setAttribute('title', tileSpec.title);
-  }
-  if (tileSpec.viz === 'segments') {
-    /* Like a stat: the level marks the whole widget, the pill closes it. */
-    const level = segmentsLevelOf(table, tileSpec, extras);
-    const segBody = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
-    const shown = renderSegments(segBody, table, tileSpec, Object.assign({}, extras, { pillLevel: level }));
-    applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
-    return;
   }
   const body = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
   if (tileSpec.viz === 'line') renderLineChart(body, table, tileSpec, extras);

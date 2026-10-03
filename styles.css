@@ -1706,6 +1706,17 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   text-overflow: ellipsis;
 }
 
+/* A segments bar's level pill sits at the right of its title row, whole;
+ * a hint before it keeps the pill against the edge. */
+.icor-sqlv-tile-titlebar > .icor-sqlv-level-pill {
+  flex: 0 0 auto;
+  margin-left: auto;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint + .icor-sqlv-level-pill { margin-left: 0; }
+
 .icor-sqlv-head-delta {
   flex: 0 0 auto;
   margin-left: auto;
