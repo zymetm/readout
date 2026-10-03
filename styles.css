@@ -708,10 +708,14 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 .icor-sqlv-refline { stroke-width: 1; }
 .icor-sqlv-refline:not([stroke]) { stroke: var(--sqlv-fg-dim); }
 
-.icor-sqlv-refline-label {
-  fill: var(--sqlv-fg-faint);
-  font-family: var(--sqlv-font-mono);
-  font-size: 10px;
+/* A labelled reference line is named in the legend: a short dashed
+ * line in its colour, the theme's dim ink unless it names one. */
+.icor-sqlv-legend-chip.is-guide {
+  width: 14px;
+  height: 0;
+  border-radius: 0;
+  background: none;
+  border-top: 1px dashed var(--sqlv-fg-dim);
 }
 
 .icor-sqlv-tick {
