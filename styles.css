@@ -711,10 +711,11 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   font-variant-numeric: tabular-nums;
 }
 
-/* The pen points: solid marker guide, marker dots, a chip readout. */
-.icor-sqlv-guide { stroke: var(--sqlv-marker); stroke-width: 1; }
+/* The pen points: solid marker guide, marker dots, a chip readout. A chart
+ * with its own colours ("guideColor", "color") sets them on its box. */
+.icor-sqlv-guide { stroke: var(--sqlv-tile-guide, var(--sqlv-marker)); stroke-width: 1; }
 
-.icor-sqlv-hover-dot { fill: var(--sqlv-marker); }
+.icor-sqlv-hover-dot { fill: var(--sqlv-tile-series, var(--sqlv-marker)); }
 
 .icor-sqlv-readout-chip {
   fill: var(--sqlv-overlay);

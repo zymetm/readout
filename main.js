@@ -140,6 +140,22 @@ const RANGES_MAX = 12;
 /* The stroke and fill for series i of n. Pure, so the rule is testable:
  * one series writes in ink, lenses carry categories, the fifth entry and
  * the Other bucket stay faint, and no sixth hue is ever invented. */
+/* A one-series chart with its own "color" draws in it; every other chart
+ * keeps the theme's series colours. */
+function chartPaletteFor(tile, count) {
+  if (count === 1 && tile && isLevelColor(tile.color)) return [tile.color.trim()];
+  return seriesPaletteFor(count);
+}
+
+/* The chart's own colours as custom properties on its box, so the pointer
+ * line and the hover dots (drawn by styles.css) follow them; without them
+ * the stylesheet falls back to the theme's marker, as before. */
+function applyChartColors(box, tile) {
+  if (!box || !tile) return;
+  if (tile.viz !== 'bar' && isLevelColor(tile.color) && Array.isArray(tile.y) && tile.y.length === 1) box.style.setProperty('--sqlv-tile-series', tile.color.trim());
+  if (tile.viz === 'line' && isLevelColor(tile.guideColor)) box.style.setProperty('--sqlv-tile-guide', tile.guideColor.trim());
+}
+
 function seriesPaletteFor(count) {
   if (count <= 0) return [];
   if (count === 1) return [SERIES_TOKEN_SINGLE];
@@ -527,7 +543,9 @@ function parseDashboardSpec(text) {
       if (favorable !== 'up' && favorable !== 'down') {
         return { ok: false, reason: at + ': "favorable" must be "up" or "down" (which direction counts as good).' };
       }
-      tiles.push(withLevels({
+      const builtColors = checkChartColors(t, t.viz, t.source.series ? 2 : 1, at);
+      if (!builtColors.ok) return builtColors;
+      tiles.push(withChartColors(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -546,7 +564,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck));
+      }, levelCheck), builtColors));
       continue;
     }
 
@@ -561,7 +579,9 @@ function parseDashboardSpec(text) {
       if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for a ' + t.viz + ' chart.' };
       if (y.length === 0) return { ok: false, reason: at + ' needs a "y" column for a ' + t.viz + ' chart.' };
     }
-    tiles.push(withLevels({
+    const sqlColors = checkChartColors(t, t.viz, y.length, at);
+    if (!sqlColors.ok) return sqlColors;
+    tiles.push(withChartColors(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -570,7 +590,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck));
+    }, levelCheck), sqlColors));
   }
   return {
     ok: true,
@@ -587,6 +607,35 @@ function parseDashboardSpec(text) {
 /* A parsed tile with its checked value levels, when it has any. */
 function withLevels(tile, levelCheck) {
   if (levelCheck.ranges) tile.ranges = levelCheck.ranges;
+  return tile;
+}
+
+/* A chart's own colours, opt-in per tile: "color" for the line or the
+ * bars of a one-series chart, "guideColor" for the line that follows the
+ * pointer on a line chart. Same rule as a level colour: a theme variable
+ * or a plain hex, nothing else. Absent means the theme's colours, as
+ * before. Returns { ok, color, guideColor } or { ok, reason }. */
+function checkChartColors(t, viz, seriesCount, at) {
+  const { color, guideColor } = t;
+  if (color !== undefined) {
+    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "color" only works on a line or bar chart.' };
+    if (seriesCount !== 1) return { ok: false, reason: at + ': "color" only works on a chart with one series; a chart with several takes the theme\'s series colours.' };
+    if (!isLevelColor(color)) return { ok: false, reason: at + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#df8f48".' };
+  }
+  if (guideColor !== undefined) {
+    if (viz !== 'line') return { ok: false, reason: at + ': "guideColor" only works on a line chart; it colours the line that follows the pointer.' };
+    if (!isLevelColor(guideColor)) return { ok: false, reason: at + ': "guideColor" must be a theme colour like "var(--color-blue)" or a hex colour like "#cccccc".' };
+  }
+  return {
+    ok: true,
+    color: color === undefined ? undefined : color.trim(),
+    guideColor: guideColor === undefined ? undefined : guideColor.trim(),
+  };
+}
+
+function withChartColors(tile, check) {
+  if (check.color) tile.color = check.color;
+  if (check.guideColor) tile.guideColor = check.guideColor;
   return tile;
 }
 
@@ -626,6 +675,8 @@ function specToJson(spec) {
         return out;
       });
     }
+    if (t.color) tile.color = t.color;
+    if (t.guideColor) tile.guideColor = t.guideColor;
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -986,7 +1037,7 @@ function prepareTileForRender(tile, table) {
       table: wide,
     };
   }
-  return { spec: { title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false }, table };
+  return { spec: { title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, color: tile.color, guideColor: tile.guideColor }, table };
 }
 
 /* Validate one structured source. Returns { ok } or { ok, reason }. */
@@ -1824,10 +1875,10 @@ function renderLineChart(parentEl, table, tile, extras) {
     const vi = columnIndex(ghost.columns || [], 'value');
     if (vi >= 0) for (const row of ghost.rows) { const v = Number(row[vi]); if (Number.isFinite(v)) values.push(v); }
   }
-  const palette = seriesPaletteFor(seriesIdx.length);
+  const palette = chartPaletteFor(tile, seriesIdx.length);
   const xLabels = table.rows.map((r) => r[xIdx]);
   const n = table.rows.length;
-  chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
+  const chart = chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
     /* A snug axis: a heart rate line living between 60 and 90 should use
      * the whole plot, not hover above an empty run down to zero. */
     const L = chartLayout(W, H, Math.min(...values), Math.max(...values), true);
@@ -1900,6 +1951,7 @@ function renderLineChart(parentEl, table, tile, extras) {
       for (const dot of dots) dot.setAttribute('visibility', 'hidden');
     });
   }, extras && extras.observers);
+  applyChartColors(chart.box, tile);
 }
 
 function renderBarChart(parentEl, table, tile, extras) {
@@ -1921,9 +1973,9 @@ function renderBarChart(parentEl, table, tile, extras) {
   const n = table.rows.length;
   const titleOf = (rowI, s, v) =>
     String(xLabels[rowI]) + ' · ' + seriesNames[s] + ' ' + formatNumber(v) + (tile.unit ? ' ' + tile.unit : '');
-  const palette = seriesPaletteFor(seriesIdx.length);
+  const palette = chartPaletteFor(tile, seriesIdx.length);
   const ghost = extras && extras.ghost;
-  chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
+  const chart = chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
     const L = chartLayout(W, H, 0, top, true);
     const slot = L.plotW / n;
     const gap = Math.min(4, slot * 0.2);
@@ -1974,6 +2026,7 @@ function renderBarChart(parentEl, table, tile, extras) {
     }
     if (ghost) drawGhost(svg, ghost, { xOf: xOfBar, yOf, scale: L.scale, color: 'var(--sqlv-fg-dim)', top: L.top, count: n });
   }, extras && extras.observers);
+  applyChartColors(chart.box, tile);
 }
 
 function renderStatTile(parentEl, table, tile, extras) {
@@ -3156,6 +3209,8 @@ class WidgetFormModal extends Modal {
         level: r.level || '',
         label: r.label || '',
       })) : [],
+      color: existing && existing.color ? existing.color : '',
+      guideColor: existing && existing.guideColor ? existing.guideColor : '',
       advancedOpen: false,
     };
     this.schema = null;
@@ -3264,7 +3319,9 @@ class WidgetFormModal extends Modal {
       }
       const levels = this.levelsFromForm(tile.viz);
       if (!levels.ok) return levels;
-      return { ok: true, tile: withLevels(tile, levels) };
+      const colors = this.chartColorsFromForm(tile.viz, y.length);
+      if (!colors.ok) return colors;
+      return { ok: true, tile: withChartColors(withLevels(tile, levels), colors) };
     }
     if (!s.database) return { ok: false, reason: 'Pick a database first.' };
     if (!s.table) return { ok: false, reason: 'Pick a table.' };
@@ -3305,7 +3362,70 @@ class WidgetFormModal extends Modal {
     source.filters = check.filters;
     const levels = this.levelsFromForm(viz);
     if (!levels.ok) return levels;
-    return { ok: true, tile: withLevels(tile, levels) };
+    const colors = this.chartColorsFromForm(viz, s.series ? 2 : 1);
+    if (!colors.ok) return colors;
+    return { ok: true, tile: withChartColors(withLevels(tile, levels), colors) };
+  }
+
+  /* The chart colour fields as a checked setting. They apply only where
+   * the spec takes them (a one-series line or bar chart; the pointer line
+   * on a line chart) and stay in the form if the chart type changes. */
+  chartColorsFromForm(viz, seriesCount) {
+    const s = this.state;
+    const raw = {};
+    if (s.color && (viz === 'line' || viz === 'bar') && seriesCount === 1) raw.color = s.color;
+    if (s.guideColor && viz === 'line') raw.guideColor = s.guideColor;
+    return checkChartColors(raw, viz, seriesCount, 'This widget');
+  }
+
+  /* One colour field: the theme default, the theme colours, or a custom
+   * colour from a picker. A colour from the member's own CSS (another
+   * var(--...)) shows as such and is kept until another one is chosen. */
+  colorField(form, { label, key, ariaLabel }) {
+    const s = this.state;
+    const own = s[key];
+    const themed = LEVEL_THEME_COLORS.some(([v]) => v === own);
+    const fromCss = !!own && !themed && /^var\(/.test(own);
+    const options = [['', 'Theme default']].concat(
+      LEVEL_THEME_COLORS.map(([v, text]) => [v, text + ' (theme)']),
+      fromCss ? [[own, 'From your CSS: ' + own]] : [],
+      [['custom', 'Custom colour']],
+    );
+    const select = this.nativeSelect(form, {
+      label, optional: true, options,
+      value: !own ? '' : (themed || fromCss ? own : 'custom'),
+      ariaLabel,
+      onChange: (v) => {
+        if (v === 'custom') s[key] = /^#/.test(own) ? own : '#808080';
+        else s[key] = v;
+        this.renderForm();
+        this.touch();
+      },
+    });
+    if (own && !themed && !fromCss) {
+      const picker = select.parentElement.createEl('input', { type: 'color', value: own });
+      picker.setAttribute('aria-label', 'Custom ' + ariaLabel.charAt(0).toLowerCase() + ariaLabel.slice(1));
+      picker.addEventListener('input', () => {
+        if (!isLevelColor(picker.value)) return;
+        s[key] = picker.value;
+        this.touch();
+      });
+    }
+    return select;
+  }
+
+  renderChartColorFields(form, viz, seriesCount) {
+    if ((viz !== 'line' && viz !== 'bar') || seriesCount !== 1) return;
+    this.colorField(form, {
+      label: viz === 'line' ? 'Line colour' : 'Bar colour', key: 'color',
+      ariaLabel: viz === 'line' ? 'Colour of the line' : 'Colour of the bars',
+    });
+    if (viz === 'line') {
+      this.colorField(form, {
+        label: 'Scrub line colour', key: 'guideColor',
+        ariaLabel: 'Colour of the line that follows the pointer',
+      });
+    }
   }
 
   /* The form's range rows as checked ranges. Only a stat widget carries
@@ -3587,6 +3707,7 @@ class WidgetFormModal extends Modal {
       }
 
       this.renderRanges(form, s.agg === 'latest' ? 'stat' : s.viz);
+      this.renderChartColorFields(form, s.agg === 'latest' ? 'stat' : s.viz, s.series ? 2 : 1);
 
       this.nativeSelect(form, {
         label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
@@ -3836,6 +3957,7 @@ class WidgetFormModal extends Modal {
       onInput: (v) => { s.unit = v; this.touch(); },
     });
     this.renderRanges(form, s.viz);
+    this.renderChartColorFields(form, s.viz, s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
     this.nativeSelect(form, {
       label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
       value: s.sizeKey,
@@ -4856,7 +4978,7 @@ IcorSqliteViewerPlugin.lib = {
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
   deltaBadge, nextPreviewState, canSave, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
-  fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, normalizeLevels, normalizeLevelLooks, checkRanges, levelOf, resolveLevel, levelLookFor,
+  fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, checkChartColors, chartPaletteFor, normalizeLevels, normalizeLevelLooks, checkRanges, levelOf, resolveLevel, levelLookFor,
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
   adoptLegacyFolders, LEGACY_DATA_FOLDER,
   shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, checkSqlite3Path, READ_PRAGMAS, READ_PRAGMA_FUNCS,
