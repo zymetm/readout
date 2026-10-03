@@ -844,6 +844,32 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 .icor-sqlv-stat-caption.is-dropped,
 .icor-sqlv-stat-caption.is-line.is-dropped { display: none; }
 
+/* A meter under the number: a track, a fill in the level colour, and a
+ * tick at the target. It never shrinks; the caption lines give way first. */
+.icor-sqlv-meter {
+  position: relative;
+  flex: 0 0 auto;
+  height: 10px;
+  margin: var(--sqlv-s1) 0 2px;
+  border-radius: var(--sqlv-r-pill);
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-meter-fill {
+  height: 100%;
+  border-radius: var(--sqlv-r-pill);
+  background: var(--sqlv-fg-dim);
+}
+
+.icor-sqlv-meter-target {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--sqlv-fg-dim);
+}
+
 /* The footer sits at the bottom of the stat, the pill at its right. It
  * never shrinks; the change line above it gives way first. */
 .icor-sqlv-stat-foot {

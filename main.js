@@ -537,7 +537,9 @@ function parseDashboardSpec(text) {
       }
       const builtSize = checkValueSize(t.valueSize, t.viz, at);
       if (!builtSize.ok) return builtSize;
-      tiles.push(withValueSize(withLevels({
+      const builtMeter = checkMeter(t.meter, t.viz, at);
+      if (!builtMeter.ok) return builtMeter;
+      tiles.push(withMeter(withValueSize(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -556,7 +558,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck), builtSize));
+      }, levelCheck), builtSize), builtMeter));
       continue;
     }
 
@@ -578,7 +580,9 @@ function parseDashboardSpec(text) {
     if (!captionCheck.ok) return captionCheck;
     const sqlSize = checkValueSize(t.valueSize, t.viz, at);
     if (!sqlSize.ok) return sqlSize;
-    tiles.push(withValueSize(withCaptions(withLevels({
+    const sqlMeter = checkMeter(t.meter, t.viz, at);
+    if (!sqlMeter.ok) return sqlMeter;
+    tiles.push(withMeter(withValueSize(withCaptions(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -587,7 +591,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), captionCheck), sqlSize));
+    }, levelCheck), captionCheck), sqlSize), sqlMeter));
   }
   return {
     ok: true,
@@ -644,6 +648,69 @@ function checkValueSize(raw, viz, at) {
   return { ok: true, valueSize: raw };
 }
 
+/* A meter under a stat's number, opt-in per tile: "meter": {"min": 0,
+ * "max": 60, "target": 36} draws a bar filled to where the number sits
+ * between "min" and "max", in the widget's level colour (the theme's dim
+ * ink when it has none), with a tick at the optional "target". A number
+ * past either end fills to that end. Returns { ok, meter } or
+ * { ok, reason }. */
+function checkMeter(raw, viz, at) {
+  if (raw === undefined) return { ok: true, meter: undefined };
+  if (viz !== 'stat') return { ok: false, reason: at + ': "meter" only works on a stat widget (One big number).' };
+  const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !finite(raw.min) || !finite(raw.max) || raw.min >= raw.max) {
+    return { ok: false, reason: at + ': "meter" must be like {"min": 0, "max": 60, "target": 36}, with "min" below "max".' };
+  }
+  if (raw.target !== undefined && (!finite(raw.target) || raw.target < raw.min || raw.target > raw.max)) {
+    return { ok: false, reason: at + ': the "meter" "target" must be a number from "min" to "max".' };
+  }
+  const meter = { min: raw.min, max: raw.max };
+  if (raw.target !== undefined) meter.target = raw.target;
+  return { ok: true, meter };
+}
+
+function withMeter(tile, check) {
+  if (check.meter) tile.meter = check.meter;
+  return tile;
+}
+
+/* How full a meter is, 0 to 100, for a value between min and max. */
+function meterFill(value, meter) {
+  const v = Number(value);
+  if (!meter || !Number.isFinite(v)) return 0;
+  return Math.max(0, Math.min(100, ((v - meter.min) / (meter.max - meter.min)) * 100));
+}
+
+function renderMeter(wrap, value, tile, level) {
+  const m = tile.meter;
+  const track = wrap.createDiv({ cls: 'icor-sqlv-meter' });
+  const fill = track.createDiv({ cls: 'icor-sqlv-meter-fill' });
+  fill.style.setProperty('width', meterFill(value, m).toFixed(2) + '%');
+  if (level && level.known && level.color) fill.style.setProperty('background', level.color);
+  let text = formatNumber(Number(value)) + (tile.unit ? ' ' + tile.unit : '') + ' on a scale of ' + formatNumber(m.min) + ' to ' + formatNumber(m.max);
+  if (typeof m.target === 'number') {
+    const tick = track.createDiv({ cls: 'icor-sqlv-meter-target' });
+    tick.style.setProperty('left', meterFill(m.target, m).toFixed(2) + '%');
+    text += ', target ' + formatNumber(m.target);
+  }
+  track.setAttribute('role', 'img');
+  track.setAttribute('aria-label', text);
+  return track;
+}
+
+/* Settings the edit form has no field for yet. Editing a widget keeps
+ * them, as long as it stays the same type: a hand-written "meter"
+ * survives a save from the form. */
+const FORM_UNEDITED_KEYS = ['meter'];
+
+function keepUneditedKeys(tile, existing) {
+  if (!tile || !existing || existing.viz !== tile.viz) return tile;
+  for (const key of FORM_UNEDITED_KEYS) {
+    if (existing[key] !== undefined && tile[key] === undefined) tile[key] = existing[key];
+  }
+  return tile;
+}
+
 function withValueSize(tile, check) {
   if (check.valueSize !== undefined) tile.valueSize = check.valueSize;
   return tile;
@@ -688,6 +755,7 @@ function specToJson(spec) {
     }
     if (Array.isArray(t.captions) && t.captions.length) tile.captions = t.captions.slice();
     if (t.valueSize !== undefined) tile.valueSize = t.valueSize;
+    if (t.meter) tile.meter = Object.assign({}, t.meter);
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1048,7 +1116,7 @@ function pivotSeries(table) {
 function prepareTileForRender(tile, table) {
   if (!tile.source) return { spec: tile, table };
   if (tile.viz === 'stat') {
-    return { spec: { title: tile.title, viz: 'stat', y: ['value'], unit: tile.unit, ranges: tile.ranges, valueSize: tile.valueSize }, table };
+    return { spec: { title: tile.title, viz: 'stat', y: ['value'], unit: tile.unit, ranges: tile.ranges, valueSize: tile.valueSize, meter: tile.meter }, table };
   }
   if (tile.source.series) {
     const wide = pivotSeries(table);
@@ -2088,6 +2156,8 @@ function renderStatTile(parentEl, table, tile, extras) {
       pill.setAttribute('title', 'vs ' + formatNumber(Number(prev)) + (tile.unit ? ' ' + tile.unit : ''));
     }
   }
+  /* The meter sits under the number, above the caption lines. */
+  if (tile.meter && typeof tile.meter === 'object') renderMeter(wrap, value, tile, extras && extras.pillLevel);
   /* Named caption lines ("captions") are one line each, never wrapped,
    * cut with an ellipsis; the first stays plain (the change line), the
    * rest are a small bulleted list. The one caption of a tile without
@@ -4088,8 +4158,8 @@ class WidgetFormModal extends Modal {
     if (!canSave(this.previewState)) return;
     const built = this.buildTile();
     if (!built.ok) { new Notice(built.reason); return; }
-    const tile = built.tile;
     const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
+    const tile = keepUneditedKeys(built.tile, existing);
     if (this.state.sizeKey && SIZE_PRESETS[this.state.sizeKey]) {
       const p = SIZE_PRESETS[this.state.sizeKey];
       if (existing && existing.layout) {
@@ -5081,6 +5151,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 
 /* The pure library, exposed for the gates. */
 IcorSqliteViewerPlugin.lib = {
+  checkMeter, meterFill, keepUneditedKeys,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
   cliTable, wasmTable, toCsv,
