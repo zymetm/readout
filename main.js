@@ -535,7 +535,9 @@ function parseDashboardSpec(text) {
       if (t.captions !== undefined) {
         return { ok: false, reason: at + ': "captions" only work on an SQL stat widget; a built widget has one value and no other columns.' };
       }
-      tiles.push(withLevels({
+      const builtSize = checkValueSize(t.valueSize, t.viz, at);
+      if (!builtSize.ok) return builtSize;
+      tiles.push(withValueSize(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -554,7 +556,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck));
+      }, levelCheck), builtSize));
       continue;
     }
 
@@ -574,7 +576,9 @@ function parseDashboardSpec(text) {
     if (scoreCheck.rangeColumn) levelCheck.rangeColumn = scoreCheck.rangeColumn;
     const captionCheck = checkCaptions(t.captions, t.viz, at);
     if (!captionCheck.ok) return captionCheck;
-    tiles.push(withCaptions(withLevels({
+    const sqlSize = checkValueSize(t.valueSize, t.viz, at);
+    if (!sqlSize.ok) return sqlSize;
+    tiles.push(withValueSize(withCaptions(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -583,7 +587,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), captionCheck));
+    }, levelCheck), captionCheck), sqlSize));
   }
   return {
     ok: true,
@@ -619,6 +623,29 @@ function checkCaptions(raw, viz, at) {
 
 function withCaptions(tile, check) {
   if (check.captions) tile.captions = check.captions;
+  return tile;
+}
+
+/* Validate a stat tile's "valueSize": the size of its number, a whole
+ * number of pixels, or "fit" (the theme's size, made smaller until the
+ * number shows whole). Absent means the theme and any snippet decide, as
+ * before. Returns { ok, valueSize } or { ok, reason }. */
+const VALUE_SIZE_MIN = 12;
+const VALUE_SIZE_MAX = 120;
+const VALUE_SIZE_PRESETS = [[24, 'Small'], [34, 'Medium'], [48, 'Large'], [64, 'Extra large']];
+
+function checkValueSize(raw, viz, at) {
+  if (raw === undefined) return { ok: true, valueSize: undefined };
+  if (viz !== 'stat') return { ok: false, reason: at + ': "valueSize" only works on a stat widget (One big number).' };
+  if (raw === 'fit') return { ok: true, valueSize: 'fit' };
+  if (!Number.isInteger(raw) || raw < VALUE_SIZE_MIN || raw > VALUE_SIZE_MAX) {
+    return { ok: false, reason: at + ': "valueSize" must be a whole number of pixels from ' + VALUE_SIZE_MIN + ' to ' + VALUE_SIZE_MAX + ', or "fit" to shrink the number until it shows whole.' };
+  }
+  return { ok: true, valueSize: raw };
+}
+
+function withValueSize(tile, check) {
+  if (check.valueSize !== undefined) tile.valueSize = check.valueSize;
   return tile;
 }
 
@@ -660,6 +687,7 @@ function specToJson(spec) {
       if (t.rangeColumn) tile.rangeColumn = t.rangeColumn;
     }
     if (Array.isArray(t.captions) && t.captions.length) tile.captions = t.captions.slice();
+    if (t.valueSize !== undefined) tile.valueSize = t.valueSize;
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1020,7 +1048,7 @@ function pivotSeries(table) {
 function prepareTileForRender(tile, table) {
   if (!tile.source) return { spec: tile, table };
   if (tile.viz === 'stat') {
-    return { spec: { title: tile.title, viz: 'stat', y: ['value'], unit: tile.unit, ranges: tile.ranges }, table };
+    return { spec: { title: tile.title, viz: 'stat', y: ['value'], unit: tile.unit, ranges: tile.ranges, valueSize: tile.valueSize }, table };
   }
   if (tile.source.series) {
     const wide = pivotSeries(table);
@@ -2044,6 +2072,9 @@ function renderStatTile(parentEl, table, tile, extras) {
   const shown = formatNumber(typeof value === 'string' ? value : Number(value));
   line.createSpan({ text: shown });
   if (tile.unit) line.createSpan({ cls: 'icor-sqlv-stat-unit', text: ' ' + tile.unit });
+  /* A size of its own, set on the number itself, beats any theme or
+   * snippet rule. */
+  if (typeof tile.valueSize === 'number') line.style.setProperty('font-size', tile.valueSize + 'px');
   /* The comparison badge: the triangle points where the number went; the
    * color says whether that direction is good FOR THIS metric. */
   if (extras && extras.ghost && extras.ghost.rows && extras.ghost.rows.length) {
@@ -2083,7 +2114,8 @@ function renderStatTile(parentEl, table, tile, extras) {
     const pill = wrap.createDiv({ cls: 'icor-sqlv-stat-foot' }).createSpan({ cls: 'icor-sqlv-level-pill', text: level.label });
     pill.setAttribute('title', level.label);
   }
-  if (caps.length) fitStatCaption(wrap, caps.length === 1 && !named ? caps[0] : caps, extras && extras.observers, named);
+  const refitCaption = caps.length ? fitStatCaption(wrap, caps.length === 1 && !named ? caps[0] : caps, extras && extras.observers, named) : null;
+  if (tile.valueSize === 'fit') fitStatValue(wrap, line, extras && extras.observers, refitCaption);
   return shown + (tile.unit ? ' ' + tile.unit : '');
 }
 
@@ -2097,6 +2129,47 @@ function renderStatTile(parentEl, table, tile, extras) {
  * Where there is no layout (no ResizeObserver), the CSS two-line clamp
  * stands alone. */
 const STAT_CAPTION_STEPS = ['', 'is-clamped-1', 'is-dropped'];
+
+/* "Shrink to fit": the number starts at the theme's size and gets smaller
+ * until it shows whole, never below VALUE_SIZE_MIN. It measures, so it
+ * holds at any theme or snippet size, and it re-fits when the tile's width
+ * changes; the caption fits after it, since a smaller number leaves the
+ * caption more room. Its observer comes from the tile's own window and
+ * joins `observers` when given. */
+const STAT_VALUE_FALLBACK_PX = 34;
+
+function nextFitSize(size, clientWidth, scrollWidth) {
+  if (!(clientWidth > 0) || !(scrollWidth > clientWidth + 1)) return size;
+  return Math.max(VALUE_SIZE_MIN, Math.min(size - 1, Math.floor((size * clientWidth) / scrollWidth)));
+}
+
+function fitStatValue(statEl, lineEl, observers, after) {
+  const fit = () => {
+    lineEl.style.setProperty('font-size', '');
+    const win = lineEl.win;
+    const css = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(lineEl) : null;
+    let size = css ? parseFloat(css.fontSize) : NaN;
+    if (!Number.isFinite(size) || size <= 0) size = STAT_VALUE_FALLBACK_PX;
+    for (let i = 0; i < 128; i++) {
+      const next = nextFitSize(size, lineEl.clientWidth, lineEl.scrollWidth);
+      if (next >= size) break;
+      size = next;
+      lineEl.style.setProperty('font-size', size + 'px');
+    }
+    if (after) after();
+  };
+  let lastWidth = -1;
+  const observer = resizeObserverFor(statEl, () => {
+    if (!statEl.isConnected) { observer.disconnect(); return; }
+    if (statEl.clientWidth === lastWidth) return;
+    lastWidth = statEl.clientWidth;
+    fit();
+  });
+  if (!observer) return null;
+  observer.observe(statEl);
+  if (observers) observers.push(observer);
+  return fit;
+}
 
 function statCaptionSteps(n, oneLine) {
   if (!oneLine) return STAT_CAPTION_STEPS.map((step) => [step]);
@@ -3250,6 +3323,8 @@ class WidgetFormModal extends Modal {
       })) : [],
       rangeColumn: existing && existing.rangeColumn ? existing.rangeColumn : '',
       captions: existing && Array.isArray(existing.captions) ? existing.captions.join(', ') : '',
+      valueSize: existing && existing.valueSize !== undefined ? String(existing.valueSize) : '',
+      valueSizeCustom: !!(existing && typeof existing.valueSize === 'number' && !VALUE_SIZE_PRESETS.some(([px]) => px === existing.valueSize)),
       advancedOpen: false,
     };
     this.schema = null;
@@ -3366,7 +3441,9 @@ class WidgetFormModal extends Modal {
       const captionNames = s.captions.split(',').map((v) => v.trim()).filter(Boolean);
       const captions = tile.viz === 'stat' && captionNames.length ? checkCaptions(captionNames, tile.viz, 'This widget') : { ok: true };
       if (!captions.ok) return captions;
-      return { ok: true, tile: withCaptions(withLevels(tile, levels), captions) };
+      const sqlSize = this.valueSizeFromForm(tile.viz);
+      if (!sqlSize.ok) return sqlSize;
+      return { ok: true, tile: withValueSize(withCaptions(withLevels(tile, levels), captions), sqlSize) };
     }
     if (!s.database) return { ok: false, reason: 'Pick a database first.' };
     if (!s.table) return { ok: false, reason: 'Pick a table.' };
@@ -3407,7 +3484,54 @@ class WidgetFormModal extends Modal {
     source.filters = check.filters;
     const levels = this.levelsFromForm(viz);
     if (!levels.ok) return levels;
-    return { ok: true, tile: withLevels(tile, levels) };
+    const builtSize = this.valueSizeFromForm(viz);
+    if (!builtSize.ok) return builtSize;
+    return { ok: true, tile: withValueSize(withLevels(tile, levels), builtSize) };
+  }
+
+  /* The number size as a checked setting. Only a stat widget carries it;
+   * the choice stays in the form if the chart type changes back. */
+  valueSizeFromForm(viz) {
+    const s = this.state;
+    if (viz !== 'stat') return { ok: true, valueSize: undefined };
+    const text = String(s.valueSize || '').trim();
+    if (!text) {
+      if (s.valueSizeCustom) return { ok: false, reason: 'Number size: type a whole number of pixels from ' + VALUE_SIZE_MIN + ' to ' + VALUE_SIZE_MAX + '.' };
+      return { ok: true, valueSize: undefined };
+    }
+    return checkValueSize(text === 'fit' ? 'fit' : Number(text), viz, 'This widget');
+  }
+
+  renderValueSizeField(form, viz) {
+    if (viz !== 'stat') return;
+    const s = this.state;
+    const options = [['', 'Theme default']]
+      .concat(VALUE_SIZE_PRESETS.map(([px, text]) => [String(px), text + ' (' + px + ' px)']))
+      .concat([['fit', 'Shrink to fit'], ['custom', 'Custom']]);
+    this.nativeSelect(form, {
+      label: 'Number size', optional: true, options,
+      value: s.valueSizeCustom ? 'custom' : s.valueSize,
+      ariaLabel: 'Size of the number',
+      onChange: (v) => {
+        if (v === 'custom') {
+          if (!/^\d+$/.test(s.valueSize)) s.valueSize = '';
+          s.valueSizeCustom = true;
+        } else {
+          s.valueSize = v;
+          s.valueSizeCustom = false;
+        }
+        this.renderForm();
+        this.touch();
+      },
+    });
+    if (s.valueSizeCustom) {
+      const input = this.textInput(form, {
+        label: 'Number size in pixels', value: s.valueSize,
+        placeholder: VALUE_SIZE_MIN + ' to ' + VALUE_SIZE_MAX,
+        onInput: (v) => { s.valueSize = v.trim(); this.touch(); },
+      });
+      input.setAttribute('inputmode', 'numeric');
+    }
   }
 
   /* The form's range rows as checked ranges. Only a stat widget carries
@@ -3689,6 +3813,7 @@ class WidgetFormModal extends Modal {
       }
 
       this.renderRanges(form, s.agg === 'latest' ? 'stat' : s.viz);
+      this.renderValueSizeField(form, s.agg === 'latest' ? 'stat' : s.viz);
 
       this.nativeSelect(form, {
         label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
@@ -3949,6 +4074,7 @@ class WidgetFormModal extends Modal {
         placeholder: 'empty: the next column',
         onInput: (v) => { s.captions = v; this.touch(); },
       });
+      this.renderValueSizeField(form, s.viz);
     }
     this.nativeSelect(form, {
       label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
@@ -4970,7 +5096,7 @@ IcorSqliteViewerPlugin.lib = {
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
   deltaBadge, nextPreviewState, canSave, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
-  fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, normalizeLevels, normalizeLevelLooks, checkRanges, checkRangeColumn, checkCaptions, statCaptionSteps, CAPTIONS_MAX, levelOf, resolveLevel, levelLookFor,
+  fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, normalizeLevels, normalizeLevelLooks, checkRanges, checkRangeColumn, checkCaptions, statCaptionSteps, CAPTIONS_MAX, checkValueSize, fitStatValue, nextFitSize, VALUE_SIZE_PRESETS, levelOf, resolveLevel, levelLookFor,
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
   adoptLegacyFolders, LEGACY_DATA_FOLDER,
   shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, checkSqlite3Path, READ_PRAGMAS, READ_PRAGMA_FUNCS,
