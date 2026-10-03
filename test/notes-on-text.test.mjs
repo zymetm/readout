@@ -29,3 +29,9 @@ test('a text widget keeps its hint and footnote through the spec, the drawing an
   const bad = lib.parseDashboardSpec(JSON.stringify({ id: 'n', title: 'N', tiles: [{ viz: 'text', text: 'a', footnote: '' }] }));
   assert.match(bad.reason, /"footnote" must be text/);
 });
+
+test('editing a widget in the form keeps its hint and footnote', () => {
+  const kept = lib.keepUneditedKeys({ viz: 'line', title: 'New' }, { viz: 'line', hint: 'h', footnote: 'f' });
+  assert.equal(kept.hint, 'h');
+  assert.equal(kept.footnote, 'f');
+});

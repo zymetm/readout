@@ -1441,7 +1441,7 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS, ['meter']);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS, ['meter'], ['hint', 'footnote']);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
