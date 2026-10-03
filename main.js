@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'segments']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -493,7 +493,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat or table.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat or table, or segments.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -513,6 +513,7 @@ function parseDashboardSpec(text) {
     if (t.source !== undefined) {
       /* A built widget. */
       if (t.viz === 'table') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a table.' };
+      if (t.viz === 'segments') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a segments bar.' };
       const check = checkWidgetSource(t.source, t.viz, at);
       if (!check.ok) return check;
       if (!t.source.database && !database) return { ok: false, reason: at + ' needs a database, on the widget or on the dashboard.' };
@@ -567,7 +568,9 @@ function parseDashboardSpec(text) {
     const scoreCheck = checkRangeColumn(t.rangeColumn, t.viz, levelCheck.ranges, y, at);
     if (!scoreCheck.ok) return scoreCheck;
     if (scoreCheck.rangeColumn) levelCheck.rangeColumn = scoreCheck.rangeColumn;
-    tiles.push(withLevels({
+    const segCheck = checkSegments(t, y, levelCheck, at);
+    if (!segCheck.ok) return segCheck;
+    tiles.push(withSegments(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -576,7 +579,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck));
+    }, levelCheck), segCheck));
   }
   return {
     ok: true,
@@ -634,6 +637,8 @@ function specToJson(spec) {
       });
       if (t.rangeColumn) tile.rangeColumn = t.rangeColumn;
     }
+
+    if (t.segmentColors && Object.keys(t.segmentColors).length) tile.segmentColors = Object.assign({}, t.segmentColors);
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1065,11 +1070,111 @@ function colsForWidth(width) {
   return Math.max(GRID_MIN_COLS, Math.min(GRID_MAX_COLS, cols));
 }
 
+/* A segments bar: one horizontal bar split into the rows of the query,
+ * each as wide as its share of the total: how a whole divides. "x" names
+ * each part, "y" sizes it, in the query's order. "segmentColors" colours
+ * the parts by name ({"Done": "#51af6f"}); a part without one takes the
+ * theme's series colours. Like a stat, "ranges" with a "rangeColumn"
+ * judge one number from the first row and mark the widget with a level.
+ * Returns { ok, colors } or { ok, reason }. */
+const SEGMENTS_MAX = 12;
+const SEGMENT_LABEL_MIN_SHARE = 8;
+
+function checkSegments(t, y, levelCheck, at) {
+  if (t.viz !== 'segments') {
+    if (t.segmentColors !== undefined) return { ok: false, reason: at + ': "segmentColors" only work on a segments bar.' };
+    return { ok: true, colors: undefined };
+  }
+  if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for a segments bar: the name of each part.' };
+  if (y.length !== 1) return { ok: false, reason: at + ' needs one "y" column for a segments bar: the size of each part.' };
+  if (levelCheck.ranges && !levelCheck.rangeColumn) {
+    return { ok: false, reason: at + ': a segments bar has no single value, so its "ranges" need a "rangeColumn" to judge.' };
+  }
+  const raw = t.segmentColors;
+  if (raw === undefined) return { ok: true, colors: undefined };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, reason: at + ': "segmentColors" must be an object like {"Done": "#51af6f"}.' };
+  }
+  const colors = {};
+  for (const [name, color] of Object.entries(raw)) {
+    if (!isLevelColor(color)) return { ok: false, reason: at + ': the colour for "' + name + '" in "segmentColors" must be a theme colour like "var(--color-green)" or a hex colour like "#51af6f".' };
+    colors[name] = color.trim();
+  }
+  return { ok: true, colors };
+}
+
+function withSegments(tile, check) {
+  if (check.colors && Object.keys(check.colors).length) tile.segmentColors = check.colors;
+  return tile;
+}
+
+/* The parts of a segments bar: name, value, share of the total (0 to
+ * 100) and colour, for the rows with a positive value. Pure. */
+function segmentsOf(table, tile) {
+  const xi = columnIndex(table.columns, tile.x);
+  const yi = columnIndex(table.columns, (tile.y || [])[0]);
+  if (xi < 0 || yi < 0) return [];
+  const rows = table.rows.slice(0, SEGMENTS_MAX)
+    .map((r) => ({ name: r[xi] === null || r[xi] === undefined ? '' : String(r[xi]), value: Number(r[yi]) }))
+    .filter((p) => Number.isFinite(p.value) && p.value >= 0);
+  const total = rows.reduce((a, p) => a + p.value, 0);
+  const palette = seriesPaletteFor(Math.max(2, rows.length));
+  const own = tile.segmentColors || {};
+  return rows.map((p, i) => Object.assign(p, {
+    share: total > 0 ? (p.value / total) * 100 : 0,
+    color: Object.prototype.hasOwnProperty.call(own, p.name) && isLevelColor(own[p.name]) ? own[p.name] : palette[i],
+  }));
+}
+
+function renderSegments(parentEl, table, tile, extras) {
+  const parts = segmentsOf(table, tile);
+  if (!parts.length || !parts.some((p) => p.value > 0)) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return null;
+  }
+  const unit = tile.unit ? (tile.unit === '%' ? '%' : ' ' + tile.unit) : '';
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-segments' });
+  const bar = wrap.createDiv({ cls: 'icor-sqlv-segments-bar' });
+  bar.setAttribute('role', 'img');
+  bar.setAttribute('aria-label', parts.map((p) => p.name + ': ' + formatNumber(p.value) + unit).join('. '));
+  for (const p of parts) {
+    if (p.value <= 0) continue;
+    const seg = bar.createDiv({ cls: 'icor-sqlv-segment' });
+    seg.style.setProperty('width', p.share.toFixed(3) + '%');
+    seg.style.setProperty('background', p.color);
+    seg.setAttribute('title', p.name + ': ' + formatNumber(p.value) + unit);
+    if (p.share >= SEGMENT_LABEL_MIN_SHARE) seg.createSpan({ cls: 'icor-sqlv-segment-label', text: Math.round(p.share) + '%' });
+  }
+  const legend = wrap.createDiv({ cls: 'icor-sqlv-segments-legend' });
+  for (const p of parts) {
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip is-round' });
+    chip.style.setProperty('background', p.color);
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name });
+    item.createSpan({ cls: 'icor-sqlv-segments-value', text: formatNumber(p.value) + unit });
+  }
+  const level = extras && extras.pillLevel;
+  if (level && level.known && level.label) {
+    wrap.createDiv({ cls: 'icor-sqlv-stat-foot' }).createSpan({ cls: 'icor-sqlv-level-pill', text: level.label }).setAttribute('title', level.label);
+  }
+  return parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
+}
+
+/* The level a segments bar lands on: its ranges judge the "rangeColumn"
+ * of the first row. */
+function segmentsLevelOf(table, tile, extras) {
+  if (!tile.rangeColumn || !table.rows.length) return null;
+  const idx = columnIndex(table.columns, tile.rangeColumn);
+  if (idx < 0) return null;
+  return resolveLevel(table.rows[0][idx], tile, extras && extras.levels);
+}
+
 /* The span a widget gets when its spec carries none (a 0.2.x file):
  * a stat is a small square, a chart a 2x2 block, a table a wide 3x2. */
 function defaultSpanFor(tile) {
   if (tile.viz === 'stat') return { w: 1, h: 1 };
   if (tile.viz === 'table') return { w: 3, h: 2 };
+  if (tile.viz === 'segments') return { w: 3, h: 1 };
   return { w: 2, h: 2 };
 }
 
@@ -1255,7 +1360,7 @@ function normalizeLevelLooks(raw) {
 /* Validate a tile's "ranges". Returns { ok, ranges } or { ok, reason }. */
 function checkRanges(raw, viz, at) {
   if (raw === undefined) return { ok: true, ranges: undefined };
-  if (viz !== 'stat') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number).' };
+  if (viz !== 'stat' && viz !== 'segments') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number) or a segments bar.' };
   if (!Array.isArray(raw)) return { ok: false, reason: at + ': "ranges" must be a list like [{"low": 18.5, "high": 24.9, "level": "Good"}].' };
   if (raw.length > RANGES_MAX) return { ok: false, reason: at + ': "ranges" can hold at most ' + RANGES_MAX + ' ranges.' };
   const out = [];
@@ -1305,7 +1410,7 @@ function checkRanges(raw, viz, at) {
 function checkRangeColumn(raw, viz, ranges, y, at) {
   if (raw === undefined) return { ok: true, rangeColumn: undefined };
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: at + ': "rangeColumn" must be the name of a column from the query.' };
-  if (viz !== 'stat') return { ok: false, reason: at + ': "rangeColumn" only works on a stat widget (One big number).' };
+  if (viz !== 'stat' && viz !== 'segments') return { ok: false, reason: at + ': "rangeColumn" only works on a stat widget (One big number) or a segments bar.' };
   if (!ranges) return { ok: false, reason: at + ': "rangeColumn" needs "ranges" to judge it against.' };
   const name = raw.trim();
   if (Array.isArray(y) && y[0] === name) return { ok: false, reason: at + ': "rangeColumn" is the shown value already; leave it out and the ranges judge the value.' };
@@ -2139,6 +2244,14 @@ function renderTile(tileEl, tileSpec, table, extras) {
   if (tileSpec.title) {
     const title = tileEl.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title });
     title.setAttribute('title', tileSpec.title);
+  }
+  if (tileSpec.viz === 'segments') {
+    /* Like a stat: the level marks the whole widget, the pill closes it. */
+    const level = segmentsLevelOf(table, tileSpec, extras);
+    const segBody = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
+    const shown = renderSegments(segBody, table, tileSpec, Object.assign({}, extras, { pillLevel: level }));
+    applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
+    return;
   }
   const body = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
   if (tileSpec.viz === 'line') renderLineChart(body, table, tileSpec, extras);
@@ -4884,6 +4997,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 
 /* The pure library, exposed for the gates. */
 IcorSqliteViewerPlugin.lib = {
+  checkSegments, segmentsOf,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
   cliTable, wasmTable, toCsv,
