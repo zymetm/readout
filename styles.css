@@ -1241,6 +1241,13 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   cursor: default;
 }
 
+/* What a save would leave out: the warning rail, the words stay ink. */
+.icor-sqlv-form-dropped:not(:empty) {
+  border-left: 3px solid var(--sqlv-warning);
+  padding-left: var(--sqlv-s2);
+  color: var(--sqlv-fg);
+}
+
 /* The form stacks on narrow panes: preview above the Save button. */
 @media (max-width: 700px) {
   .icor-sqlv-form-panes { flex-direction: column; }
