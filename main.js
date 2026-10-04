@@ -7299,7 +7299,14 @@ class JsonFileView extends FileView {
       /* The save goes through Vault.process and writes only over the text
        * this editor loaded: a file that changed on disk since (a save from
        * the dashboards view, or a Sync arrival) is never overwritten. */
-      const save = async () => {
+      /* One save at a time: a click on "Done editing" first blurs the
+       * editor, so its save waits for the blur's save and then finds
+       * nothing left to write, instead of racing it. */
+      const save = () => {
+        this.saveChain = (this.saveChain || Promise.resolve()).then(saveNow, saveNow);
+        return this.saveChain;
+      };
+      const saveNow = async () => {
         if (area.value === this.text) return true;
         const loaded = this.text;
         const next = area.value;
