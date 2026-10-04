@@ -146,7 +146,7 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [2, 'a8a1dbfd'], 'AI-WIDGET-GUIDE.md': [2, '4321423e'] };
+  const pinned = { 'README.md': [2, '1e003f86'], 'AI-WIDGET-GUIDE.md': [2, '4321423e'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }

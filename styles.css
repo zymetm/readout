@@ -1910,3 +1910,24 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ---------------------------------------------- samples in the help file -- */
+
+/* A sample widget drawn in a note by the help file's code blocks. The box
+ * has a fixed height, as a grid cell gives a tile on a dashboard, because
+ * the charts measure their box; the tile fills it. */
+.icor-sqlv-sample {
+  max-width: 640px;
+  margin: var(--sqlv-s2) 0 var(--sqlv-s4);
+}
+
+.icor-sqlv-sample.is-chart { height: 260px; }
+
+.icor-sqlv-sample.is-short { height: 150px; }
+
+.icor-sqlv-sample.is-thin { height: 32px; }
+
+.icor-sqlv-sample > .icor-sqlv-tile {
+  height: 100%;
+  box-sizing: border-box;
+}

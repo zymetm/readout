@@ -107,6 +107,13 @@ export function makeObsidian({ desktop = true } = {}) {
     constructor(leaf) { super(leaf); this.file = null; }
   }
   class TFile { constructor(path) { this.path = path; } }
+  /* A rendered block's owner: Obsidian calls onload when the block is
+   * added and onunload when the note goes; a gate calls them by hand. */
+  class MarkdownRenderChild extends Component {
+    constructor(containerEl) { super(); this.containerEl = containerEl; }
+    onload() {}
+    onunload() {}
+  }
   return {
     Plugin: class extends Component {
       constructor(app, manifest) { super(); this.app = app; this.manifest = manifest; this.saved = null; }
@@ -117,6 +124,7 @@ export function makeObsidian({ desktop = true } = {}) {
       addRibbonIcon() { return makeEl('div'); }
       addCommand(c) { (this.commands || (this.commands = [])).push(c); }
       addSettingTab() {}
+      registerMarkdownCodeBlockProcessor(lang, handler) { (this.codeBlocks || (this.codeBlocks = {}))[lang] = handler; }
     },
     PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; this.containerEl = makeEl('div'); } },
     Setting: class { constructor() { return chain(); } },
@@ -125,7 +133,7 @@ export function makeObsidian({ desktop = true } = {}) {
     Platform: { isDesktopApp: desktop, isMobile: !desktop, isMobileApp: !desktop, isMacOS: true, isWin: false, isLinux: false },
     setIcon: (el, icon) => { el.attrs['data-icon'] = icon; },
     normalizePath: (p) => String(p).replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, ''),
-    ItemView, FileView, TFile,
+    ItemView, FileView, TFile, MarkdownRenderChild,
     TFolder: class {},
   };
 }

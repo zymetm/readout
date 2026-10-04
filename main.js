@@ -61,7 +61,7 @@
 
 const {
   Plugin, PluginSettingTab, Setting, Modal, Notice, Platform, setIcon,
-  ItemView, FileView, TFile, TFolder, normalizePath,
+  ItemView, FileView, TFile, TFolder, normalizePath, MarkdownRenderChild,
 } = require('obsidian');
 
 /* ------------------------------------------------------------ constants -- */
@@ -7506,8 +7506,17 @@ Editing dashboard files by hand, or asking an AI to? Use \`AI-WIDGET-GUIDE.md\` 
 
 ## Line chart and bar chart
 
-<!-- image slot: line-chart -->
-<!-- image slot: bar-chart -->
+*Sample: a line chart of orders per day, with a dashed goal line. Every number in the samples is invented.*
+
+\`\`\`sqlite-viewer-sample
+line
+\`\`\`
+
+*Sample: a bar chart of orders per week, web and shop stacked.*
+
+\`\`\`sqlite-viewer-sample
+bar
+\`\`\`
 
 **What it shows:** how a number changes over time or across groups, as a line or as bars.
 
@@ -7532,7 +7541,11 @@ Shared: colours and scrub line, change and roll-up, axis, guide lines and zones,
 
 ## Bars and lines (combo)
 
-<!-- image slot: combo-chart -->
+*Sample: orders per month as bars, with the return rate as a dashed line on the right axis.*
+
+\`\`\`sqlite-viewer-sample
+combo
+\`\`\`
 
 **What it shows:** bars and lines on one chart, each on a left or right scale.
 
@@ -7567,7 +7580,11 @@ Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines a
 
 ## One big number
 
-<!-- image slot: one-big-number -->
+*Sample: one big number, orders this month, with a caption line, a meter and a level.*
+
+\`\`\`sqlite-viewer-sample
+stat
+\`\`\`
 
 **What it shows:** one number, large, with optional small lines under it.
 
@@ -7588,7 +7605,11 @@ Shared: number size, value levels, meter, hint and footnote.
 
 ## Table
 
-<!-- image slot: table -->
+*Sample: a table of the latest orders.*
+
+\`\`\`sqlite-viewer-sample
+table
+\`\`\`
 
 **What it shows:** the query's rows, as written.
 
@@ -7604,7 +7625,11 @@ No settings of its own. Shared: hint and footnote.
 
 ## Part-to-whole bar (segments)
 
-<!-- image slot: segments -->
+*Sample: a part-to-whole bar of tasks by status.*
+
+\`\`\`sqlite-viewer-sample
+segments
+\`\`\`
 
 **What it shows:** one bar split into parts, each as wide as its share of the total.
 
@@ -7626,7 +7651,11 @@ Shared: value levels, hint and footnote.
 
 ## Heatmap
 
-<!-- image slot: heatmap -->
+*Sample: a heatmap of orders by weekday and hour, coloured by value levels.*
+
+\`\`\`sqlite-viewer-sample
+heatmap
+\`\`\`
 
 **What it shows:** a grid of cells, each coloured by its value.
 
@@ -7659,7 +7688,11 @@ Shared: value levels, hint and footnote.
 
 ## Text
 
-<!-- image slot: text -->
+*Sample: a text widget with two short paragraphs.*
+
+\`\`\`sqlite-viewer-sample
+text
+\`\`\`
 
 **What it shows:** plain words on the dashboard, written by you or filled from a query.
 
@@ -7685,7 +7718,11 @@ Shared: hint and footnote.
 
 ## Section divider
 
-<!-- image slot: section-divider -->
+*Sample: a section divider with the heading Sales.*
+
+\`\`\`sqlite-viewer-sample
+divider
+\`\`\`
 
 **What it shows:** a thin line with an optional heading that separates groups of widgets.
 
@@ -8355,6 +8392,124 @@ const GUIDE_FILES = [
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 2, legacy: [] },
 ];
 
+/* Live samples in the help file. Each widget section of the help file
+ * carries a small code block, ```sqlite-viewer-sample with one word in it
+ * (the widget type), and the plugin draws a sample widget there with the
+ * real renderer and the fixed, invented rows below: no file, no query, no
+ * network, and it always looks like the widget does in this version and
+ * this theme. Without the plugin (or on GitHub) the block shows as a plain
+ * code block, so the caption above it says in words what it is.
+ *
+ * The samples use the default levels and looks, never the member's
+ * settings, so a sample looks the same in every vault. Nothing here is
+ * relative to today: no date highlight, no "last N days". */
+const SAMPLE_BLOCK_LANG = 'sqlite-viewer-sample';
+
+const SAMPLE_HEAT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+const SAMPLE_HEAT_ROWS = [];
+for (let d = 0; d < SAMPLE_HEAT_DAYS.length; d++) {
+  for (let hr = 9; hr <= 17; hr++) {
+    /* A made-up week: busy late mornings, a lunch dip, a quiet Monday. */
+    const base = hr === 12 || hr === 13 ? 3 : (hr >= 10 && hr <= 11) || (hr >= 14 && hr <= 15) ? 9 : 5;
+    SAMPLE_HEAT_ROWS.push([SAMPLE_HEAT_DAYS[d], String(hr), Math.max(0, base + ((d * 7 + hr * 3) % 5) - 2 - (d === 0 ? 2 : 0))]);
+  }
+}
+
+const WIDGET_SAMPLES = {
+  line: {
+    size: 'chart',
+    spec: { title: 'Orders per day', viz: 'line', x: 'day', y: ['orders'], unit: 'orders', refLines: [{ y: 40, label: 'goal', dash: '4 3' }] },
+    table: { columns: ['day', 'orders'], rows: [['2026-01-05', 31], ['2026-01-06', 35], ['2026-01-07', 33], ['2026-01-08', 38], ['2026-01-09', 44], ['2026-01-10', 41], ['2026-01-11', 29], ['2026-01-12', 34], ['2026-01-13', 39], ['2026-01-14', 42], ['2026-01-15', 40], ['2026-01-16', 47], ['2026-01-17', 45], ['2026-01-18', 36]] },
+  },
+  bar: {
+    size: 'chart',
+    spec: { title: 'Orders per week, by channel', viz: 'bar', x: 'week', y: ['web', 'shop'], stack: true, unit: 'orders' },
+    table: { columns: ['week', 'web', 'shop'], rows: [['W1', 120, 80], ['W2', 135, 76], ['W3', 128, 90], ['W4', 150, 85], ['W5', 162, 70], ['W6', 158, 88], ['W7', 171, 92], ['W8', 180, 84]] },
+  },
+  combo: {
+    size: 'chart',
+    spec: { title: 'Orders and return rate', viz: 'combo', x: 'month', unit: 'orders', y2Unit: '%', y2TickSuffix: '%', y2Min: 0,
+      series: [{ column: 'orders', kind: 'bar' }, { column: 'returns', kind: 'line', axis: 'right', dash: '4 3', label: 'return rate' }] },
+    table: { columns: ['month', 'orders', 'returns'], rows: [['Jan', 820, 6.1], ['Feb', 760, 5.4], ['Mar', 910, 4.8], ['Apr', 980, 5.2], ['May', 1040, 4.1], ['Jun', 1120, 3.7]] },
+  },
+  stat: {
+    size: 'short',
+    spec: { title: 'Orders this month', viz: 'stat', y: ['orders'], unit: 'orders', meter: { min: 0, max: 1500, target: 1200 },
+      ranges: [{ low: 1200, level: 'Good', label: 'on track' }, { level: 'Watch', label: 'behind' }] },
+    table: { columns: ['orders', 'note'], rows: [[1240, '+12% on last month']] },
+  },
+  table: {
+    size: 'chart',
+    spec: { title: 'Latest orders', viz: 'table' },
+    table: { columns: ['order', 'day', 'channel', 'total'], rows: [['1048', '2026-01-18', 'Web', 64.5], ['1047', '2026-01-18', 'Shop', 22], ['1046', '2026-01-17', 'Web', 118.9], ['1045', '2026-01-17', 'Web', 41.25], ['1044', '2026-01-16', 'Shop', 9.5]] },
+  },
+  segments: {
+    size: 'short',
+    spec: { title: 'Tasks by status', viz: 'segments', x: 'status', y: ['tasks'], unit: 'tasks' },
+    table: { columns: ['status', 'tasks'], rows: [['To do', 8], ['Doing', 5], ['Done', 12]] },
+  },
+  heatmap: {
+    size: 'chart',
+    spec: { title: 'Orders by weekday and hour', viz: 'heatmap', row: 'day', column: 'hour', value: 'orders', unit: 'orders',
+      ranges: [{ low: 8, level: 'Good' }, { low: 4, level: 'Watch' }, { level: 'Alert' }] },
+    table: { columns: ['day', 'hour', 'orders'], rows: SAMPLE_HEAT_ROWS },
+  },
+  text: {
+    size: 'short',
+    spec: { title: 'About this dashboard', viz: 'text', text: 'Every number here is invented.\n\nOrders count once they are paid; returns count in the month they come back.' },
+    table: { columns: [], rows: [] },
+  },
+  divider: {
+    size: 'thin',
+    spec: { title: 'Sales', viz: 'divider' },
+    table: { columns: [], rows: [] },
+  },
+};
+
+/* The tile classes the dashboards view gives a widget of this type. */
+function sampleTileClass(tile) {
+  return 'icor-sqlv-tile' + (tile.viz === 'stat' ? ' is-stat' : '') + (tile.viz === 'divider' ? ' is-divider' : '') +
+    (tile.viz === 'text' ? ' is-text' + (tile.line === true ? ' is-line' : '') : '');
+}
+
+/* Draw the sample named by a block's text into `el`. Returns whether a
+ * sample was drawn; an unknown word gets a short line, never an error.
+ * `observers` collects the resize observers the widget makes, so the
+ * owner can disconnect them. */
+function renderWidgetSample(el, word, observers) {
+  const key = String(word || '').trim();
+  const sample = Object.prototype.hasOwnProperty.call(WIDGET_SAMPLES, key) ? WIDGET_SAMPLES[key] : null;
+  if (!sample) {
+    el.createDiv({ cls: 'icor-sqlv-note icor-sqlv-sample-missing', text: 'No sample for this widget type.' });
+    return false;
+  }
+  const box = el.createDiv({ cls: 'icor-sqlv-sample is-' + sample.size });
+  /* The plugin's colour and font tokens live under this attribute. */
+  box.setAttribute('data-ink-plugin', 'icor-for-life-sqlite-viewer');
+  const tileEl = box.createDiv({ cls: sampleTileClass(sample.spec) });
+  renderTile(tileEl, sample.spec, sample.table, { observers, levels: DEFAULT_LEVELS, levelLooks: DEFAULT_LEVEL_LOOKS });
+  return true;
+}
+
+/* One sample block in a note: drawn when the block loads, its observers
+ * released when the block goes (the note closes or re-renders). */
+class WidgetSampleChild extends MarkdownRenderChild {
+  constructor(containerEl, word) {
+    super(containerEl);
+    this.word = word;
+    this.observers = [];
+  }
+
+  onload() {
+    renderWidgetSample(this.containerEl, this.word, this.observers);
+  }
+
+  onunload() {
+    for (const observer of this.observers) observer.disconnect();
+    this.observers = [];
+  }
+}
+
 const STARTER_DASHBOARDS = [
   {
     file: 'health-overview.json',
@@ -8494,6 +8649,8 @@ class IcorSqliteViewerPlugin extends Plugin {
     this.query = new QueryService(this);
     this.query.detect();
 
+    /* The help file's live samples (see WIDGET_SAMPLES). */
+    this.registerMarkdownCodeBlockProcessor(SAMPLE_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetSampleChild(el, source)); });
     this.registerView(VIEW_BROWSER, (leaf) => new SqliteBrowserView(leaf, this));
     this.registerView(VIEW_DASHBOARDS, (leaf) => new SqliteDashboardsView(leaf, this));
     this.registerView(VIEW_JSON, (leaf) => new JsonFileView(leaf, this));
@@ -8945,7 +9102,7 @@ IcorSqliteViewerPlugin.lib = {
   matchesNeedle, colsForWidth, defaultSpanFor, clampLayout, rectsCollide,
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
-  deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, DASHBOARD_README, AI_WIDGET_GUIDE, GUIDE_FILES, guideHash, guideTextFor, guideIsPluginOwn, guideRevision, guideRefreshFor, refreshGuideFile, VIZ_KINDS, SIZE_PRESETS, sizePresetOf, makeDebounce,
+  deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, DASHBOARD_README, AI_WIDGET_GUIDE, GUIDE_FILES, SAMPLE_BLOCK_LANG, WIDGET_SAMPLES, renderWidgetSample, WidgetSampleChild, guideHash, guideTextFor, guideIsPluginOwn, guideRevision, guideRefreshFor, refreshGuideFile, VIZ_KINDS, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, checkChartColors, chartPaletteFor, normalizeLevels, levelIdFor, planLevelRename, renameLevelInDashboard, normalizeLevelLooks, checkRanges, checkLevelColors, checkTileLevels, levelOf, resolveLevel, levelLookFor,
   headerDeltaOf, checkHeaderDelta, chartRangeOf, chartCaptionOf,

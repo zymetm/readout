@@ -15,8 +15,17 @@ Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in
 
 ## Line chart and bar chart
 
-<!-- image slot: line-chart -->
-<!-- image slot: bar-chart -->
+*Sample: a line chart of orders per day, with a dashed goal line. Every number in the samples is invented.*
+
+```sqlite-viewer-sample
+line
+```
+
+*Sample: a bar chart of orders per week, web and shop stacked.*
+
+```sqlite-viewer-sample
+bar
+```
 
 **What it shows:** how a number changes over time or across groups, as a line or as bars.
 
@@ -41,7 +50,11 @@ Shared: colours and scrub line, change and roll-up, axis, guide lines and zones,
 
 ## Bars and lines (combo)
 
-<!-- image slot: combo-chart -->
+*Sample: orders per month as bars, with the return rate as a dashed line on the right axis.*
+
+```sqlite-viewer-sample
+combo
+```
 
 **What it shows:** bars and lines on one chart, each on a left or right scale.
 
@@ -76,7 +89,11 @@ Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines a
 
 ## One big number
 
-<!-- image slot: one-big-number -->
+*Sample: one big number, orders this month, with a caption line, a meter and a level.*
+
+```sqlite-viewer-sample
+stat
+```
 
 **What it shows:** one number, large, with optional small lines under it.
 
@@ -97,7 +114,11 @@ Shared: number size, value levels, meter, hint and footnote.
 
 ## Table
 
-<!-- image slot: table -->
+*Sample: a table of the latest orders.*
+
+```sqlite-viewer-sample
+table
+```
 
 **What it shows:** the query's rows, as written.
 
@@ -113,7 +134,11 @@ No settings of its own. Shared: hint and footnote.
 
 ## Part-to-whole bar (segments)
 
-<!-- image slot: segments -->
+*Sample: a part-to-whole bar of tasks by status.*
+
+```sqlite-viewer-sample
+segments
+```
 
 **What it shows:** one bar split into parts, each as wide as its share of the total.
 
@@ -135,7 +160,11 @@ Shared: value levels, hint and footnote.
 
 ## Heatmap
 
-<!-- image slot: heatmap -->
+*Sample: a heatmap of orders by weekday and hour, coloured by value levels.*
+
+```sqlite-viewer-sample
+heatmap
+```
 
 **What it shows:** a grid of cells, each coloured by its value.
 
@@ -168,7 +197,11 @@ Shared: value levels, hint and footnote.
 
 ## Text
 
-<!-- image slot: text -->
+*Sample: a text widget with two short paragraphs.*
+
+```sqlite-viewer-sample
+text
+```
 
 **What it shows:** plain words on the dashboard, written by you or filled from a query.
 
@@ -194,7 +227,11 @@ Shared: hint and footnote.
 
 ## Section divider
 
-<!-- image slot: section-divider -->
+*Sample: a section divider with the heading Sales.*
+
+```sqlite-viewer-sample
+divider
+```
 
 **What it shows:** a thin line with an optional heading that separates groups of widgets.
 
@@ -315,4 +352,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint a8a1dbfd). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint 1e003f86). If you edit this file, the plugin stops updating it. -->
