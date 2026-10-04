@@ -1561,3 +1561,54 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 /* The form's preview shows the divider at its real thin height. */
 .icor-sqlv-tile.is-preview.is-divider { height: 24px; }
+
+
+/* ----------------------------------------- change over the period (chart) -- */
+
+/* A chart's title row can carry its change over the period at the right,
+ * styled like the stat caption. The title gives way first (ellipsis); the
+ * change stays whole on one line. */
+.icor-sqlv-tile-titlebar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sqlv-s2);
+  min-width: 0;
+  flex: 0 0 auto;
+  margin-bottom: var(--sqlv-s3);
+}
+
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-head-delta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A roll-up ("chartCaption") sits in the same corner, like the change:
+ * one line, never wrapped; the title gives way first (ellipsis), and
+ * only a roll-up wider than the whole row is cut, with an ellipsis. */
+.icor-sqlv-head-rollup {
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
