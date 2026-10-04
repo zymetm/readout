@@ -4206,6 +4206,19 @@ class SqliteDashboardsView extends ItemView {
   getIcon() { return 'bar-chart-3'; }
   getDisplayText() { return 'Dashboards'; }
 
+  /* The pane's "More options" menu: the open dashboard's file as text,
+   * for any setting the edit form has no field for. */
+  onPaneMenu(menu, source) {
+    if (super.onPaneMenu) super.onPaneMenu(menu, source);
+    const spec = this.specs.find((s) => s.id === this.activeId);
+    if (!spec || !spec.path) return;
+    menu.addItem((item) => {
+      item.setTitle('Open dashboard file as text');
+      item.setIcon('file-code');
+      item.onClick(() => this.plugin.openDashboardAsText(spec.path, this.leaf));
+    });
+  }
+
   async onOpen() {
     try {
       await this.reload();
@@ -4485,6 +4498,13 @@ class SqliteDashboardsView extends ItemView {
       this.editMode = !this.editMode;
       this.render();
     });
+    if (this.editMode && spec.path) {
+      const textBtn = header.createEl('button', { cls: 'icor-sqlv-edit-toggle icor-sqlv-edit-text' });
+      setIcon(textBtn, 'file-code');
+      textBtn.createSpan({ text: 'As text' });
+      textBtn.setAttribute('aria-label', 'Open the dashboard file as text, for settings the edit form has no field for');
+      textBtn.addEventListener('click', () => this.plugin.openDashboardAsText(spec.path, this.leaf));
+    }
   }
 
   /* Move by dragging the tile, resize by dragging the corner handle.
@@ -6201,6 +6221,9 @@ class JsonFileView extends FileView {
     this.text = null;
     this.tooBig = false;
     this.editing = false;
+    /* Set by "Open as text": a dashboard file stays here, in the text
+     * editor, instead of going to the builder. */
+    this.asText = false;
   }
 
   getViewType() { return VIEW_JSON; }
@@ -6208,34 +6231,55 @@ class JsonFileView extends FileView {
   getDisplayText() { return this.file ? this.file.name : 'JSON'; }
   canAcceptExtension(ext) { return String(ext).toLowerCase() === 'json'; }
 
+  /* "Open as text" rides the view state, like any Obsidian view option, so
+   * it survives a workspace reload and works on every device. */
+  getState() {
+    const state = super.getState ? super.getState() : {};
+    if (this.asText) state.asText = true;
+    return state;
+  }
+
+  async setState(state, result) {
+    this.asText = !!(state && state.asText);
+    if (super.setState) await super.setState(state, result);
+    /* The same file already loaded: switch to the editor in place. */
+    if (this.asText && this.text !== null && !this.tooBig && !this.editing) {
+      this.editing = true;
+      this.render();
+    }
+  }
+
   async onLoadFile(file) {
-    this.editing = false;
     this.tooBig = file.stat.size > JSON_RENDER_CAP;
+    this.editing = this.asText && !this.tooBig;
     this.text = await this.app.vault.read(file);
 
     /* A dashboard spec does not belong in a raw reader: hand the leaf to
-     * the builder, after this load settles. */
-    if (!this.tooBig) {
+     * the builder, after this load settles. Unless it was opened as text. */
+    if (!this.tooBig && !this.asText) {
       const parsed = parseDashboardSpec(this.text);
       if (parsed.ok) {
-        const leaf = this.leaf;
-        const id = parsed.spec.id;
-        setTimeout(async () => {
-          try {
-            await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
-            const view = leaf.view;
-            if (view && typeof view.reload === 'function') {
-              view.activeId = id;
-              await view.reload();
-            }
-          } catch (e) {
-            console.error(safeLogLine('could not open the dashboard view', e));
-          }
-        }, 0);
+        this.handToDashboards(parsed.spec.id);
         return;
       }
     }
     this.render();
+  }
+
+  handToDashboards(id) {
+    const leaf = this.leaf;
+    setTimeout(async () => {
+      try {
+        await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
+        const view = leaf.view;
+        if (view && typeof view.reload === 'function') {
+          view.activeId = id;
+          await view.reload();
+        }
+      } catch (e) {
+        console.error(safeLogLine('could not open the dashboard view', e));
+      }
+    }, 0);
   }
 
   async onUnloadFile() {
@@ -6262,6 +6306,20 @@ class JsonFileView extends FileView {
       const area = host.createEl('textarea', { cls: 'icor-sqlv-console icor-sqlv-json-editor' });
       area.value = this.text;
       area.setAttribute('aria-label', 'JSON text');
+      /* Opened as a dashboard: say after each change whether it still
+       * reads, in the same plain words the dashboards view uses. */
+      if (this.asText) {
+        const check = host.createDiv({ cls: 'icor-sqlv-note icor-sqlv-json-check' });
+        const recheck = () => {
+          const parsed = parseDashboardSpec(area.value);
+          if (parsed.ok) check.classList.remove('is-error'); else check.classList.add('is-error');
+          check.setText(parsed.ok
+            ? 'The dashboard reads fine: ' + parsed.spec.tiles.length + (parsed.spec.tiles.length === 1 ? ' widget.' : ' widgets.')
+            : 'The dashboard will not open like this: ' + parsed.reason);
+        };
+        recheck();
+        area.addEventListener('input', recheck);
+      }
       const save = async () => {
         if (area.value === this.text) return;
         this.text = area.value;
@@ -6273,7 +6331,18 @@ class JsonFileView extends FileView {
         if ((ev.metaKey || ev.ctrlKey) && ev.key === 's') { ev.preventDefault(); save(); }
       });
       const done = bar.createEl('button', { text: 'Done editing', cls: 'mod-cta' });
-      done.addEventListener('click', async () => { await save(); this.editing = false; this.render(); });
+      done.addEventListener('click', async () => {
+        await save();
+        this.editing = false;
+        /* Opened from a dashboard: go back to it when it reads, else stay
+         * here, in the reader, which says why it does not. */
+        if (this.asText) {
+          this.asText = false;
+          const parsed = parseDashboardSpec(this.text);
+          if (parsed.ok) { this.handToDashboards(parsed.spec.id); return; }
+        }
+        this.render();
+      });
       if (typeof area.focus === 'function') area.focus();
       return;
     }
@@ -6557,6 +6626,18 @@ class IcorSqliteViewerPlugin extends Plugin {
     /* "New dashboard" next to New note and New folder in the folder menu.
      * Dashboards always land in the configured dashboards folder; a click
      * from somewhere else says so. */
+    /* "Open as text" on a dashboard file, which otherwise always opens in
+     * the dashboards view. */
+    this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+      if (!file || file instanceof TFolder || typeof file.path !== 'string') return;
+      if (!/\.json$/i.test(file.path) || !file.path.startsWith(this.settings.dashboardFolder + '/')) return;
+      menu.addItem((item) => {
+        item.setTitle('Open as text');
+        item.setIcon('file-code');
+        item.onClick(() => this.openDashboardAsText(file.path));
+      });
+    }));
+
     this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
       if (!(file instanceof TFolder)) return;
       menu.addItem((item) => {
@@ -6680,6 +6761,13 @@ class IcorSqliteViewerPlugin extends Plugin {
     }
     await leaf.setViewState({ type: VIEW_BROWSER, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  /* A dashboard file in the JSON view's text editor: in the dashboards
+   * view's own leaf, so "Done editing" comes back to it, or the active one. */
+  async openDashboardAsText(path, leaf) {
+    const target = leaf || this.app.workspace.getLeaf(false);
+    await target.setViewState({ type: VIEW_JSON, state: { file: path, asText: true }, active: true });
   }
 
   async openDashboards(activeId) {

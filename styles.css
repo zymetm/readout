@@ -1488,6 +1488,9 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-json-editor { flex: 1 1 auto; resize: none; }
 
+/* Under a dashboard opened as text: whether it still reads. */
+.icor-sqlv-json-check.is-error { color: var(--sqlv-destructive-text); }
+
 /* ------------------------------------------------------ notes and errors -- */
 
 .icor-sqlv-note {
