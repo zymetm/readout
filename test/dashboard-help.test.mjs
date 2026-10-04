@@ -128,6 +128,12 @@ test('a guide is written when missing, left alone when current, refreshed when t
   assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'current', 'line endings changed by a sync tool are not an edit');
 });
 
+test('the data folder is written into a guide exactly as it is named, "$" included', () => {
+  const text = lib.guideTextFor({ text: 'Files live in 07 Databases/Dashboards.\n' }, "Data $& $' and $`");
+  assert.ok(text.startsWith("Files live in Data $& $' and $`/Dashboards.\n"), text.split('\n')[0]);
+  assert.equal(lib.guideIsPluginOwn(text, [], "Data $& $' and $`"), true);
+});
+
 test('an edited guide is never overwritten, wherever the edit is', async () => {
   const text = lib.guideTextFor(README_FILE, '07 Databases');
   const newer = lib.guideTextFor({ text: HELP + '\nMore.\n' }, '07 Databases');

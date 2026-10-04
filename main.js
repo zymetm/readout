@@ -7407,7 +7407,9 @@ function guideHash(text) {
 /* The text as the plugin writes it: the data folder filled in, and the
  * fingerprint line last. */
 function guideTextFor(guide, dataFolder) {
-  const body = guide.text.replace(/07 Databases/g, dataFolder || '07 Databases');
+  /* A function, so a "$" in the folder name is written as it is. */
+  const folder = dataFolder || '07 Databases';
+  const body = guide.text.replace(/07 Databases/g, () => folder);
   return body + '<!-- Written by the SQLite Viewer plugin (fingerprint ' + guideHash(body) + '). If you edit this file, the plugin stops updating it. -->\n';
 }
 
