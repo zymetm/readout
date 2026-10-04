@@ -583,6 +583,8 @@ function parseDashboardSpec(text) {
         return { ok: false, reason: at + ': "captions" only work on an SQL stat widget; a built widget has one value and no other columns.' };
       }
       const builtDelta = checkHeaderDelta(t, t.viz, t.source.series ? 2 : 1, at);
+      const builtNotes = checkTileNotes(t, at);
+      if (!builtNotes.ok) return builtNotes;
       if (!builtDelta.ok) return builtDelta;
       const builtSize = checkValueSize(t.valueSize, t.viz, at);
       if (!builtSize.ok) return builtSize;
@@ -596,7 +598,7 @@ function parseDashboardSpec(text) {
       if (t.viz === 'combo') return { ok: false, reason: at + ': a combo chart is an SQL widget; a built widget has one value column.' };
       const builtMeter = checkMeter(t.meter, t.viz, at);
       if (!builtMeter.ok) return builtMeter;
-      tiles.push(withMeter(withChartMarks(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
+      tiles.push(withTileNotes(withMeter(withChartMarks(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -615,7 +617,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck), builtDelta), builtSize), builtColors), builtAxis), builtMarks), builtMeter));
+      }, levelCheck), builtDelta), builtSize), builtColors), builtAxis), builtMarks), builtMeter), builtNotes));
       continue;
     }
 
@@ -642,6 +644,8 @@ function parseDashboardSpec(text) {
     const captionCheck = checkCaptions(t.captions, t.viz, at);
     if (!captionCheck.ok) return captionCheck;
     const sqlDelta = checkHeaderDelta(t, t.viz, y.length, at);
+    const sqlNotes = checkTileNotes(t, at);
+    if (!sqlNotes.ok) return sqlNotes;
     if (!sqlDelta.ok) return sqlDelta;
     const sqlSize = checkValueSize(t.valueSize, t.viz, at);
     if (!sqlSize.ok) return sqlSize;
@@ -659,7 +663,7 @@ function parseDashboardSpec(text) {
     if (!sqlMeter.ok) return sqlMeter;
     const heatCheck = checkHeatmap(t, at);
     if (!heatCheck.ok) return heatCheck;
-    tiles.push(withHeatmap(withMeter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withTileNotes(withHeatmap(withMeter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -668,7 +672,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), sqlMeter), heatCheck));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), sqlMeter), heatCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -713,6 +717,55 @@ function checkHeaderDelta(t, viz, seriesCount, at) {
     }
   }
   return { ok: true, on: on === true, days: measured ? days : undefined, caption };
+}
+
+/* A hint at the right of a widget's title, and a footnote line under it,
+ * opt-in per tile, on any widget but a section divider: "hint": "median
+ * by time of day" says how to read it at a glance, "footnote": "Line:
+ * the median. Band: the middle half." explains it in a sentence. Plain
+ * text. Returns { ok, hint, footnote } or { ok, reason }. */
+const HINT_MAX = 60;
+const FOOTNOTE_MAX = 300;
+
+function checkTileNotes(t, at) {
+  for (const [key, max] of [['hint', HINT_MAX], ['footnote', FOOTNOTE_MAX]]) {
+    if (t[key] === undefined) continue;
+    if (t.viz === 'divider') return { ok: false, reason: at + ': a section divider has no "' + key + '"; its heading is its words.' };
+    if (typeof t[key] !== 'string' || !t[key].trim() || t[key].trim().length > max) {
+      return { ok: false, reason: at + ': "' + key + '" must be text, ' + max + ' characters at most.' };
+    }
+  }
+  return {
+    ok: true,
+    hint: t.hint === undefined ? undefined : t.hint.trim(),
+    footnote: t.footnote === undefined ? undefined : t.footnote.trim(),
+  };
+}
+
+function withTileNotes(tile, check) {
+  if (check.hint) tile.hint = check.hint;
+  if (check.footnote) tile.footnote = check.footnote;
+  return tile;
+}
+
+/* Put the hint at the right of the title row, and the footnote under the
+ * body. The title gives way first (ellipsis); the hint stays on one line
+ * and only a hint wider than the whole row is cut. */
+function addTileNotes(tileEl, tileSpec) {
+  const hint = typeof tileSpec.hint === 'string' ? tileSpec.hint.trim() : '';
+  const footnote = typeof tileSpec.footnote === 'string' ? tileSpec.footnote.trim() : '';
+  if (hint) {
+    let bar = Array.from(tileEl.children).find((c) => c.classList && c.classList.contains('icor-sqlv-tile-titlebar'));
+    if (!bar) {
+      const title = Array.from(tileEl.children).find((c) => c.classList && c.classList.contains('icor-sqlv-tile-title'));
+      bar = tileEl.createDiv({ cls: 'icor-sqlv-tile-titlebar' });
+      tileEl.insertBefore(bar, title || tileEl.firstChild);
+      if (title) bar.appendChild(title);
+    }
+    const chip = bar.createSpan({ cls: 'icor-sqlv-tile-hint', text: hint });
+    chip.setAttribute('title', hint);
+  }
+  if (footnote) tileEl.createDiv({ cls: 'icor-sqlv-tile-footnote', text: footnote }).setAttribute('title', footnote);
 }
 
 function withHeaderDelta(tile, check) {
@@ -1453,6 +1506,8 @@ function specToJson(spec) {
     Object.assign(tile, chartAxisOf(t), chartMarksOf(t));
     if (t.segmentColors && Object.keys(t.segmentColors).length) tile.segmentColors = Object.assign({}, t.segmentColors);
     if (t.meter) tile.meter = Object.assign({}, t.meter);
+    if (t.hint) tile.hint = t.hint;
+    if (t.footnote) tile.footnote = t.footnote;
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1816,6 +1871,15 @@ function pivotSeries(table) {
  * tile, generated axes (and a pivot when there is a series) for a built
  * one. Pure, so the live path and the cache path share it. */
 function prepareTileForRender(tile, table) {
+  const out = prepareTileShape(tile, table);
+  if (out.spec !== tile) {
+    if (tile.hint) out.spec.hint = tile.hint;
+    if (tile.footnote) out.spec.footnote = tile.footnote;
+  }
+  return out;
+}
+
+function prepareTileShape(tile, table) {
   if (!tile.source) return { spec: tile, table };
   if (tile.viz === 'stat') {
     return { spec: { title: tile.title, viz: 'stat', y: ['value'], unit: tile.unit, ranges: tile.ranges, levelColors: tile.levelColors, valueSize: tile.valueSize, meter: tile.meter }, table };
@@ -3630,6 +3694,11 @@ function renderDivider(parentEl, heading) {
 }
 
 function renderTile(tileEl, tileSpec, table, extras) {
+  drawTile(tileEl, tileSpec, table, extras);
+  addTileNotes(tileEl, tileSpec);
+}
+
+function drawTile(tileEl, tileSpec, table, extras) {
   if (tileSpec.viz === 'divider') { renderDivider(tileEl, tileSpec.title); return; }
   if (tileSpec.viz === 'text') { renderText(tileEl, tileSpec, table); return; }
   if (tileSpec.viz === 'stat') {
@@ -6814,6 +6883,7 @@ IcorSqliteViewerPlugin.lib = {
   checkMeter, meterFill,
   checkHeatmap, heatmapGrid,
   checkTextTile, isThinTile, drawsNoData, textOf, FORM_VIZ,
+  checkTileNotes,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
   cliTable, wasmTable, toCsv,

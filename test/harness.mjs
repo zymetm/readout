@@ -54,7 +54,16 @@ class FakeEl {
     return { add: (...c) => { for (const x of c) s.add(x); }, remove: (...c) => { for (const x of c) s.delete(x); }, contains: (c) => s.has(c) };
   }
   focus() { this.focused = true; }
-  appendChild(node) { node.parentElement = this; this.children.push(node); return node; }
+  /* Like the DOM: a node lives in one place, so adding it moves it. */
+  appendChild(node) { detach(node); node.parentElement = this; this.children.push(node); return node; }
+  insertBefore(node, ref) {
+    detach(node);
+    node.parentElement = this;
+    const i = ref ? this.children.indexOf(ref) : -1;
+    if (i < 0) this.children.push(node); else this.children.splice(i, 0, node);
+    return node;
+  }
+  get firstChild() { return this.children[0] || null; }
   addEventListener(type, fn) { (this.handlers[type] || (this.handlers[type] = [])).push(fn); }
   empty() { this.children = []; }
   setText(t) { this.textContent = String(t); }
@@ -62,6 +71,13 @@ class FakeEl {
   createSpan(opts) { return this.appendChild(makeEl('span', opts)); }
   createEl(tag, opts) { return this.appendChild(makeEl(tag, opts)); }
   * walk() { for (const child of this.children) { yield child; yield* child.walk(); } }
+}
+
+function detach(node) {
+  const p = node.parentElement;
+  if (!p) return;
+  const i = p.children.indexOf(node);
+  if (i >= 0) p.children.splice(i, 1);
 }
 
 function makeEl(tag, opts = {}) {

@@ -1819,3 +1819,33 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   outline-offset: -1px;
   border-radius: var(--sqlv-r-subtle);
 }
+
+/* -------------------------------------------- hint and footnote -- */
+
+/* A hint at the right of the title row, quiet and mono like a caption;
+ * the title gives way first. A footnote under the widget, at most three
+ * lines; hovering shows it all. */
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  margin-left: auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-tile-footnote {
+  flex: 0 0 auto;
+  margin-top: var(--sqlv-s2);
+  font-size: var(--font-ui-smaller, 12px);
+  line-height: 1.4;
+  color: var(--sqlv-fg-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
