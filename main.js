@@ -130,12 +130,14 @@ const DEFAULT_LEVELS = [
   { id: 'alert', name: 'Alert', color: 'var(--color-red)' },
 ];
 const LEVEL_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
-/* How a level shows, per widget type. Only the stat tile draws a level
- * today; another widget type adds its own entry here. */
+/* How a level shows, per widget type that marks the whole widget: a stat
+ * and a segments bar. A segments bar follows the stat look unless it has
+ * its own ("same"). A heatmap colours its cells and has no widget look. */
 const LEVEL_LOOKS = {
   stat: { rail: 'Coloured left rail', outline: 'Coloured outline', tint: 'Tinted background' },
+  segments: { same: 'Same as "One big number"', rail: 'Coloured left rail', outline: 'Coloured outline', tint: 'Tinted background' },
 };
-const DEFAULT_LEVEL_LOOKS = { stat: 'rail' };
+const DEFAULT_LEVEL_LOOKS = { stat: 'rail', segments: 'same' };
 const LEVEL_NAME_MAX = 24;
 const LEVEL_LABEL_MAX = 24;
 const RANGES_MAX = 12;
@@ -2780,7 +2782,9 @@ function resolveLevel(value, tile, levels) {
 }
 
 function levelLookFor(kind, looks) {
-  return normalizeLevelLooks(looks)[kind] || DEFAULT_LEVEL_LOOKS[kind] || '';
+  const all = normalizeLevelLooks(looks);
+  const look = all[kind] || DEFAULT_LEVEL_LOOKS[kind] || '';
+  return look === 'same' ? all.stat : look;
 }
 
 /* The preview gate as a state machine: a widget that never previewed
@@ -3851,7 +3855,7 @@ function drawTile(tileEl, tileSpec, table, extras) {
     if (pill) row.createSpan({ cls: 'icor-sqlv-level-pill', text: pill }).setAttribute('title', pill);
     const segBody = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
     const shown = renderSegments(segBody, table, tileSpec, extras);
-    applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
+    applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'segments', tileSpec, extras);
     return;
   }
   /* A chart may show its change over the period at the right of its
@@ -7037,6 +7041,17 @@ class SqliteViewerSettingTab extends PluginSettingTab {
         d.setValue(levelLookFor('stat', settings.levelLooks));
         d.onChange(async (v) => {
           settings.levelLooks = normalizeLevelLooks(Object.assign({}, settings.levelLooks, { stat: v }));
+          await save(false);
+        });
+      });
+    new Setting(containerEl)
+      .setName('How a level shows on a segments bar')
+      .setDesc('The coloured mark a segments bar gets when the value its ranges judge lands on a level. "Same" follows the setting above.')
+      .addDropdown((d) => {
+        for (const [value, label] of Object.entries(LEVEL_LOOKS.segments)) d.addOption(value, label);
+        d.setValue(normalizeLevelLooks(settings.levelLooks).segments);
+        d.onChange(async (v) => {
+          settings.levelLooks = normalizeLevelLooks(Object.assign({}, settings.levelLooks, { segments: v }));
           await save(false);
         });
       });

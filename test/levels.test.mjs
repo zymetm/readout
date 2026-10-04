@@ -43,7 +43,7 @@ test('the default levels are Good, Watch and Alert, coloured by theme variables'
     { id: 'watch', name: 'Watch', color: 'var(--color-orange)' },
     { id: 'alert', name: 'Alert', color: 'var(--color-red)' },
   ]);
-  assert.deepEqual(unwrap(lib.DEFAULT_SETTINGS.levelLooks), { stat: 'rail' });
+  assert.deepEqual(unwrap(lib.DEFAULT_SETTINGS.levelLooks), { stat: 'rail', segments: 'same' });
   assert.deepEqual(Object.keys(lib.LEVEL_LOOKS.stat), ['rail', 'outline', 'tint']);
 });
 
@@ -60,9 +60,9 @@ test('saved levels are made safe on load: bad entries dropped, bad colours clear
     { name: 'Odd', color: 'red; background: url(x)' },
   ])), [{ id: 'fine', name: 'Fine', color: '#00aa00' }, { id: 'odd', name: 'Odd', color: '' }]);
   assert.deepEqual(unwrap(lib.normalizeLevels([])), [], 'a member who removed every level keeps none');
-  assert.deepEqual(unwrap(lib.normalizeLevelLooks({ stat: 'tint' })), { stat: 'tint' });
-  assert.deepEqual(unwrap(lib.normalizeLevelLooks({ stat: 'neon' })), { stat: 'rail' });
-  assert.deepEqual(unwrap(lib.normalizeLevelLooks(null)), { stat: 'rail' });
+  assert.deepEqual(unwrap(lib.normalizeLevelLooks({ stat: 'tint' })), { stat: 'tint', segments: 'same' });
+  assert.deepEqual(unwrap(lib.normalizeLevelLooks({ stat: 'neon' })), { stat: 'rail', segments: 'same' });
+  assert.deepEqual(unwrap(lib.normalizeLevelLooks(null)), { stat: 'rail', segments: 'same' });
 });
 
 test('only a theme variable or a six-digit hex counts as a level colour', () => {
@@ -78,7 +78,7 @@ test('the plugin normalizes its saved levels when it loads', async () => {
   const plugin = fresh.makePlugin(app, { levels: [{ name: 'Fine', color: '#00ff00' }, { name: '' }], levelLooks: { stat: 'outline' } });
   await plugin.onload();
   assert.deepEqual(unwrap(plugin.settings.levels), [{ id: 'fine', name: 'Fine', color: '#00ff00' }]);
-  assert.deepEqual(unwrap(plugin.levelExtras()), { levels: [{ id: 'fine', name: 'Fine', color: '#00ff00' }], levelLooks: { stat: 'outline' } });
+  assert.deepEqual(unwrap(plugin.levelExtras()), { levels: [{ id: 'fine', name: 'Fine', color: '#00ff00' }], levelLooks: { stat: 'outline', segments: 'same' } });
 });
 
 /* ------------------------------------------------------ classification -- */
