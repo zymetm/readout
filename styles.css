@@ -1923,7 +1923,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-sample.is-chart { height: 260px; }
 
-.icor-sqlv-sample.is-short { height: 150px; }
+.icor-sqlv-sample.is-short { height: 180px; }
 
 .icor-sqlv-sample.is-thin { height: 32px; }
 

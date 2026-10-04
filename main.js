@@ -8450,7 +8450,7 @@ const WIDGET_SAMPLES = {
   },
   heatmap: {
     size: 'chart',
-    spec: { title: 'Orders by weekday and hour', viz: 'heatmap', row: 'day', column: 'hour', value: 'orders', unit: 'orders',
+    spec: { title: 'Orders by weekday and hour', viz: 'heatmap', row: 'day', column: 'hour', value: 'orders', unit: 'orders', cells: 'fill',
       ranges: [{ low: 8, level: 'Good' }, { low: 4, level: 'Watch' }, { level: 'Alert' }] },
     table: { columns: ['day', 'hour', 'orders'], rows: SAMPLE_HEAT_ROWS },
   },

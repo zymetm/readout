@@ -17,15 +17,17 @@ Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in
 
 *Sample: a line chart of orders per day, with a dashed goal line. Every number in the samples is invented.*
 
-```sqlite-viewer-sample
-line
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-line-dark.png">
+  <img alt="A line chart, drawn by the plugin with invented numbers" src="docs/images/widget-line-light.png" width="600">
+</picture>
 
 *Sample: a bar chart of orders per week, web and shop stacked.*
 
-```sqlite-viewer-sample
-bar
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-bar-dark.png">
+  <img alt="A bar chart, drawn by the plugin with invented numbers" src="docs/images/widget-bar-light.png" width="600">
+</picture>
 
 **What it shows:** how a number changes over time or across groups, as a line or as bars.
 
@@ -52,9 +54,10 @@ Shared: colours and scrub line, change and roll-up, axis, guide lines and zones,
 
 *Sample: orders per month as bars, with the return rate as a dashed line on the right axis.*
 
-```sqlite-viewer-sample
-combo
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-combo-dark.png">
+  <img alt="A bars and lines (combo) chart, drawn by the plugin with invented numbers" src="docs/images/widget-combo-light.png" width="600">
+</picture>
 
 **What it shows:** bars and lines on one chart, each on a left or right scale.
 
@@ -91,9 +94,10 @@ Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines a
 
 *Sample: one big number, orders this month, with a caption line, a meter and a level.*
 
-```sqlite-viewer-sample
-stat
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-stat-dark.png">
+  <img alt="One big number, drawn by the plugin with invented numbers" src="docs/images/widget-stat-light.png" width="600">
+</picture>
 
 **What it shows:** one number, large, with optional small lines under it.
 
@@ -116,9 +120,10 @@ Shared: number size, value levels, meter, hint and footnote.
 
 *Sample: a table of the latest orders.*
 
-```sqlite-viewer-sample
-table
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-table-dark.png">
+  <img alt="A table, drawn by the plugin with invented numbers" src="docs/images/widget-table-light.png" width="600">
+</picture>
 
 **What it shows:** the query's rows, as written.
 
@@ -136,9 +141,10 @@ No settings of its own. Shared: hint and footnote.
 
 *Sample: a part-to-whole bar of tasks by status.*
 
-```sqlite-viewer-sample
-segments
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-segments-dark.png">
+  <img alt="A part-to-whole bar, drawn by the plugin with invented numbers" src="docs/images/widget-segments-light.png" width="600">
+</picture>
 
 **What it shows:** one bar split into parts, each as wide as its share of the total.
 
@@ -162,9 +168,10 @@ Shared: value levels, hint and footnote.
 
 *Sample: a heatmap of orders by weekday and hour, coloured by value levels.*
 
-```sqlite-viewer-sample
-heatmap
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-heatmap-dark.png">
+  <img alt="A heatmap, drawn by the plugin with invented numbers" src="docs/images/widget-heatmap-light.png" width="600">
+</picture>
 
 **What it shows:** a grid of cells, each coloured by its value.
 
@@ -199,9 +206,10 @@ Shared: value levels, hint and footnote.
 
 *Sample: a text widget with two short paragraphs.*
 
-```sqlite-viewer-sample
-text
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-text-dark.png">
+  <img alt="A text widget, drawn by the plugin with invented numbers" src="docs/images/widget-text-light.png" width="600">
+</picture>
 
 **What it shows:** plain words on the dashboard, written by you or filled from a query.
 
@@ -229,9 +237,10 @@ Shared: hint and footnote.
 
 *Sample: a section divider with the heading Sales.*
 
-```sqlite-viewer-sample
-divider
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-divider-dark.png">
+  <img alt="A section divider, drawn by the plugin with invented numbers" src="docs/images/widget-divider-light.png" width="600">
+</picture>
 
 **What it shows:** a thin line with an optional heading that separates groups of widgets.
 

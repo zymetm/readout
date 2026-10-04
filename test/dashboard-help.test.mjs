@@ -17,17 +17,19 @@
  * - both files are refreshed only while they are the plugin's own unedited
  *   text, never once a member has edited them, and never rewritten when
  *   nothing changed;
- * - the repository mirrors are the files the plugin writes;
+ * - the repository mirrors are the files the plugin writes, the help file
+ *   with each live sample swapped for its light and dark picture;
  * - the AI guide carries the rules, the procedure and every setting.
  */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 import { loadPlugin, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 import { panelLabels } from './panel-labels.mjs';
 import { SINK, DB, keysOf } from './guide-sink.mjs';
+import { helpMirrorOf, imageOf } from './help-mirror.mjs';
 
 const { lib, PluginClass, obsidian } = loadPlugin();
 const vaultOf = (adapter) => makeFakeVault(adapter, obsidian.TFile);
@@ -313,8 +315,23 @@ test('the old help files recognised are the four texts released versions wrote',
 test('the repository mirrors are the files the plugin writes', () => {
   const help = readFileSync(new URL('../DASHBOARD-HELP.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const ai = readFileSync(new URL('../AI-WIDGET-GUIDE.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.equal(help, lib.guideTextFor(README_FILE, '07 Databases'));
+  assert.equal(help, helpMirrorOf(lib.guideTextFor(README_FILE, '07 Databases')), 'DASHBOARD-HELP.md is the help file with pictures for samples');
   assert.equal(ai, lib.guideTextFor(AI_FILE, '07 Databases'));
+});
+
+test('the GitHub help file shows a light and a dark picture for every sample, and every picture is in the repository', () => {
+  const help = readFileSync(new URL('../DASHBOARD-HELP.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.doesNotMatch(help, /```sqlite-viewer-sample/, 'no bare sample block on GitHub');
+  const pictures = [...help.matchAll(/<picture>\n {2}<source media="\(prefers-color-scheme: dark\)" srcset="([^"]+)">\n {2}<img alt="[^"]+" src="([^"]+)" width="600">\n<\/picture>/g)];
+  assert.equal(pictures.length, [...lib.VIZ_KINDS].length, 'one picture per widget type');
+  for (const [, dark, light] of pictures) {
+    for (const file of [dark, light]) assert.ok(existsSync(new URL('../' + file, import.meta.url)), 'in the repository: ' + file);
+  }
+  for (const word of lib.VIZ_KINDS) assert.ok(help.includes(imageOf(word, 'light')) && help.includes(imageOf(word, 'dark')), word);
+  /* The swap itself: a sample block becomes a picture; anything else stays. */
+  const one = helpMirrorOf('A\n\n```sqlite-viewer-sample\nbar\n```\n\n```sqlite-viewer-sample\npie\n```\n');
+  assert.ok(one.startsWith('A\n\n<picture>\n') && one.includes('srcset="docs/images/widget-bar-dark.png"') && one.includes('src="docs/images/widget-bar-light.png"'));
+  assert.ok(one.endsWith('```sqlite-viewer-sample\npie\n```\n'), 'an unknown word is left as it is');
 });
 
 /* ------------------------------------------------------- the AI guide -- */
