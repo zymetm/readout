@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'segments']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'segments', 'heatmap']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -517,7 +517,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, segments.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, segments, heatmap.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -553,6 +553,7 @@ function parseDashboardSpec(text) {
       /* A built widget. */
       if (t.viz === 'table') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a table.' };
       if (t.viz === 'segments') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a segments bar.' };
+      if (t.viz === 'heatmap') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a heatmap.' };
       const check = checkWidgetSource(t.source, t.viz, at);
       if (!check.ok) return check;
       if (!t.source.database && !database) return { ok: false, reason: at + ' needs a database, on the widget or on the dashboard.' };
@@ -648,7 +649,9 @@ function parseDashboardSpec(text) {
     if (!segCheck.ok) return segCheck;
     const sqlMeter = checkMeter(t.meter, t.viz, at);
     if (!sqlMeter.ok) return sqlMeter;
-    tiles.push(withMeter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    const heatCheck = checkHeatmap(t, at);
+    if (!heatCheck.ok) return heatCheck;
+    tiles.push(withHeatmap(withMeter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -657,7 +660,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), sqlMeter));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), sqlMeter), heatCheck));
   }
   return {
     ok: true,
@@ -1462,6 +1465,7 @@ function specToJson(spec) {
         if (t.viz === 'combo' && t[key] !== undefined) tile[key] = key === 'series' ? t.series.map((x) => Object.assign({}, x)) : t[key];
       }
       if (t.band) tile.band = Object.assign({}, t.band);
+      if (t.viz === 'heatmap') for (const key of HEAT_KEYS) if (t[key] !== undefined) tile[key] = t[key];
     }
     return tile;
   });
@@ -1980,6 +1984,151 @@ function segmentsLevelOf(table, tile, extras) {
   return resolveLevel(table.rows[0][idx], tile, extras && extras.levels);
 }
 
+/* A heatmap: a grid of cells, one per row of the query, placed by its
+ * "row" and "column" values in the order the query returns them, and
+ * coloured by the value levels of its "value" ("ranges", judged per
+ * cell). An optional "marker" column puts a dot on the cells where it is
+ * true ("markerColor", "markerLabel" for the legend). "highlight":
+ * "hour" brightens the column whose value is the current hour (0 to 23).
+ * "columnLabelEvery" labels every Nth column. A legend names every range,
+ * an empty cell and the marker. Returns { ok, heat } or { ok, reason }. */
+const HEAT_KEYS = ['row', 'column', 'value', 'marker', 'markerColor', 'markerLabel', 'highlight', 'columnLabelEvery'];
+const HEAT_LABEL_MAX = 40;
+
+function checkHeatmap(t, at) {
+  if (t.viz !== 'heatmap') {
+    for (const key of HEAT_KEYS) {
+      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a heatmap.' };
+    }
+    return { ok: true, heat: undefined };
+  }
+  const name = (v) => typeof v === 'string' && v.trim();
+  for (const key of ['row', 'column', 'value']) {
+    if (!name(t[key])) return { ok: false, reason: at + ': a heatmap needs "row", "column" and "value": the columns that place and colour each cell.' };
+  }
+  const heat = { row: t.row.trim(), column: t.column.trim(), value: t.value.trim() };
+  if (t.marker !== undefined) {
+    if (!name(t.marker)) return { ok: false, reason: at + ': "marker" must be the name of a column that is true where a cell gets a dot.' };
+    heat.marker = t.marker.trim();
+  }
+  if (t.markerColor !== undefined) {
+    if (!isLevelColor(t.markerColor)) return { ok: false, reason: at + ': "markerColor" must be a theme colour like "var(--color-cyan)" or a hex colour like "#5af8ff".' };
+    heat.markerColor = t.markerColor.trim();
+  }
+  if (t.markerLabel !== undefined) {
+    if (typeof t.markerLabel !== 'string' || t.markerLabel.trim().length > HEAT_LABEL_MAX) {
+      return { ok: false, reason: at + ': "markerLabel" must be short text, ' + HEAT_LABEL_MAX + ' characters at most.' };
+    }
+    if (t.markerLabel.trim()) heat.markerLabel = t.markerLabel.trim();
+  }
+  if ((heat.markerColor || heat.markerLabel) && !heat.marker) return { ok: false, reason: at + ': "markerColor" and "markerLabel" need a "marker" column.' };
+  if (t.highlight !== undefined) {
+    if (t.highlight !== 'hour') return { ok: false, reason: at + ': "highlight" must be "hour" (the column for the current hour).' };
+    heat.highlight = 'hour';
+  }
+  if (t.columnLabelEvery !== undefined) {
+    if (!Number.isInteger(t.columnLabelEvery) || t.columnLabelEvery < 1 || t.columnLabelEvery > 1000) {
+      return { ok: false, reason: at + ': "columnLabelEvery" must be a whole number from 1 to 1000 (label every Nth column).' };
+    }
+    heat.columnLabelEvery = t.columnLabelEvery;
+  }
+  return { ok: true, heat };
+}
+
+function withHeatmap(tile, check) {
+  if (check.heat) Object.assign(tile, check.heat);
+  return tile;
+}
+
+/* The grid of a heatmap: row keys and column keys in first-seen order,
+ * and each cell's value and marker. Pure. */
+function heatmapGrid(table, tile) {
+  const ri = columnIndex(table.columns, tile.row);
+  const ci = columnIndex(table.columns, tile.column);
+  const vi = columnIndex(table.columns, tile.value);
+  const mi = tile.marker ? columnIndex(table.columns, tile.marker) : -1;
+  if (ri < 0 || ci < 0 || vi < 0) return null;
+  const rows = [];
+  const cols = [];
+  const cells = new Map();
+  const key = (v) => (v === null || v === undefined ? '' : String(v));
+  for (const r of table.rows) {
+    const rk = key(r[ri]);
+    const ck = key(r[ci]);
+    if (!rows.includes(rk)) rows.push(rk);
+    if (!cols.includes(ck)) cols.push(ck);
+    const m = mi >= 0 ? r[mi] : null;
+    cells.set(rk + '\u0000' + ck, { value: r[vi], marker: m !== null && m !== undefined && m !== 0 && m !== '0' && m !== false && m !== '' });
+  }
+  return { rows, cols, cell: (rk, ck) => cells.get(rk + '\u0000' + ck) || null };
+}
+
+function renderHeatmap(parentEl, table, tile, extras) {
+  const grid = heatmapGrid(table, tile);
+  if (!grid || !grid.rows.length) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return;
+  }
+  const levels = extras && extras.levels;
+  const unit = tile.unit ? ' ' + tile.unit : '';
+  const now = new Date().getHours();
+  const live = tile.highlight === 'hour' ? grid.cols.findIndex((c) => Number(c) === now && c.trim() !== '') : -1;
+  const every = Number.isInteger(tile.columnLabelEvery) && tile.columnLabelEvery > 1 ? tile.columnLabelEvery : 1;
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-heatmap' });
+  const scroll = wrap.createDiv({ cls: 'icor-sqlv-heatmap-scroll' });
+  const el = scroll.createDiv({ cls: 'icor-sqlv-heatmap-grid' });
+  el.style.setProperty('grid-template-columns', 'max-content repeat(' + grid.cols.length + ', minmax(9px, 1fr))');
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', 'Heatmap, ' + grid.rows.length + ' rows by ' + grid.cols.length + ' columns. Hover a cell for its value.');
+  el.createDiv({ cls: 'icor-sqlv-heatmap-corner' });
+  grid.cols.forEach((c, j) => {
+    const head = el.createDiv({ cls: 'icor-sqlv-heatmap-col', text: j % every === 0 ? c : '' });
+    if (j === live) head.addClass('is-current');
+  });
+  for (const r of grid.rows) {
+    el.createDiv({ cls: 'icor-sqlv-heatmap-row', text: r }).setAttribute('title', r);
+    grid.cols.forEach((c, j) => {
+      const cell = grid.cell(r, c);
+      const box = el.createDiv({ cls: 'icor-sqlv-heatmap-cell' });
+      const v = cell ? cell.value : null;
+      const empty = v === null || v === undefined || v === '';
+      const level = empty ? null : resolveLevel(v, tile, levels);
+      if (empty) box.addClass('is-empty');
+      else if (level && level.known && level.color) box.style.setProperty('background', level.color);
+      if (j === live) box.addClass('is-current');
+      const parts = [r, c];
+      parts.push(empty ? 'no data' : formatNumber(Number(v)) + unit);
+      if (level && (level.label || level.name)) parts.push(level.label || level.name);
+      if (cell && cell.marker) {
+        box.addClass('has-marker');
+        const dot = box.createSpan({ cls: 'icor-sqlv-heatmap-dot' });
+        if (tile.markerColor) dot.style.setProperty('background', tile.markerColor);
+        parts.push(tile.markerLabel || tile.marker);
+      }
+      box.setAttribute('title', parts.join(' · '));
+    });
+  }
+  const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend' });
+  for (const range of tile.ranges || []) {
+    const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
+    const own = tile.levelColors && Object.prototype.hasOwnProperty.call(tile.levelColors, range.level) ? tile.levelColors[range.level] : undefined;
+    const color = level ? (isLevelColor(own) ? own : level.color) : '';
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' });
+    if (isLevelColor(color)) chip.style.setProperty('background', color);
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: range.label || range.level });
+  }
+  const none = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+  none.createSpan({ cls: 'icor-sqlv-legend-chip is-empty' });
+  none.createSpan({ cls: 'icor-sqlv-legend-name', text: 'no data' });
+  if (tile.marker) {
+    const m = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    const dot = m.createSpan({ cls: 'icor-sqlv-heatmap-dot is-legend' });
+    if (tile.markerColor) dot.style.setProperty('background', tile.markerColor);
+    m.createSpan({ cls: 'icor-sqlv-legend-name', text: tile.markerLabel || tile.marker });
+  }
+}
+
 /* The span a widget gets when its spec carries none (a 0.2.x file):
  * a stat is a small square, a chart a 2x2 block, a table a wide 3x2. */
 function defaultSpanFor(tile) {
@@ -1987,6 +2136,7 @@ function defaultSpanFor(tile) {
   if (tile.viz === 'stat') return { w: 1, h: 1 };
   if (tile.viz === 'table') return { w: 3, h: 2 };
   if (tile.viz === 'segments') return { w: 3, h: 1 };
+  if (tile.viz === 'heatmap') return { w: 4, h: 2 };
   return { w: 2, h: 2 };
 }
 
@@ -2361,7 +2511,7 @@ function normalizeLevelLooks(raw) {
 /* Validate a tile's "ranges". Returns { ok, ranges } or { ok, reason }. */
 function checkRanges(raw, viz, at) {
   if (raw === undefined) return { ok: true, ranges: undefined };
-  if (viz !== 'stat' && viz !== 'segments') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number) or a segments bar.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar or a heatmap.' };
   if (!Array.isArray(raw)) return { ok: false, reason: at + ': "ranges" must be a list like [{"low": 18.5, "high": 24.9, "level": "Good"}].' };
   if (raw.length > RANGES_MAX) return { ok: false, reason: at + ': "ranges" can hold at most ' + RANGES_MAX + ' ranges.' };
   const out = [];
@@ -2408,7 +2558,7 @@ function checkRanges(raw, viz, at) {
  * override keeps the level's name and changes only its colour. */
 function checkLevelColors(raw, viz, at) {
   if (raw === undefined) return { ok: true, colors: undefined };
-  if (viz !== 'stat' && viz !== 'segments') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number) or a segments bar.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar or a heatmap.' };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#d04040"}.' };
   }
@@ -3447,6 +3597,7 @@ function renderTile(tileEl, tileSpec, table, extras) {
   if (tileSpec.viz === 'line') renderLineChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'bar') renderBarChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'combo') renderComboChart(body, table, tileSpec, extras);
+  else if (tileSpec.viz === 'heatmap') renderHeatmap(body, table, tileSpec, extras);
   else renderResultTable(body, table, { maxRows: 50 });
 }
 
@@ -6568,6 +6719,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 IcorSqliteViewerPlugin.lib = {
   checkSegments, segmentsOf,
   checkMeter, meterFill,
+  checkHeatmap, heatmapGrid,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
   cliTable, wasmTable, toCsv,
