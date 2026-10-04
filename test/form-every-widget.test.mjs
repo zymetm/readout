@@ -169,3 +169,40 @@ test('axis fields read back into the form, refuse what the file would refuse, an
   assert.equal(asStat.ok, true, asStat.reason);
   assert.equal(asStat.tile.yMin, undefined, 'a stat has no axis');
 });
+
+/* ---------------------------------------------- guide lines and zones -- */
+
+test('guide lines and zones: rows in the form, the file shape on save, blank rows skipped', async () => {
+  const { form, spec, lib: l } = await makeForm({ title: 'Revenue', viz: 'bar', sql: 'SELECT * FROM daily', x: 'day', y: ['web'],
+    refLines: [{ y: 1000, label: 'break-even', dash: '4 3' }], zones: [{ from: 20, to: 30, color: 'var(--color-green)' }] });
+  form.open();
+  assert.equal(byLabel(form.formEl, 'Guide line 1: value').value, '1000', 'the group opens with the rows');
+  assert.equal(byLabel(form.formEl, 'Guide line 1: axis'), null, 'only a combo chart has sides');
+  form.state.refLines.push({ y: '', label: '', color: '', dash: '', axis: '' });
+  form.state.refLines[0].color = '#c9c4b8';
+  form.state.zones[0].opacity = '0.1';
+  form.state.zones.push({ from: '0', to: '5', color: '#2a7fff', opacity: '', axis: '' });
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  const t = asFileTile(l, spec.tiles[0]);
+  assert.deepEqual(unwrap(t.refLines), [{ y: 1000, color: '#c9c4b8', dash: '4 3', label: 'break-even' }]);
+  assert.deepEqual(unwrap(t.zones), [{ from: 20, to: 30, color: 'var(--color-green)', opacity: 0.1 }, { from: 0, to: 5, color: '#2a7fff' }]);
+});
+
+test('a guide line without a value, or a zone without a colour, says so; removing every row removes them', async () => {
+  const { form, spec } = await makeForm({ title: 'Revenue', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'], refLines: [{ y: 5 }] });
+  form.open();
+  form.state.refLines[0].y = '';
+  form.state.refLines[0].label = 'goal';
+  assert.match(form.buildTile().reason, /Guide line 1 needs a value/);
+  form.state.refLines.splice(0, 1);
+  form.state.zones.push({ from: '1', to: '2', color: '', opacity: '', axis: '' });
+  assert.match(form.buildTile().reason, /Zone 1 needs a colour/);
+  form.state.zones.splice(0, 1);
+  form.touch();
+  await form.runPreview();
+  await form.save();
+  assert.equal(spec.tiles[0].refLines, undefined);
+});

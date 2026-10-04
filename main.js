@@ -1471,11 +1471,21 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_MARK_KEYS, ['band'], COMBO_KEYS);
+const FORM_UNEDITED_KEYS = [].concat(['band'], COMBO_KEYS);
 
 /* The option keys the form sets on a line, bar, stat or table widget,
  * copied from its parser check onto the built tile. */
-const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter'].concat(CHART_AXIS_KEYS);
+const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter'].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
+
+/* A form row's text, each field as typed: numbers stay text until the
+ * build reads them. */
+function formRowsOf(list, keys) {
+  return Array.isArray(list) ? list.map((r) => {
+    const row = {};
+    for (const k of keys) row[k] = r && r[k] !== undefined && r[k] !== null ? (typeof r[k] === 'boolean' ? r[k] : String(r[k])) : '';
+    return row;
+  }) : [];
+}
 
 /* The axis fields the form offers, by their name after the "y" or "y2". */
 const FORM_AXIS_FIELDS = [
@@ -4992,6 +5002,8 @@ class WidgetFormModal extends Modal {
         this.state[p + name] = kind === 'bool' ? v === true : (v === undefined ? '' : (Array.isArray(v) ? v.join(', ') : String(v)));
       }
     }
+    this.state.refLines = formRowsOf(existing && existing.refLines, ['y', 'label', 'color', 'dash', 'axis']);
+    this.state.zones = formRowsOf(existing && existing.zones, ['from', 'to', 'color', 'opacity', 'axis']);
     /* The columns of the last query the preview ran, for the column
      * pickers of an SQL widget. */
     this.resultColumns = null;
@@ -5129,8 +5141,165 @@ class WidgetFormModal extends Modal {
         raw.xLabelEvery = n;
       }
     }
+    if (viz === 'line' || viz === 'bar' || viz === 'combo') {
+      const marks = this.marksFromForm(viz);
+      if (!marks.ok) return marks;
+      Object.assign(raw, marks.raw);
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* Guide lines and zones as the file writes them. A row left blank is
+   * skipped; the side ("axis") is a combo chart's only. */
+  marksFromForm(viz) {
+    const s = this.state;
+    const raw = {};
+    const blank = (row, keys) => keys.every((k) => !String(row[k] || '').trim());
+    const lines = [];
+    for (let i = 0; i < s.refLines.length; i++) {
+      const r = s.refLines[i];
+      if (blank(r, ['y', 'label', 'color', 'dash'])) continue;
+      const y = formNumber(r.y, 'Guide line ' + (i + 1) + ': the value');
+      if (!y.ok) return y;
+      if (y.value === undefined) return { ok: false, reason: 'Guide line ' + (i + 1) + ' needs a value: where it crosses the chart.' };
+      const line = { y: y.value };
+      if (r.label.trim()) line.label = r.label.trim();
+      if (r.color) line.color = r.color;
+      if (r.dash.trim()) line.dash = r.dash.trim();
+      if (viz === 'combo' && r.axis === 'right') line.axis = 'right';
+      lines.push(line);
+    }
+    if (lines.length) raw.refLines = lines;
+    const zones = [];
+    for (let i = 0; i < s.zones.length; i++) {
+      const z = s.zones[i];
+      if (blank(z, ['from', 'to', 'opacity'])) continue;
+      const from = formNumber(z.from, 'Zone ' + (i + 1) + ': from');
+      const to = formNumber(z.to, 'Zone ' + (i + 1) + ': to');
+      const op = formNumber(z.opacity, 'Zone ' + (i + 1) + ': opacity');
+      for (const n of [from, to, op]) if (!n.ok) return n;
+      if (from.value === undefined || to.value === undefined) return { ok: false, reason: 'Zone ' + (i + 1) + ' needs both ends: from and to.' };
+      if (!z.color) return { ok: false, reason: 'Zone ' + (i + 1) + ' needs a colour.' };
+      const zone = { from: from.value, to: to.value, color: z.color };
+      if (op.value !== undefined) zone.opacity = op.value;
+      if (viz === 'combo' && z.axis === 'right') zone.axis = 'right';
+      zones.push(zone);
+    }
+    if (zones.length) raw.zones = zones;
+    return { ok: true, raw };
+  }
+
+  /* A colour inside a row: the theme colours, a colour from the member's
+   * own CSS kept as it is, or a custom colour from a picker. */
+  rowColor(parent, { value, onChange, ariaLabel, emptyLabel }) {
+    const themed = LEVEL_THEME_COLORS.some(([v]) => v === value);
+    const fromCss = !!value && !themed && /^var\(/.test(value);
+    const select = parent.createEl('select', { cls: 'dropdown' });
+    select.setAttribute('aria-label', ariaLabel);
+    const options = [['', emptyLabel || 'Theme default']].concat(
+      LEVEL_THEME_COLORS.map(([v, text]) => [v, text]),
+      fromCss ? [[value, 'From your CSS: ' + value]] : [],
+      [['custom', 'Custom colour']],
+    );
+    const current = !value ? '' : (themed || fromCss ? value : 'custom');
+    for (const [v, text] of options) {
+      const opt = select.createEl('option', { text });
+      opt.value = v;
+      if (v === current) opt.selected = true;
+    }
+    select.addEventListener('change', () => {
+      onChange(select.value === 'custom' ? (/^#/.test(value || '') ? value : '#808080') : select.value);
+      this.renderForm();
+      this.touch();
+    });
+    if (value && !themed && !fromCss) {
+      const picker = parent.createEl('input', { type: 'color', value });
+      picker.setAttribute('aria-label', ariaLabel + ', custom');
+      picker.addEventListener('input', () => { if (isLevelColor(picker.value)) { onChange(picker.value); this.touch(); } });
+    }
+    return select;
+  }
+
+  /* An editable list of rows, each a few small fields, with add and
+   * remove: guide lines, zones, combo series, part colours. */
+  rowsEditor(parent, { rows, fields, what, max, newRow }) {
+    const list = parent.createDiv({ cls: 'icor-sqlv-filter-rows icor-sqlv-range-rows' });
+    rows.forEach((row, i) => {
+      const at = what + ' ' + (i + 1);
+      const rowEl = list.createDiv({ cls: 'icor-sqlv-filter-row-edit icor-sqlv-range-row' });
+      for (const f of fields) {
+        if (f.show && !f.show(row)) continue;
+        const aria = at + ': ' + f.label;
+        if (f.kind === 'color') {
+          this.rowColor(rowEl, { value: row[f.key], ariaLabel: aria, emptyLabel: f.emptyLabel, onChange: (v) => { row[f.key] = v; } });
+        } else if (f.kind === 'select') {
+          const options = f.options(row);
+          const select = rowEl.createEl('select', { cls: 'dropdown' });
+          select.setAttribute('aria-label', aria);
+          for (const [v, text] of options) {
+            const opt = select.createEl('option', { text });
+            opt.value = v;
+            if (v === (row[f.key] || options[0][0])) opt.selected = true;
+          }
+          select.addEventListener('change', () => { row[f.key] = select.value; this.renderForm(); this.touch(); });
+        } else if (f.kind === 'bool') {
+          const cb = rowEl.createEl('input', { type: 'checkbox' });
+          cb.checked = row[f.key] === true;
+          cb.setAttribute('aria-label', aria);
+          rowEl.createSpan({ cls: 'icor-sqlv-note', text: f.label });
+          cb.addEventListener('change', () => { row[f.key] = cb.checked; this.touch(); });
+        } else {
+          const input = rowEl.createEl('input', { type: 'text', cls: 'icor-sqlv-wizard-input' + (f.kind === 'number' ? ' icor-sqlv-range-num' : ''), value: row[f.key] || '' });
+          input.setAttribute('placeholder', f.placeholder || f.label);
+          input.setAttribute('aria-label', aria);
+          if (f.kind === 'number') input.setAttribute('inputmode', 'decimal');
+          input.addEventListener('input', () => { row[f.key] = input.value; this.touch(); });
+        }
+      }
+      const remove = rowEl.createEl('button', { cls: 'icor-sqlv-tile-action icor-sqlv-filter-remove' });
+      setIcon(remove, 'x');
+      remove.setAttribute('aria-label', 'Remove ' + at.toLowerCase());
+      remove.addEventListener('click', () => { rows.splice(i, 1); this.renderForm(); this.touch(); });
+    });
+    if (rows.length < max) {
+      const add = parent.createEl('button', { text: '+ Add ' + what.toLowerCase(), cls: 'icor-sqlv-add-filter' });
+      add.addEventListener('click', () => { rows.push(newRow()); this.renderForm(); this.touch(); });
+    }
+  }
+
+  /* Horizontal guide lines (a goal, a limit) and shaded zones (a target
+   * band) on a line, bar or combo chart. */
+  renderMarkFields(form, viz) {
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return;
+    const s = this.state;
+    const body = this.optionGroup(form, { key: 'marks', label: 'Guide lines and zones', hasValues: s.refLines.length > 0 || s.zones.length > 0 });
+    if (!body) return;
+    const sides = [['left', 'Left axis'], ['right', 'Right axis']];
+    const lines = this.field(body, { label: 'Guide lines', optional: true });
+    lines.createDiv({ cls: 'icor-sqlv-note', text: 'A line across the chart at one value. A label names it in the legend.' });
+    this.rowsEditor(lines, {
+      rows: s.refLines, what: 'Guide line', max: CHART_MARKS_MAX,
+      newRow: () => ({ y: '', label: '', color: '', dash: '', axis: '' }),
+      fields: [
+        { key: 'y', label: 'value', kind: 'number', placeholder: 'at' },
+        { key: 'label', label: 'label', placeholder: 'label (optional)' },
+        { key: 'color', label: 'colour', kind: 'color' },
+        { key: 'dash', label: 'dash', placeholder: 'solid, or like 4 3' },
+      ].concat(viz === 'combo' ? [{ key: 'axis', label: 'axis', kind: 'select', options: () => sides }] : []),
+    });
+    const zones = this.field(body, { label: 'Zones', optional: true });
+    zones.createDiv({ cls: 'icor-sqlv-note', text: 'A shaded band behind the chart, from one value to another.' });
+    this.rowsEditor(zones, {
+      rows: s.zones, what: 'Zone', max: CHART_MARKS_MAX,
+      newRow: () => ({ from: '', to: '', color: 'var(--color-green)', opacity: '', axis: '' }),
+      fields: [
+        { key: 'from', label: 'from', kind: 'number' },
+        { key: 'to', label: 'to', kind: 'number' },
+        { key: 'color', label: 'colour', kind: 'color', emptyLabel: 'Pick a colour' },
+        { key: 'opacity', label: 'opacity', kind: 'number', placeholder: 'opacity 0.15' },
+      ].concat(viz === 'combo' ? [{ key: 'axis', label: 'axis', kind: 'select', options: () => sides }] : []),
+    });
   }
 
   /* One axis's fields as the file writes them: "y" for the left axis, "y2"
@@ -6152,6 +6321,7 @@ class WidgetFormModal extends Modal {
     void built;
     this.renderMeterFields(form, viz);
     this.renderAxisFields(form, viz);
+    this.renderMarkFields(form, viz);
     this.renderNotesFields(form, viz);
   }
 

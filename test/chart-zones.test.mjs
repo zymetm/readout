@@ -163,9 +163,11 @@ test('a phone draws the same zones and lines from the desktop cache', async () =
   assert.equal(lines(phone.view.contentEl)[0].getAttribute('stroke-dasharray'), '4 3');
 });
 
-test('editing the widget in the form keeps its zones and lines', () => {
+test('the edit form owns the zones and lines, so nothing is kept behind its back', () => {
+  /* The form edits them (form-every-widget.test.mjs); keeping them from
+   * the old widget would undo removing a row. */
   const tile = parse(lineTile({ zones: [{ from: 1, to: 2, color: '#112233' }], refLines: [{ y: 3 }] })).spec.tiles[0];
   const kept = lib.keepUneditedKeys({ viz: 'line', title: 'New' }, tile);
-  assert.deepEqual(unwrap(kept.zones), [{ from: 1, to: 2, color: '#112233' }]);
-  assert.deepEqual(unwrap(kept.refLines), [{ y: 3 }]);
+  assert.equal(kept.zones, undefined);
+  assert.equal(kept.refLines, undefined);
 });
