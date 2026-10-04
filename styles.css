@@ -770,6 +770,49 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   display: inline-block;
 }
 
+/* A segments bar: one bar split into its parts, each part's share in it
+ * when there is room, and a legend that wraps under it. */
+.icor-sqlv-segments { display: flex; flex-direction: column; gap: var(--sqlv-s2); min-height: 0; height: 100%; }
+
+.icor-sqlv-segments-bar {
+  display: flex;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: var(--sqlv-r-micro);
+  overflow: hidden;
+}
+
+.icor-sqlv-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.icor-sqlv-segment-label {
+  font-family: var(--sqlv-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sqlv-on-marker);
+  white-space: nowrap;
+}
+
+.icor-sqlv-segments-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--sqlv-s3);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  min-width: 0;
+}
+
+.icor-sqlv-segments-value { color: var(--sqlv-fg-dim); font-variant-numeric: tabular-nums; }
+
+.icor-sqlv-legend-chip.is-round { border-radius: 50%; width: 8px; height: 8px; }
+
 /* A stat tile never lets its edge cut a line of text. Top to bottom:
  * the title (its own row, one line, ellipsis), the number (one line,
  * ellipsis), the change line (two whole lines at most), and the footer
