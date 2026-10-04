@@ -2519,7 +2519,7 @@ function headerDeltaOf(table, tile) {
 
 /* The lowest and highest of a chart's one series, over what it plots:
  * "247.2-262.0 lb" (with an en dash). Whole numbers stay whole
- * ("1,200-15,034 steps"); anything else gets one decimal. The tile's
+ * ("1,200-15,034 orders"); anything else gets one decimal. The tile's
  * unit once. Pure; null when there is nothing to show. */
 function chartRangeOf(table, tile) {
   const xIdx = columnIndex(table.columns, tile.x);
