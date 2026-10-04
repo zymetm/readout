@@ -1409,6 +1409,14 @@ button.icor-sqlv-add-filter { align-self: flex-start; }
   padding-top: var(--sqlv-s2);
 }
 
+/* An option group in the edit form (Axis, Guide lines, Notes ...): the
+ * Advanced toggle's look, its fields in the same column. */
+.icor-sqlv-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+}
+
 button.icor-sqlv-advanced-toggle {
   all: unset;
   font-family: var(--sqlv-font-mono);

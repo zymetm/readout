@@ -2761,7 +2761,45 @@ function nextPreviewState(state, event) {
 function canSave(previewState) { return previewState === 'ok'; }
 
 /* What a widget type is called in the form, for the plain sentences. */
-const VIZ_NAMES = { line: 'a line chart', bar: 'a bar chart', stat: 'one big number', table: 'a table' };
+const VIZ_NAMES = {
+  line: 'a line chart', bar: 'a bar chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
+  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', text: 'a text widget',
+};
+
+/* A form field's text as a number: empty is "not set", anything else must
+ * read as a number. Returns { ok, value } or { ok, reason }. */
+function formNumber(text, label) {
+  const t = String(text === undefined || text === null ? '' : text).trim();
+  if (!t) return { ok: true, value: undefined };
+  const n = Number(t);
+  if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be a number, or left empty.' };
+  return { ok: true, value: n };
+}
+
+/* A comma-separated list of numbers, like "54, 70, 180". */
+function formNumberList(text, label) {
+  const t = String(text === undefined || text === null ? '' : text).trim();
+  if (!t) return { ok: true, value: undefined };
+  const parts = t.split(',').map((p) => p.trim()).filter(Boolean);
+  const out = [];
+  for (const p of parts) {
+    const n = Number(p);
+    if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be numbers separated by commas, like 54, 70, 180.' };
+    out.push(n);
+  }
+  return { ok: true, value: out };
+}
+
+/* The edit form's last word on a widget: one tile, read by the same
+ * parser as a dashboard file, so the form can never save what the file
+ * would refuse. Returns { ok, tile } or { ok, reason } in plain words. */
+function checkFormTile(raw, database) {
+  const parsed = parseDashboardSpec(JSON.stringify({ id: 'form-check', title: 'Form', database: database || undefined, tiles: [raw] }));
+  if (!parsed.ok) return { ok: false, reason: parsed.reason.replace(/^Tile 1/, 'This widget') };
+  const tile = parsed.spec.tiles[0];
+  delete tile.layout;
+  return { ok: true, tile };
+}
 
 /* The settings of the widget being edited that the widget about to be
  * saved does not carry. The widget's frame (its type, query or source,
@@ -4921,7 +4959,13 @@ class WidgetFormModal extends Modal {
       color: existing && existing.color ? existing.color : '',
       guideColor: existing && existing.guideColor ? existing.guideColor : '',
       advancedOpen: false,
+      /* Which option groups are open; a group opens by itself when the
+       * widget already has a value in it. */
+      groups: {},
     };
+    /* The columns of the last query the preview ran, for the column
+     * pickers of an SQL widget. */
+    this.resultColumns = null;
     this.schema = null;
     this.schemaFor = '';
     this.schemaError = '';
@@ -5305,6 +5349,14 @@ class WidgetFormModal extends Modal {
       this.previewError = built.reason;
       this.previewEl.empty();
       this.syncGate();
+      /* A widget still being set up (no columns picked yet) has a query
+       * worth running anyway: its columns fill the pickers. */
+      if (this.state.mode === 'sql' && gateStatement(this.state.sqlText).ok) {
+        try {
+          const res = await this.plugin.query.query(this.spec.database, this.state.sqlText, { cap: 20 });
+          if (seq === this.previewSeq) this.noteColumns(res.columns);
+        } catch (e) { /* the build error already says what to fix first */ }
+      }
       return;
     }
     this.previewState = nextPreviewState(this.previewState, 'run');
@@ -5336,6 +5388,7 @@ class WidgetFormModal extends Modal {
       if (!res.rows.length) this.previewEl.createDiv({ cls: 'icor-sqlv-note', text: 'The query ran but returned no rows. Check the filters and the period.' });
       this.previewState = nextPreviewState(this.previewState, 'ok');
       this.syncGate();
+      if (!tile.source) this.noteColumns(res.columns);
     } catch (e) {
       if (seq !== this.previewSeq) return;
       this.previewState = nextPreviewState(this.previewState, 'error');
@@ -5346,7 +5399,62 @@ class WidgetFormModal extends Modal {
     }
   }
 
+  /* The query's columns arrived: redraw the form only when they changed,
+   * and keep the cursor where it was in the SQL box. */
+  noteColumns(columns) {
+    const next = Array.isArray(columns) ? columns.map(String) : null;
+    if (next && this.resultColumns && next.join('\u0000') === this.resultColumns.join('\u0000')) return;
+    this.resultColumns = next;
+    if (!this.formEl || this.state.mode === 'form') return;
+    const doc = this.formEl.doc || (typeof document !== 'undefined' ? document : null);
+    const active = doc && doc.activeElement;
+    const inSql = !!(active && active.getAttribute && active.getAttribute('aria-label') === 'SQL query');
+    const caret = inSql ? [active.selectionStart, active.selectionEnd] : null;
+    this.renderForm();
+    if (inSql) {
+      const area = this.sqlArea;
+      if (area && typeof area.focus === 'function') {
+        area.focus();
+        if (caret && typeof area.setSelectionRange === 'function') area.setSelectionRange(caret[0], caret[1]);
+      }
+    }
+  }
+
   /* ---------------------------------------------------- form fields -- */
+
+  /* A column of an SQL widget's query: a list of the result's columns once
+   * the preview has run, else typed. A name not in the result stays,
+   * marked, so nothing is lost while the query is being changed. */
+  columnField(parent, { label, value, onChange, optional, noneLabel, ariaLabel }) {
+    const cols = this.resultColumns;
+    if (!cols || !cols.length) {
+      const input = this.textInput(parent, {
+        label, optional, value, ariaLabel,
+        placeholder: optional ? 'column name (optional)' : 'column name',
+        onInput: (v) => onChange(v.trim()),
+      });
+      return input;
+    }
+    const options = [['', optional ? (noneLabel || 'None') : 'Pick a column']].concat(cols.map((c) => [c, c]));
+    if (value && !cols.includes(value)) options.push([value, value + ' (not in the result)']);
+    return this.nativeSelect(parent, {
+      label, optional, options, value: value || '', ariaLabel,
+      onChange: (v) => { onChange(v); this.renderForm(); },
+    });
+  }
+
+  /* A group of optional settings behind a toggle, like Advanced. Returns
+   * the group's body, or null while it is closed. */
+  optionGroup(parent, { key, label, hasValues }) {
+    const s = this.state;
+    if (s.groups[key] === undefined) s.groups[key] = !!hasValues;
+    const open = s.groups[key];
+    const wrap = parent.createDiv({ cls: 'icor-sqlv-advanced icor-sqlv-option-group' });
+    const toggle = wrap.createEl('button', { cls: 'icor-sqlv-advanced-toggle', text: (open ? '▾ ' : '▸ ') + label });
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.addEventListener('click', () => { s.groups[key] = !open; this.renderForm(); });
+    return open ? wrap.createDiv({ cls: 'icor-sqlv-option-body' }) : null;
+  }
 
   field(parent, { label, required, optional }) {
     const row = parent.createDiv({ cls: 'icor-sqlv-field' });
@@ -5882,6 +5990,7 @@ class WidgetFormModal extends Modal {
     area.setAttribute('rows', '6');
     area.setAttribute('aria-label', 'SQL query');
     area.addEventListener('input', () => { s.sqlText = area.value; this.touch(); });
+    this.sqlArea = area;
     this.nativeSelect(form, {
       label: 'Chart type',
       options: [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['divider', 'Section divider']],
@@ -5889,7 +5998,7 @@ class WidgetFormModal extends Modal {
       onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } s.viz = v; this.renderForm(); this.touch(); },
     });
     if (s.viz === 'line' || s.viz === 'bar') {
-      this.textInput(form, { label: 'X column', value: s.x, onInput: (v) => { s.x = v; this.touch(); } });
+      this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
       this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
     }
     this.textInput(form, {
@@ -7062,7 +7171,7 @@ IcorSqliteViewerPlugin.lib = {
   matchesNeedle, colsForWidth, defaultSpanFor, clampLayout, rectsCollide,
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
-  deltaBadge, nextPreviewState, canSave, droppedSettings, SIZE_PRESETS, sizePresetOf, makeDebounce,
+  deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, checkChartColors, chartPaletteFor, normalizeLevels, levelIdFor, planLevelRename, renameLevelInDashboard, normalizeLevelLooks, checkRanges, checkLevelColors, checkTileLevels, levelOf, resolveLevel, levelLookFor,
   headerDeltaOf, checkHeaderDelta, chartRangeOf, chartCaptionOf,
