@@ -363,7 +363,7 @@ test('a heatmap built from a blank widget in the form matches the hand-written o
   form.renderForm();
   await form.runPreview();
   assert.equal(form.previewState, 'error', 'not complete without its columns');
-  for (const label of ['Row column', 'Column column', 'Value column']) assert.equal(byLabel(form.formEl, label).tagName, 'SELECT', label + ' is a picker');
+  for (const label of ['Row labels column', 'Column labels column', 'Cell value column']) assert.equal(byLabel(form.formEl, label).tagName, 'SELECT', label + ' is a picker');
   Object.assign(form.state, { heatRow: 'day', heatColumn: 'hr', heatValue: 'minutes' });
   form.state.groups.heat = true;
   form.renderForm();

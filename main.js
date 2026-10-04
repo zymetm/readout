@@ -5313,9 +5313,9 @@ class WidgetFormModal extends Modal {
   renderHeatmapFields(form) {
     const s = this.state;
     form.createDiv({ cls: 'icor-sqlv-note', text: 'A grid with one cell per row of the query, placed by its row and column values and coloured by the value levels below. Rows and columns appear in the order the query returns them.' });
-    this.columnField(form, { label: 'Row column', value: s.heatRow, onChange: (v) => { s.heatRow = v; this.touch(); } });
-    this.columnField(form, { label: 'Column column', value: s.heatColumn, onChange: (v) => { s.heatColumn = v; this.touch(); } });
-    this.columnField(form, { label: 'Value column', value: s.heatValue, onChange: (v) => { s.heatValue = v; this.touch(); } });
+    this.columnField(form, { label: 'Row labels column', value: s.heatRow, onChange: (v) => { s.heatRow = v; this.touch(); } });
+    this.columnField(form, { label: 'Column labels column', value: s.heatColumn, onChange: (v) => { s.heatColumn = v; this.touch(); } });
+    this.columnField(form, { label: 'Cell value column', value: s.heatValue, onChange: (v) => { s.heatValue = v; this.touch(); } });
   }
 
   renderHeatmapExtras(form) {
@@ -5478,7 +5478,9 @@ class WidgetFormModal extends Modal {
     const list = parent.createDiv({ cls: 'icor-sqlv-filter-rows icor-sqlv-range-rows' });
     rows.forEach((row, i) => {
       const at = what + ' ' + (i + 1);
-      const rowEl = list.createDiv({ cls: 'icor-sqlv-filter-row-edit icor-sqlv-range-row' });
+      const rowEl = list.createDiv({ cls: 'icor-sqlv-filter-row-edit icor-sqlv-range-row icor-sqlv-form-row' });
+      /* A row of many fields wraps; its name on top keeps it one unit. */
+      if (fields.length > 4) rowEl.createDiv({ cls: 'icor-sqlv-form-row-name', text: at });
       for (const f of fields) {
         if (f.show && !f.show(row)) continue;
         const aria = at + ': ' + f.label;
@@ -5507,10 +5509,11 @@ class WidgetFormModal extends Modal {
           }
           select.addEventListener('change', () => { row[f.key] = select.value; this.renderForm(); this.touch(); });
         } else if (f.kind === 'bool') {
-          const cb = rowEl.createEl('input', { type: 'checkbox' });
+          const pair = rowEl.createEl('label', { cls: 'icor-sqlv-form-row-check' });
+          const cb = pair.createEl('input', { type: 'checkbox' });
           cb.checked = row[f.key] === true;
           cb.setAttribute('aria-label', aria);
-          rowEl.createSpan({ cls: 'icor-sqlv-note', text: f.label });
+          pair.createSpan({ cls: 'icor-sqlv-note', text: f.label });
           cb.addEventListener('change', () => { row[f.key] = cb.checked; this.touch(); });
         } else {
           const input = rowEl.createEl('input', { type: 'text', cls: 'icor-sqlv-wizard-input' + (f.kind === 'number' ? ' icor-sqlv-range-num' : ''), value: row[f.key] || '' });

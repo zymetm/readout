@@ -1411,6 +1411,20 @@ button.icor-sqlv-add-filter { align-self: flex-start; }
 
 /* An option group in the edit form (Axis, Guide lines, Notes ...): the
  * Advanced toggle's look, its fields in the same column. */
+/* A row of an edit-form list (series, guide lines, zones, part colours):
+ * one unit, its name on top when its fields wrap. */
+.icor-sqlv-form-row { padding-bottom: var(--sqlv-s2); border-bottom: 1px solid var(--sqlv-hairline-subtle); }
+
+.icor-sqlv-form-row-name {
+  flex: 1 0 100%;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-form-row-check { display: inline-flex; align-items: center; gap: var(--sqlv-s1); }
+
 .icor-sqlv-option-body {
   display: flex;
   flex-direction: column;
