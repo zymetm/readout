@@ -148,7 +148,7 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [2, '1e003f86'], 'AI-WIDGET-GUIDE.md': [2, '4321423e'] };
+  const pinned = { 'README.md': [2, '1e003f86'], 'AI-WIDGET-GUIDE.md': [3, '54e082ad'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
@@ -317,6 +317,18 @@ test('the repository mirrors are the files the plugin writes', () => {
   const ai = readFileSync(new URL('../AI-WIDGET-GUIDE.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.equal(help, helpMirrorOf(lib.guideTextFor(README_FILE, '07 Databases')), 'DASHBOARD-HELP.md is the help file with pictures for samples');
   assert.equal(ai, lib.guideTextFor(AI_FILE, '07 Databases'));
+});
+
+test('the guides are read inside a vault: a repository they name is the plugin\'s on GitHub', () => {
+  /* A member's vault has no repository, so "the repository README" points
+   * nowhere there. Any paragraph that names a repository also says GitHub. */
+  const REPO = /\brepo(s|sitory|sitories)?\b/i;
+  for (const guide of lib.GUIDE_FILES) {
+    for (const para of guide.text.split(/\n\s*\n/).map(flat)) {
+      if (REPO.test(para)) assert.match(para, /GitHub/, guide.file + ': ' + para.slice(0, 120));
+    }
+  }
+  assert.ok(flat(AI).includes("The plugin's README on GitHub carries the same reference."), 'section 8 points at the README on GitHub');
 });
 
 test('the GitHub help file shows a light and a dark picture for every sample, and every picture is in the repository', () => {

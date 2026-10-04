@@ -231,7 +231,8 @@ build widgets the panel can show in full:
 ## 8. The field reference
 
 Every setting of the dashboard file, with an example of each type on an
-invented shop database. The repository README carries the same text.
+invented shop database. The plugin's README on GitHub carries the same
+reference.
 
 <!-- field reference -->
 ### The file
@@ -532,4 +533,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint 4321423e). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 3, fingerprint 54e082ad). If you edit this file, the plugin stops updating it. -->

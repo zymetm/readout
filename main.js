@@ -8080,7 +8080,8 @@ build widgets the panel can show in full:
 ## 8. The field reference
 
 Every setting of the dashboard file, with an example of each type on an
-invented shop database. The repository README carries the same text.
+invented shop database. The plugin's README on GitHub carries the same
+reference.
 
 <!-- field reference -->
 ### The file
@@ -8389,7 +8390,7 @@ the value levels.
  * refreshed. */
 const GUIDE_FILES = [
   { file: 'README.md', text: DASHBOARD_README, revision: 2, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 2, legacy: [] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 3, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
