@@ -945,7 +945,7 @@ function checkChartAxis(t, viz, at) {
     const ticks = axis.yTicks;
     if (!Array.isArray(ticks) || !ticks.length || ticks.length > Y_TICKS_MAX || !ticks.every(finite)
       || ticks.some((v, i) => i > 0 && v <= ticks[i - 1])) {
-      return { ok: false, reason: at + ': "yTicks" must be a list of 1 to ' + Y_TICKS_MAX + ' numbers from low to high, like [54, 70, 180].' };
+      return { ok: false, reason: at + ': "yTicks" must be a list of 1 to ' + Y_TICKS_MAX + ' numbers from low to high, like [0, 50, 100].' };
     }
     axis.yTicks = ticks.slice();
   }
