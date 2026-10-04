@@ -449,7 +449,7 @@ test('the spec validator checks levelColors in plain words, and they survive the
   assert.match(reason({ Alert: '#123456' }, { viz: 'line', x: 'a', y: 'b', ranges: undefined }), /^Tile 1: "levelColors" only work on a stat widget/);
   assert.match(reason(['#123456']), /^Tile 1: "levelColors" must be an object like/);
   assert.match(reason({ ' ': '#123456' }), /every name in "levelColors" must be a level name/);
-  assert.match(reason({ Alert: 'red' }), /^Tile 1: the colour for "Alert" in "levelColors" must be a theme colour like "var\(--color-red\)" or a hex colour like "#d04040"\./);
+  assert.match(reason({ Alert: 'red' }), /^Tile 1: the colour for "Alert" in "levelColors" must be a theme colour like "var\(--color-red\)" or a hex colour like "#cc3311"./);
   const ok = parse(statTile({ ranges: BANDS, levelColors: { Alert: '#123456', Good: 'var(--color-blue)' } }));
   assert.equal(ok.ok, true, ok.reason);
   const json = JSON.parse(lib.specToJson(ok.spec));
