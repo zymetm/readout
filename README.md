@@ -39,9 +39,21 @@ too large to sync still shows you its answers.
 
 ## Dashboard files
 
-A dashboard is one JSON file in the dashboards folder. The edit form
-writes it, and every widget type and setting below can be set there; the
-same reference is written into the folder as its README.md.
+A dashboard is one JSON file in the dashboards folder. The edit panel
+writes it, and every widget type and setting below can be set there.
+
+The plugin writes two guides into the dashboards folder, mirrored here:
+
+- `README.md` ([DASHBOARD-HELP.md](DASHBOARD-HELP.md) in this repository):
+  how to use the edit panel, every setting of every widget type in the
+  panel's own words, with the reference below as its appendix.
+- [AI-WIDGET-GUIDE.md](AI-WIDGET-GUIDE.md): for AI assistants asked to
+  build a widget: the rules, the procedure, the schema and the result
+  shapes.
+
+Each copy ends with a fingerprint of its text. A newer plugin replaces a
+copy only while it still matches (nobody has edited it); an edited copy
+is never overwritten. Delete a copy to get the newest text.
 
 <!-- field reference -->
 ### The file
@@ -70,7 +82,49 @@ same reference is written into the folder as its README.md.
 
 A file the plugin cannot read is listed at the top of the dashboards view
 with a plain sentence naming the widget and the setting. A setting the
-plugin does not know is dropped the next time the form saves the file.
+plugin does not know is dropped the next time the panel saves the file.
+
+### Panel label to file setting
+
+| Panel label | In the file |
+| --- | --- |
+| "Widget name", "Title", "Heading" | `title` |
+| "Chart type", "Widget type" | `viz` |
+| "Unit" | `unit` |
+| "Size", "Width" | `layout` |
+| "SQL" | `sql` |
+| "X column", "Part name column" | `x` |
+| "Y columns (comma-separated)", "Value column", "Part size column" | `y` |
+| "Stack the series on top of each other", "Stack the bars on top of each other" | `stack` |
+| "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | `source`: `database`, `table`, `metric`, `agg`, `timeColumn`, `series`, `groupBy`, `filters`, `timeframe` |
+| "Compare with" | `compare` |
+| "Good direction" | `favorable` |
+| "Value levels" (the ranges) | `ranges` |
+| "Colours for this widget" | `levelColors` |
+| "Judge the ranges on column" | `rangeColumn` |
+| "Caption columns (comma-separated)" | `captions` |
+| "Number size", "Number size in pixels" | `valueSize` |
+| "Show change over the period" | `headerDelta` |
+| "Roll-up at the right of the title" | `chartCaption` |
+| "Average the ends over N days" | `headerDeltaAverageDays` |
+| "Line colour", "Bar colour" | `color` |
+| "Scrub line colour" | `guideColor` |
+| "Meter under the number" | `meter` |
+| "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact` (on the right axis `y2Min` ... `y2TickCompact`) |
+| "Unit of the right axis" | `y2Unit` |
+| "Label every Nth value along the bottom" | `xLabelEvery` |
+| "Guide lines" | `refLines` |
+| "Zones" | `zones` |
+| "Band" | `band` |
+| "Hint by the title" | `hint` |
+| "Footnote under the widget" | `footnote` |
+| "Series" | `series` |
+| "Part colours" | `segmentColors` |
+| "Row labels column", "Column labels column", "Cell value column" | `row`, `column`, `value` |
+| "Dot column", "Dot colour", "Dot label in the legend" | `marker`, `markerColor`, `markerLabel` |
+| "Highlight", "Cells", "Label every Nth column" | `highlight`, `cells`, `columnLabelEvery` |
+| "The words come from", "Text" | `sql` or `text` |
+| "One thin line, like a section divider (no title)" | `line` |
 
 ### Every widget
 
@@ -183,8 +237,8 @@ first column); a built stat its one value.
   until it shows whole. Unset, the theme decides.
 - `meter`: `{"min", "max", "target"}`: a thin bar under the number, filled
   to where it sits, with a mark at the target.
-- `captions`: the columns shown as lines under the number (SQL); unset, the
-  next column.
+- `captions`: the columns shown as lines under the number (SQL), up to 4;
+  unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
 ### Value levels (stat, segments, heatmap)
@@ -306,6 +360,9 @@ the value levels.
 - **Reads database files in your vault.** Read-only, always. It never writes
   to your databases, and it cannot alter your data.
 - **Writes the dashboards you save**, as ordinary files in your vault.
+- **Writes two guides into the dashboards folder** (`README.md` and
+  `AI-WIDGET-GUIDE.md`), and replaces them only while they are still its own
+  unedited text.
 
 **It makes no network connection and starts no process.**
 
