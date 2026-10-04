@@ -226,4 +226,4 @@ build widgets the panel can show in full:
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in `tiles`.
 - Leaving a test dashboard or test widget behind (rule 9).
-<!-- Written by the SQLite Viewer plugin (fingerprint f2cb0693). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 1, fingerprint f2cb0693). If you edit this file, the plugin stops updating it. -->

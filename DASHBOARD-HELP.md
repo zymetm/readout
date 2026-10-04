@@ -847,4 +847,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (fingerprint 222cc051). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 1, fingerprint 222cc051). If you edit this file, the plugin stops updating it. -->

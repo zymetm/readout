@@ -128,6 +128,50 @@ test('a guide is written when missing, left alone when current, refreshed when t
   assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'current', 'line endings changed by a sync tool are not an edit');
 });
 
+test('each guide\'s revision is pinned to its text: change the text, raise the revision', () => {
+  /* Two devices on the same revision leave each other's copy alone, so
+   * the same revision must mean the same text. When this fails, raise the
+   * guide's revision in GUIDE_FILES and pin the new hash here. */
+  const pinned = { 'README.md': [1, '222cc051'], 'AI-WIDGET-GUIDE.md': [1, 'f2cb0693'] };
+  for (const guide of lib.GUIDE_FILES) {
+    assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
+  }
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 1, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+});
+
+test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {
+  const mine = lib.guideTextFor(README_FILE, '07 Databases');
+  /* A device on a newer plugin wrote revision 2: this one leaves it. */
+  const newer = lib.guideTextFor({ text: HELP + '\nNewer.\n', revision: 2 }, '07 Databases');
+  let adapter = makeFakeAdapter({ [PATH]: newer });
+  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'newer');
+  assert.equal(adapter.files.get(PATH), newer, 'never replaced by an older revision');
+
+  /* Same revision, another data folder setting: the other device's copy stays. */
+  const other = lib.guideTextFor(README_FILE, 'Data');
+  adapter = makeFakeAdapter({ [PATH]: other });
+  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'current');
+  assert.equal(adapter.files.get(PATH), other);
+
+  /* Two devices taking turns at loading, each with its own folder: one write in all. */
+  adapter = makeFakeAdapter();
+  for (let i = 0; i < 4; i++) {
+    const folder = i % 2 ? 'Data' : '07 Databases';
+    await lib.refreshGuideFile(adapter, PATH, lib.guideTextFor(README_FILE, folder), README_FILE.legacy, folder);
+  }
+  assert.equal(adapter.log.filter(([op]) => op === 'write').length, 1, 'written once, then left alone by both');
+
+  /* A copy from before revisions (the fingerprint line alone) is revision 0. */
+  const body = mine.replace(/<!-- Written by[^\n]*\n$/, '');
+  const unrevised = body + '<!-- Written by the SQLite Viewer plugin (fingerprint ' + lib.guideHash(body.replace('# Dashboards: how to use the edit panel', '# Dashboards')) + '). If you edit this file, the plugin stops updating it. -->\n';
+  const oldOwn = unrevised.replace('# Dashboards: how to use the edit panel', '# Dashboards');
+  assert.equal(lib.guideRevision(oldOwn), 0);
+  assert.equal(lib.guideIsPluginOwn(oldOwn, [], '07 Databases'), true, 'still recognised as the plugin\'s own');
+  adapter = makeFakeAdapter({ [PATH]: oldOwn });
+  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'refreshed');
+  assert.equal(adapter.files.get(PATH), mine);
+});
+
 test('the data folder is written into a guide exactly as it is named, "$" included', () => {
   const text = lib.guideTextFor({ text: 'Files live in 07 Databases/Dashboards.\n' }, "Data $& $' and $`");
   assert.ok(text.startsWith("Files live in Data $& $' and $`/Dashboards.\n"), text.split('\n')[0]);

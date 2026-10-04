@@ -7381,18 +7381,28 @@ class JsonFileView extends FileView {
  *
  * - no file yet: it is written;
  * - the file is still the plugin's own, unedited text: it is replaced
- *   when the plugin's text has changed, and left alone when it has not;
+ *   when this plugin's text is a newer revision, and left alone when it
+ *   is the same revision or an older one;
  * - anything else (someone edited it): it is never touched.
  *
  * "Unedited" is decided by a fingerprint. The plugin ends each copy with
- * one comment line holding a hash of everything above it. A copy whose
- * text still hashes to its own fingerprint is the plugin's; any edit
- * above the line (or to the line) breaks the match. Copies written before
- * the fingerprint existed carry none; they count as the plugin's own only
- * when their whole text hashes to one of the texts earlier versions
- * wrote (`legacy`). The hash is FNV-1a, 32 bits: an identity check on a
- * small text, not a security measure. */
-const GUIDE_MARK_RE = /<!-- Written by the SQLite Viewer plugin \(fingerprint ([0-9a-f]{8})\)\. If you edit this file, the plugin stops updating it\. -->\n?$/;
+ * one comment line holding the text's revision and a hash of everything
+ * above it. A copy whose text still hashes to its own fingerprint is the
+ * plugin's; any edit above the line (or to the line) breaks the match.
+ * Copies written before the fingerprint existed carry none; they count as
+ * the plugin's own only when their whole text hashes to one of the texts
+ * earlier versions wrote (`legacy`). The hash is FNV-1a, 32 bits: an
+ * identity check on a small text, not a security measure.
+ *
+ * Refreshing only forward keeps two devices that share a vault through
+ * Sync from rewriting each other's copy: a device on an older plugin
+ * never replaces a newer revision, and two devices on the same revision
+ * leave each other's copy alone even when their data folder settings
+ * (which are written into the text) differ. A copy without a revision
+ * (written before revisions existed) counts as revision 0. Every change
+ * to a guide's text raises its `revision` in GUIDE_FILES; a gate pins
+ * each revision to its text. */
+const GUIDE_MARK_RE = /<!-- Written by the SQLite Viewer plugin \((?:revision (\d+), )?fingerprint ([0-9a-f]{8})\)\. If you edit this file, the plugin stops updating it\. -->\n?$/;
 
 function guideHash(text) {
   let h = 0x811c9dc5;
@@ -7410,17 +7420,37 @@ function guideTextFor(guide, dataFolder) {
   /* A function, so a "$" in the folder name is written as it is. */
   const folder = dataFolder || '07 Databases';
   const body = guide.text.replace(/07 Databases/g, () => folder);
-  return body + '<!-- Written by the SQLite Viewer plugin (fingerprint ' + guideHash(body) + '). If you edit this file, the plugin stops updating it. -->\n';
+  return body + '<!-- Written by the SQLite Viewer plugin (revision ' + (guide.revision || 0) + ', fingerprint ' + guideHash(body) + '). If you edit this file, the plugin stops updating it. -->\n';
 }
 
 /* Whether a copy on disk is still the plugin's own, unedited text. */
 function guideIsPluginOwn(current, legacy, dataFolder) {
   const t = String(current).replace(/\r\n/g, '\n');
   const mark = GUIDE_MARK_RE.exec(t);
-  if (mark) return guideHash(t.slice(0, mark.index)) === mark[1];
+  if (mark) return guideHash(t.slice(0, mark.index)) === mark[2];
   const known = new Set(legacy || []);
   if (known.has(guideHash(t))) return true;
   return !!dataFolder && dataFolder !== '07 Databases' && known.has(guideHash(t.split(dataFolder).join('07 Databases')));
+}
+
+/* The revision a copy says it is: 0 for one without a revision. */
+function guideRevision(text) {
+  const mark = GUIDE_MARK_RE.exec(String(text).replace(/\r\n/g, '\n'));
+  return mark && mark[1] ? Number(mark[1]) : 0;
+}
+
+/* What to do with the copy on disk, in a word: 'current' (nothing to do),
+ * 'newer' (a newer plugin wrote it: leave it), 'kept' (edited: never
+ * touch) or 'refresh'. */
+function guideRefreshFor(current, text, legacy, dataFolder) {
+  const t = String(current).replace(/\r\n/g, '\n');
+  if (t === text) return 'current';
+  if (!guideIsPluginOwn(t, legacy, dataFolder)) return 'kept';
+  const theirs = guideRevision(t);
+  const mine = guideRevision(text);
+  if (theirs > mine) return 'newer';
+  if (theirs === mine) return 'current';
+  return 'refresh';
 }
 
 /* Write, refresh or keep one guide. Returns what happened, in a word. */
@@ -7428,8 +7458,8 @@ async function refreshGuideFile(adapter, path, text, legacy, dataFolder) {
   if (!(await adapter.exists(path))) { await adapter.write(path, text); return 'written'; }
   let current;
   try { current = await adapter.read(path); } catch (e) { return 'kept'; }
-  if (current.replace(/\r\n/g, '\n') === text) return 'current';
-  if (!guideIsPluginOwn(current, legacy, dataFolder)) return 'kept';
+  const action = guideRefreshFor(current, text, legacy, dataFolder);
+  if (action !== 'refresh') return action;
   await adapter.write(path, text);
   return 'refreshed';
 }
@@ -8522,8 +8552,8 @@ build widgets the panel can show in full:
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 1, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 1, legacy: [] },
 ];
 
 const STARTER_DASHBOARDS = [
@@ -9111,7 +9141,7 @@ IcorSqliteViewerPlugin.lib = {
   matchesNeedle, colsForWidth, defaultSpanFor, clampLayout, rectsCollide,
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
-  deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, DASHBOARD_README, AI_WIDGET_GUIDE, GUIDE_FILES, guideHash, guideTextFor, guideIsPluginOwn, refreshGuideFile, VIZ_KINDS, SIZE_PRESETS, sizePresetOf, makeDebounce,
+  deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, DASHBOARD_README, AI_WIDGET_GUIDE, GUIDE_FILES, guideHash, guideTextFor, guideIsPluginOwn, guideRevision, guideRefreshFor, refreshGuideFile, VIZ_KINDS, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, checkChartColors, chartPaletteFor, normalizeLevels, levelIdFor, planLevelRename, renameLevelInDashboard, normalizeLevelLooks, checkRanges, checkLevelColors, checkTileLevels, levelOf, resolveLevel, levelLookFor,
   headerDeltaOf, checkHeaderDelta, chartRangeOf, chartCaptionOf,
