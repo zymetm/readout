@@ -23,11 +23,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import { loadPlugin, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 import { panelLabels } from './panel-labels.mjs';
 import { SINK, DB, keysOf } from './guide-sink.mjs';
 
-const { lib, PluginClass } = loadPlugin();
+const { lib, PluginClass, obsidian } = loadPlugin();
+const vaultOf = (adapter) => makeFakeVault(adapter, obsidian.TFile);
 const HELP = lib.DASHBOARD_README;
 /* Markdown reads a line break inside a paragraph as a space, so the help
  * file is searched with its lines joined. */
@@ -115,17 +116,17 @@ test('a guide is written when missing, left alone when current, refreshed when t
   assert.equal(lib.guideIsPluginOwn(aiText, [], '07 Databases'), true);
 
   const adapter = makeFakeAdapter();
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'written');
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'current');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'written');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'current');
   assert.equal(adapter.log.filter(([op]) => op === 'write').length, 1, 'nothing rewritten when nothing changed');
 
   const older = lib.guideTextFor({ text: HELP.replace('# Dashboards: how to use the edit panel', '# Dashboards') }, '07 Databases');
   adapter.files.set(PATH, older);
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'refreshed');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'refreshed');
   assert.equal(adapter.files.get(PATH), text);
 
   adapter.files.set(PATH, text.replace(/\n/g, '\r\n'));
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [], '07 Databases'), 'current', 'line endings changed by a sync tool are not an edit');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'current', 'line endings changed by a sync tool are not an edit');
 });
 
 test('each guide\'s revision is pinned to its text: change the text, raise the revision', () => {
@@ -144,20 +145,20 @@ test('a guide is refreshed only forward, so two devices sharing a vault never re
   /* A device on a newer plugin wrote revision 2: this one leaves it. */
   const newer = lib.guideTextFor({ text: HELP + '\nNewer.\n', revision: 2 }, '07 Databases');
   let adapter = makeFakeAdapter({ [PATH]: newer });
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'newer');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, mine, README_FILE.legacy, '07 Databases'), 'newer');
   assert.equal(adapter.files.get(PATH), newer, 'never replaced by an older revision');
 
   /* Same revision, another data folder setting: the other device's copy stays. */
   const other = lib.guideTextFor(README_FILE, 'Data');
   adapter = makeFakeAdapter({ [PATH]: other });
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'current');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, mine, README_FILE.legacy, '07 Databases'), 'current');
   assert.equal(adapter.files.get(PATH), other);
 
   /* Two devices taking turns at loading, each with its own folder: one write in all. */
   adapter = makeFakeAdapter();
   for (let i = 0; i < 4; i++) {
     const folder = i % 2 ? 'Data' : '07 Databases';
-    await lib.refreshGuideFile(adapter, PATH, lib.guideTextFor(README_FILE, folder), README_FILE.legacy, folder);
+    await lib.refreshGuideFile(vaultOf(adapter), PATH, lib.guideTextFor(README_FILE, folder), README_FILE.legacy, folder);
   }
   assert.equal(adapter.log.filter(([op]) => op === 'write').length, 1, 'written once, then left alone by both');
 
@@ -168,7 +169,7 @@ test('a guide is refreshed only forward, so two devices sharing a vault never re
   assert.equal(lib.guideRevision(oldOwn), 0);
   assert.equal(lib.guideIsPluginOwn(oldOwn, [], '07 Databases'), true, 'still recognised as the plugin\'s own');
   adapter = makeFakeAdapter({ [PATH]: oldOwn });
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, mine, README_FILE.legacy, '07 Databases'), 'refreshed');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, mine, README_FILE.legacy, '07 Databases'), 'refreshed');
   assert.equal(adapter.files.get(PATH), mine);
 });
 
@@ -190,7 +191,7 @@ test('an edited guide is never overwritten, wherever the edit is', async () => {
   };
   for (const [what, edited] of Object.entries(edits)) {
     const adapter = makeFakeAdapter({ [PATH]: edited });
-    assert.equal(await lib.refreshGuideFile(adapter, PATH, newer, README_FILE.legacy, '07 Databases'), 'kept', what);
+    assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, newer, README_FILE.legacy, '07 Databases'), 'kept', what);
     assert.equal(adapter.files.get(PATH), edited, what + ': untouched');
   }
 });
@@ -210,13 +211,70 @@ test('a copy from before the fingerprint is refreshed only when it is an old plu
   const asWritten = other.replace(/07 Databases/g, 'Data');
   assert.equal(lib.guideIsPluginOwn(asWritten, [lib.guideHash(other)], 'Data'), true);
   const adapter = makeFakeAdapter({ [PATH]: fake });
-  assert.equal(await lib.refreshGuideFile(adapter, PATH, text, [lib.guideHash(fake)], '07 Databases'), 'refreshed');
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [lib.guideHash(fake)], '07 Databases'), 'refreshed');
+});
+
+test('the guides are written through the Vault API, never behind its back through the adapter', async () => {
+  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const fresh = loadPlugin();
+  const vault = makeFakeVault(adapter, fresh.obsidian.TFile);
+  const through = [];
+  /* The vault's own writes go straight to the files; a note written
+   * through the adapter is refused. */
+  vault.create = async (p, text) => { through.push(['create', p]); adapter.files.set(p, text); return new fresh.obsidian.TFile(p); };
+  vault.process = async (f, fn) => { through.push(['process', f.path]); const next = fn(adapter.files.get(f.path)); adapter.files.set(f.path, next); return next; };
+  const write = adapter.write;
+  adapter.write = async (p, text) => { if (/\.md$/.test(p)) throw new Error('a note written through the adapter: ' + p); return write(p, text); };
+  const app = { vault, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const plugin = fresh.makePlugin(app);
+  plugin.app = app;
+  await plugin.onload();
+  await plugin.ensureStarterFiles();
+  const folder = plugin.settings.dashboardFolder;
+  assert.deepEqual(through.map(([op, p]) => op + ' ' + p).sort(), ['create ' + folder + '/AI-WIDGET-GUIDE.md', 'create ' + folder + '/README.md']);
+  /* An old plugin copy is refreshed through Vault.process. */
+  adapter.files.set(folder + '/README.md', fresh.lib.guideTextFor({ text: 'Old.\n' }, plugin.settings.dataFolder));
+  await plugin.ensureStarterFiles();
+  assert.deepEqual(through.slice(2).map(([op, p]) => op + ' ' + p), ['process ' + folder + '/README.md']);
+  assert.equal(adapter.files.get(folder + '/README.md'), fresh.lib.guideTextFor(fresh.lib.GUIDE_FILES[0], plugin.settings.dataFolder));
+});
+
+test('a guide edit that lands between the read and the write is never overwritten', async () => {
+  const mine = lib.guideTextFor(README_FILE, '07 Databases');
+  const old = lib.guideTextFor({ text: 'Old.\n' }, '07 Databases');
+  const adapter = makeFakeAdapter({ [PATH]: old });
+  const vault = vaultOf(adapter);
+  const process = vault.process;
+  /* The member saves an edit just as the refresh starts. */
+  vault.process = async (f, fn) => { adapter.files.set(PATH, 'My own words.\n'); return process(f, fn); };
+  assert.equal(await lib.refreshGuideFile(vault, PATH, mine, [], '07 Databases'), 'kept');
+  assert.equal(adapter.files.get(PATH), 'My own words.\n');
+});
+
+test('a guide on disk that the vault does not index is left alone, and a failed guide never stops the starters', async () => {
+  const adapter = makeFakeAdapter({ [PATH]: 'Something.\n' });
+  const vault = vaultOf(adapter);
+  vault.getAbstractFileByPath = () => null;
+  assert.equal(await lib.refreshGuideFile(vault, PATH, lib.guideTextFor(README_FILE, '07 Databases'), [], '07 Databases'), 'kept');
+  assert.equal(adapter.files.get(PATH), 'Something.\n');
+
+  const disk = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const fresh = loadPlugin();
+  const broken = makeFakeVault(disk, fresh.obsidian.TFile);
+  broken.create = async () => { throw new Error('no room'); };
+  const app = { vault: broken, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const plugin = fresh.makePlugin(app);
+  plugin.app = app;
+  await plugin.onload();
+  await plugin.ensureStarterFiles();
+  assert.ok(disk.files.has(plugin.settings.dashboardFolder + '/engagement-overview.json'), 'the starter is still seeded');
 });
 
 test('the plugin writes both guides on load, then leaves them alone', async () => {
   const adapter = makeFakeAdapter();
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
-  const { makePlugin } = loadPlugin();
+  const fresh = loadPlugin();
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const { makePlugin } = fresh;
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();

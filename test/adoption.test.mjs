@@ -11,9 +11,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 
-const { lib, makePlugin } = loadPlugin();
+const { lib, makePlugin, obsidian } = loadPlugin();
 const D = lib.DEFAULT_SETTINGS;
 
 function settings(overrides) {
@@ -57,7 +57,7 @@ test('a vault already configured on 07 Data stays put without a loop', () => {
 /* ------------------------------------------------- through the plugin -- */
 
 async function bootPlugin(adapter) {
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: makeFakeVault(adapter, obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -67,7 +67,7 @@ async function bootPlugin(adapter) {
 test('a legacy vault boots onto 07 Data and seeds its starters there', async () => {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

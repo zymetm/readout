@@ -175,6 +175,30 @@ export function loadPlugin({ desktop = true, sourceOverride = null, globals = {}
 /* Deep-copy a sandbox-realm value into the test realm so deepEqual works. */
 export function unwrap(value) { return JSON.parse(JSON.stringify(value)); }
 
+/* The Vault API over a fake adapter, for the gates that write notes: a
+ * TFile for every file the adapter holds, read, create (refused when the
+ * file exists, like Obsidian) and process, each going through the
+ * adapter so its log shows every write. `TFile` is the stub's class from
+ * the same loadPlugin() call, so main.js's instanceof checks hold. */
+export function makeFakeVault(adapter, TFile) {
+  return {
+    adapter,
+    getFiles: () => [],
+    getAbstractFileByPath: (p) => (adapter.files.has(p) ? new TFile(p) : null),
+    read: async (f) => adapter.read(f.path),
+    async create(p, text) {
+      if (adapter.files.has(p)) throw new Error('File already exists.');
+      await adapter.write(p, text);
+      return new TFile(p);
+    },
+    async process(f, fn) {
+      const next = fn(await adapter.read(f.path));
+      await adapter.write(f.path, next);
+      return next;
+    },
+  };
+}
+
 /* An in-memory vault adapter for the migration and cache gates. Paths and
  * contents live in a Map; rename moves the entry; nothing touches disk. */
 export function makeFakeAdapter(initialFiles = {}, initialBinaries = {}) {

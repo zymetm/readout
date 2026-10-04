@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -247,7 +247,7 @@ test('tileDatabase and tileSql: widget database beats dashboard database; raw SQ
 
 async function makeCatalogPlugin(adapter, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

@@ -7453,15 +7453,33 @@ function guideRefreshFor(current, text, legacy, dataFolder) {
   return 'refresh';
 }
 
-/* Write, refresh or keep one guide. Returns what happened, in a word. */
-async function refreshGuideFile(adapter, path, text, legacy, dataFolder) {
-  if (!(await adapter.exists(path))) { await adapter.write(path, text); return 'written'; }
+/* Write, refresh or keep one guide, through the Vault API: these are
+ * notes a member may have open. The refresh is a Vault.process that
+ * decides again on the text it is handed, so a change that lands between
+ * the read and the write is never overwritten. Nothing is written when
+ * nothing needs to be. Returns what happened, in a word. */
+async function refreshGuideFile(vault, path, text, legacy, dataFolder) {
+  const file = vault.getAbstractFileByPath(path);
+  if (!file) {
+    /* On disk but not in the vault (a folder Obsidian does not index):
+     * not the plugin's to touch. */
+    if (await vault.adapter.exists(path)) return 'kept';
+    await vault.create(path, text);
+    return 'written';
+  }
+  if (!(file instanceof TFile)) return 'kept';
   let current;
-  try { current = await adapter.read(path); } catch (e) { return 'kept'; }
+  try { current = await vault.read(file); } catch (e) { return 'kept'; }
   const action = guideRefreshFor(current, text, legacy, dataFolder);
   if (action !== 'refresh') return action;
-  await adapter.write(path, text);
-  return 'refreshed';
+  let outcome = 'refreshed';
+  await vault.process(file, (now) => {
+    const again = guideRefreshFor(now, text, legacy, dataFolder);
+    if (again === 'refresh') return text;
+    outcome = again;
+    return now;
+  });
+  return outcome;
 }
 
 const DASHBOARD_README = `---
@@ -8985,8 +9003,13 @@ class IcorSqliteViewerPlugin extends Plugin {
     const adapter = this.app.vault.adapter;
     const folder = this.settings.dashboardFolder;
     await ensureFolder(adapter, folder);
+    /* A guide that cannot be written never stops the starter dashboards. */
     for (const guide of GUIDE_FILES) {
-      await refreshGuideFile(adapter, folder + '/' + guide.file, guideTextFor(guide, this.settings.dataFolder), guide.legacy, this.settings.dataFolder);
+      try {
+        await refreshGuideFile(this.app.vault, folder + '/' + guide.file, guideTextFor(guide, this.settings.dataFolder), guide.legacy, this.settings.dataFolder);
+      } catch (e) {
+        console.error(safeLogLine('could not write ' + guide.file, e));
+      }
     }
     for (const starter of STARTER_DASHBOARDS) {
       const path = folder + '/' + starter.file;

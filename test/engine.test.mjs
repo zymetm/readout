@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodeRequire = createRequire(import.meta.url);
@@ -103,7 +103,7 @@ test('detectCli: a found binary reports its version, a missing one says so plain
 async function makeServicePlugin(adapter, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const app = {
-    vault: { adapter, getFiles: () => [] },
+    vault: makeFakeVault(adapter, fresh.obsidian.TFile),
     workspace: { onLayoutReady: () => {}, on: () => ({}) },
   };
   const plugin = fresh.makePlugin(app);
