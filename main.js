@@ -1471,11 +1471,11 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS, ['meter']);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS);
 
 /* The option keys the form sets on a line, bar, stat or table widget,
  * copied from its parser check onto the built tile. */
-const FORM_OPTION_KEYS = ['hint', 'footnote'];
+const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter'];
 
 /* Widget types the form builds whole through the parser. */
 const FORM_WHOLE_VIZ = new Set();
@@ -4967,6 +4967,9 @@ class WidgetFormModal extends Modal {
       guideColor: existing && existing.guideColor ? existing.guideColor : '',
       hint: existing && existing.hint ? existing.hint : '',
       footnote: existing && existing.footnote ? existing.footnote : '',
+      meterMin: existing && existing.meter ? String(existing.meter.min) : '',
+      meterMax: existing && existing.meter ? String(existing.meter.max) : '',
+      meterTarget: existing && existing.meter && existing.meter.target !== undefined ? String(existing.meter.target) : '',
       advancedOpen: false,
       /* Which option groups are open; a group opens by itself when the
        * widget already has a value in it. */
@@ -5089,8 +5092,31 @@ class WidgetFormModal extends Modal {
       if (s.hint.trim()) raw.hint = s.hint;
       if (s.footnote.trim()) raw.footnote = s.footnote;
     }
+    if (viz === 'stat' && (s.meterMin.trim() || s.meterMax.trim() || s.meterTarget.trim())) {
+      const min = formNumber(s.meterMin, 'Meter: the lowest value');
+      const max = formNumber(s.meterMax, 'Meter: the highest value');
+      const target = formNumber(s.meterTarget, 'Meter: the target');
+      for (const n of [min, max, target]) if (!n.ok) return n;
+      if (min.value === undefined || max.value === undefined) return { ok: false, reason: 'Meter: give the lowest and the highest value, or clear all three fields.' };
+      raw.meter = { min: min.value, max: max.value };
+      if (target.value !== undefined) raw.meter.target = target.value;
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* A thin bar under the number, filled to where it sits from lowest to
+   * highest, with an optional target mark. */
+  renderMeterFields(form, viz) {
+    if (viz !== 'stat') return;
+    const s = this.state;
+    const body = this.optionGroup(form, { key: 'meter', label: 'Meter under the number', hasValues: !!(s.meterMin || s.meterMax) });
+    if (!body) return;
+    body.createDiv({ cls: 'icor-sqlv-note', text: 'A bar under the number, filled to where it sits between the lowest and the highest value. The target draws a mark.' });
+    for (const [key, label, ph] of [['meterMin', 'Lowest value', 'like 0'], ['meterMax', 'Highest value', 'like 100'], ['meterTarget', 'Target', 'optional']]) {
+      const input = this.textInput(body, { label, optional: key === 'meterTarget', value: s[key], placeholder: ph, onInput: (v) => { s[key] = v; this.touch(); } });
+      input.setAttribute('inputmode', 'decimal');
+    }
   }
 
   /* A hint at the right of the title, a footnote under the widget. */
@@ -6042,6 +6068,7 @@ class WidgetFormModal extends Modal {
    * meets them on the widget. */
   renderOptionGroups(form, viz, built) {
     void built;
+    this.renderMeterFields(form, viz);
     this.renderNotesFields(form, viz);
   }
 

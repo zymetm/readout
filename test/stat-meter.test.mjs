@@ -94,7 +94,7 @@ test('the meter survives the spec file, on an SQL tile and on a built widget, an
   const el = freshEl();
   lib.renderTile(el, prepared.spec, prepared.table, {});
   assert.equal(byClass(el, 'icor-sqlv-meter-fill')[0].style.width, '50.00%');
-  assert.deepEqual(unwrap(lib.keepUneditedKeys({ viz: 'stat' }, { viz: 'stat', meter: { min: 0, max: 1 } }).meter), { min: 0, max: 1 }, 'an edit from the form keeps it');
+  assert.equal(lib.keepUneditedKeys({ viz: 'stat' }, { viz: 'stat', meter: { min: 0, max: 1 } }).meter, undefined, 'the form has its own meter fields now, so nothing is kept behind its back');
   assert.equal(lib.keepUneditedKeys({ viz: 'line' }, { viz: 'stat', meter: { min: 0, max: 1 } }).meter, undefined, 'not when the widget changes type');
 });
 

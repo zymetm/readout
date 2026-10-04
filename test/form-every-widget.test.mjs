@@ -17,7 +17,7 @@ import { loadPlugin, unwrap } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
-import { byClass, byLabel, makeForm } from './form-kit.mjs';
+import { byClass, byLabel, makeForm, asFileTile } from './form-kit.mjs';
 
 /* ------------------------------------------------------------ helpers -- */
 
@@ -91,4 +91,43 @@ test('a hint that is too long is refused in the parser\'s words', async () => {
   const built = form.buildTile();
   assert.equal(built.ok, false);
   assert.match(built.reason, /This widget: "hint" must be text, 60 characters at most/);
+});
+
+/* -------------------------------------------------------------- meter -- */
+
+test('the meter: three fields on a stat, saved as the file writes it, cleared by emptying them', async () => {
+  const { form, spec, lib: l } = await makeForm({ title: 'Fulfilled', viz: 'stat', sql: 'SELECT n FROM one', y: ['n'], meter: { min: 0, max: 100, target: 95 } });
+  form.open();
+  assert.equal(byLabel(form.formEl, 'Lowest value').value, '0');
+  assert.equal(byLabel(form.formEl, 'Target').value, '95');
+  form.state.meterMax = '50';
+  form.state.meterTarget = '';
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0]).meter), { min: 0, max: 50 });
+
+  const again = await makeForm(spec.tiles[0]);
+  again.form.open();
+  again.form.state.meterMin = '';
+  again.form.state.meterMax = '';
+  again.form.touch();
+  await again.form.runPreview();
+  await again.form.save();
+  assert.equal(again.spec.tiles[0].meter, undefined);
+});
+
+test('a half-filled meter says what is missing; a target outside the scale is refused by the parser', async () => {
+  const { form } = await makeForm({ title: 'Fulfilled', viz: 'stat', sql: 'SELECT n FROM one', y: ['n'] });
+  form.open();
+  form.state.meterMax = '10';
+  assert.match(form.buildTile().reason, /Meter: give the lowest and the highest value/);
+  form.state.meterMin = '0';
+  form.state.meterTarget = '20';
+  assert.match(form.buildTile().reason, /"meter" "target" must be a number from "min" to "max"/);
+  form.state.viz = 'line';
+  form.state.x = 'day';
+  form.state.y = 'n';
+  assert.equal(form.buildTile().ok, true, 'a line chart leaves the meter out instead of refusing');
 });
