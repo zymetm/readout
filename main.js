@@ -1073,7 +1073,7 @@ function colsForWidth(width) {
 /* A segments bar: one horizontal bar split into the rows of the query,
  * each as wide as its share of the total: how a whole divides. "x" names
  * each part, "y" sizes it, in the query's order. "segmentColors" colours
- * the parts by name ({"Done": "#51af6f"}); a part without one takes the
+ * the parts by name ({"Done": "#228833"}); a part without one takes the
  * theme's series colours. Like a stat, "ranges" with a "rangeColumn"
  * judge one number from the first row and mark the widget with a level.
  * Returns { ok, colors } or { ok, reason }. */
@@ -1093,11 +1093,11 @@ function checkSegments(t, y, levelCheck, at) {
   const raw = t.segmentColors;
   if (raw === undefined) return { ok: true, colors: undefined };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, reason: at + ': "segmentColors" must be an object like {"Done": "#51af6f"}.' };
+    return { ok: false, reason: at + ': "segmentColors" must be an object like {"Done": "#228833"}.' };
   }
   const colors = {};
   for (const [name, color] of Object.entries(raw)) {
-    if (!isLevelColor(color)) return { ok: false, reason: at + ': the colour for "' + name + '" in "segmentColors" must be a theme colour like "var(--color-green)" or a hex colour like "#51af6f".' };
+    if (!isLevelColor(color)) return { ok: false, reason: at + ': the colour for "' + name + '" in "segmentColors" must be a theme colour like "var(--color-green)" or a hex colour like "#228833".' };
     colors[name] = color.trim();
   }
   return { ok: true, colors };
