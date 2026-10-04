@@ -620,11 +620,11 @@ function checkChartColors(t, viz, seriesCount, at) {
   if (color !== undefined) {
     if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "color" only works on a line or bar chart.' };
     if (seriesCount !== 1) return { ok: false, reason: at + ': "color" only works on a chart with one series; a chart with several takes the theme\'s series colours.' };
-    if (!isLevelColor(color)) return { ok: false, reason: at + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#df8f48".' };
+    if (!isLevelColor(color)) return { ok: false, reason: at + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#ee7733".' };
   }
   if (guideColor !== undefined) {
     if (viz !== 'line') return { ok: false, reason: at + ': "guideColor" only works on a line chart; it colours the line that follows the pointer.' };
-    if (!isLevelColor(guideColor)) return { ok: false, reason: at + ': "guideColor" must be a theme colour like "var(--color-blue)" or a hex colour like "#cccccc".' };
+    if (!isLevelColor(guideColor)) return { ok: false, reason: at + ': "guideColor" must be a theme colour like "var(--color-blue)" or a hex colour like "#aaaaaa".' };
   }
   return {
     ok: true,
