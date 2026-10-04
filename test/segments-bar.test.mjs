@@ -143,3 +143,21 @@ test('a phone draws the same segments bar from the desktop cache', async () => {
   assert.equal(segs.length, 4);
   assert.equal(segs[1].style.background, '#51af6f');
 });
+
+/* ----------------------------------------------- its own level look -- */
+
+test('a segments bar has its own level look; unset, it follows the stat look', () => {
+  const tile = { title: 'Tasks', viz: 'segments', x: 'status', y: ['n'], ranges: [{ low: 2, level: 'Good', label: 'on track' }, { level: 'Alert' }], rangeColumn: 'verdict' };
+  const table = { columns: ['status', 'n', 'verdict'], rows: [['Done', 6, 2], ['Open', 3, 2]] };
+  const levels = lib.normalizeLevels(undefined);
+  const looks = (levelLooks) => {
+    const el = new obsidian.Modal({}).contentEl;
+    lib.renderTile(el, tile, table, { levels, levelLooks });
+    return ['rail', 'outline', 'tint'].filter((l) => el.classSet.has('is-level-' + l));
+  };
+  assert.deepEqual(looks({ stat: 'tint' }), ['tint'], 'unset: the same as the stat look');
+  assert.deepEqual(looks({ stat: 'tint', segments: 'same' }), ['tint']);
+  assert.deepEqual(looks({ stat: 'tint', segments: 'outline' }), ['outline'], 'its own look wins');
+  assert.deepEqual(looks({ stat: 'tint', segments: 'nonsense' }), ['tint'], 'an unknown look falls back to "same"');
+  assert.equal(lib.levelLookFor('heatmap', { stat: 'tint' }), '', 'a heatmap has no widget look');
+});
