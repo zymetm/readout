@@ -905,8 +905,8 @@ function checkMarkAxis(raw, viz, where) {
 
 /* A combo chart: bars and lines in one chart, over one x column, each
  * series on the left or the right axis. "series" lists them in drawing
- * order: [{"column": "steps", "kind": "bar", "axis": "left", "color":
- * "#df8f48", "opacity": 0.5, "label": "Steps"}, {"column": "mean",
+ * order: [{"column": "orders", "kind": "bar", "axis": "left", "color":
+ * "#ee7733", "opacity": 0.5, "label": "Orders"}, {"column": "rate",
  * "kind": "line", "axis": "right", "dash": "3 3", "connect": true}].
  * "stack" stacks the bars. The right axis takes "y2Min", "y2Max",
  * "y2MaxLimit", "y2Ticks" and "y2Unit", like the left axis takes "yMin"
@@ -925,7 +925,7 @@ function checkCombo(t, at) {
   }
   const raw = t.series;
   if (!Array.isArray(raw) || !raw.length || raw.length > COMBO_SERIES_MAX) {
-    return { ok: false, reason: at + ': a combo chart needs "series": a list of 1 to ' + COMBO_SERIES_MAX + ' columns, like [{"column": "steps", "kind": "bar"}, {"column": "mean", "kind": "line", "axis": "right"}].' };
+    return { ok: false, reason: at + ': a combo chart needs "series": a list of 1 to ' + COMBO_SERIES_MAX + ' columns, like [{"column": "orders", "kind": "bar"}, {"column": "rate", "kind": "line", "axis": "right"}].' };
   }
   const series = [];
   const seen = new Set();
@@ -940,7 +940,7 @@ function checkCombo(t, at) {
     if (kind !== 'line' && kind !== 'bar') return { ok: false, reason: where + ': "kind" must be "line" or "bar".' };
     const axis = r.axis === undefined ? 'left' : r.axis;
     if (axis !== 'left' && axis !== 'right') return { ok: false, reason: where + ': "axis" must be "left" or "right".' };
-    if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#df8f48".' };
+    if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#ee7733".' };
     if (r.opacity !== undefined && (typeof r.opacity !== 'number' || !Number.isFinite(r.opacity) || r.opacity <= 0 || r.opacity > 1)) {
       return { ok: false, reason: where + ': "opacity" must be a number above 0 and at most 1.' };
     }
@@ -969,7 +969,7 @@ function checkCombo(t, at) {
   if (!axisCheck.ok) return { ok: false, reason: axisCheck.reason.replace(/"y(Min|Max|MaxLimit|Ticks)"/g, '"y2$1"') };
   for (const key of ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks']) if (t[key] !== undefined) combo[key] = axisCheck.axis[key.replace('y2', 'y')];
   if (t.y2Unit !== undefined) {
-    if (typeof t.y2Unit !== 'string') return { ok: false, reason: at + ': "y2Unit" must be text, like "kcal".' };
+    if (typeof t.y2Unit !== 'string') return { ok: false, reason: at + ': "y2Unit" must be text, like "%".' };
     if (t.y2Unit) combo.y2Unit = t.y2Unit;
   }
   if (t.stack === true) {
