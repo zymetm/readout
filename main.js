@@ -578,7 +578,9 @@ function parseDashboardSpec(text) {
       if (!builtSize.ok) return builtSize;
       const builtColors = checkChartColors(t, t.viz, t.source.series ? 2 : 1, at);
       if (!builtColors.ok) return builtColors;
-      tiles.push(withChartColors(withValueSize(withHeaderDelta(withLevels({
+      const builtAxis = checkChartAxis(t, t.viz, at);
+      if (!builtAxis.ok) return builtAxis;
+      tiles.push(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -597,7 +599,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck), builtDelta), builtSize), builtColors));
+      }, levelCheck), builtDelta), builtSize), builtColors), builtAxis));
       continue;
     }
 
@@ -623,7 +625,9 @@ function parseDashboardSpec(text) {
     if (!sqlSize.ok) return sqlSize;
     const sqlColors = checkChartColors(t, t.viz, y.length, at);
     if (!sqlColors.ok) return sqlColors;
-    tiles.push(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    const sqlAxis = checkChartAxis(t, t.viz, at);
+    if (!sqlAxis.ok) return sqlAxis;
+    tiles.push(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -632,7 +636,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis));
   }
   return {
     ok: true,
@@ -764,6 +768,105 @@ function withChartColors(tile, check) {
   return tile;
 }
 
+/* A chart's own y range and x-label spacing, opt-in per tile, on a line
+ * or bar chart. "yMin" and "yMax" fix the ends of the y axis; with
+ * "yMaxLimit" as well, "yMax" is where the top starts and it grows to fit
+ * the data, never past the limit. "yTicks" lists the y labels to draw
+ * (plus the grown top, when it grew). "xLabelEvery" labels every Nth x
+ * value only, still thinned when the labels would not fit. Absent means
+ * the snug automatic axis, as before. Returns { ok, axis } or
+ * { ok, reason }. */
+const CHART_AXIS_KEYS = ['yMin', 'yMax', 'yMaxLimit', 'yTicks', 'xLabelEvery'];
+const Y_TICKS_MAX = 12;
+const X_LABEL_EVERY_MAX = 1000;
+
+function checkChartAxis(t, viz, at) {
+  const axis = {};
+  const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+  for (const key of CHART_AXIS_KEYS) {
+    if (t[key] === undefined) continue;
+    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "' + key + '" only works on a line or bar chart.' };
+    axis[key] = t[key];
+  }
+  for (const key of ['yMin', 'yMax', 'yMaxLimit']) {
+    if (axis[key] !== undefined && !finite(axis[key])) return { ok: false, reason: at + ': "' + key + '" must be a number.' };
+  }
+  if (axis.yMin !== undefined && axis.yMax !== undefined && axis.yMin >= axis.yMax) {
+    return { ok: false, reason: at + ': "yMin" (' + axis.yMin + ') must be below "yMax" (' + axis.yMax + ').' };
+  }
+  if (axis.yMaxLimit !== undefined) {
+    if (axis.yMax === undefined) return { ok: false, reason: at + ': "yMaxLimit" needs "yMax": the top starts at "yMax" and grows to fit the data up to "yMaxLimit".' };
+    if (axis.yMaxLimit <= axis.yMax) return { ok: false, reason: at + ': "yMaxLimit" (' + axis.yMaxLimit + ') must be above "yMax" (' + axis.yMax + ').' };
+  }
+  if (axis.yTicks !== undefined) {
+    const ticks = axis.yTicks;
+    if (!Array.isArray(ticks) || !ticks.length || ticks.length > Y_TICKS_MAX || !ticks.every(finite)
+      || ticks.some((v, i) => i > 0 && v <= ticks[i - 1])) {
+      return { ok: false, reason: at + ': "yTicks" must be a list of 1 to ' + Y_TICKS_MAX + ' numbers from low to high, like [54, 70, 180].' };
+    }
+    axis.yTicks = ticks.slice();
+  }
+  if (axis.xLabelEvery !== undefined && (!Number.isInteger(axis.xLabelEvery) || axis.xLabelEvery < 1 || axis.xLabelEvery > X_LABEL_EVERY_MAX)) {
+    return { ok: false, reason: at + ': "xLabelEvery" must be a whole number from 1 to ' + X_LABEL_EVERY_MAX + ' (label every Nth value).' };
+  }
+  return { ok: true, axis };
+}
+
+function withChartAxis(tile, check) {
+  for (const key of CHART_AXIS_KEYS) if (check.axis[key] !== undefined) tile[key] = check.axis[key];
+  return tile;
+}
+
+/* The axis fields of a tile, for the copies the renderer and the cache
+ * make of it. */
+function chartAxisOf(tile) {
+  const out = {};
+  for (const key of CHART_AXIS_KEYS) if (tile && tile[key] !== undefined) out[key] = tile[key];
+  return out;
+}
+
+/* Round a value up to two significant figures: 213 -> 220, 1.34 -> 1.4. */
+function ceilToTwoFigures(v) {
+  if (!(v > 0)) return v;
+  const step = Math.pow(10, Math.floor(Math.log10(v)) - 1);
+  return Math.round(Math.ceil(v / step - 1e-9) * step * 1e9) / 1e9;
+}
+
+/* The y scale of a chart: the snug automatic scale, with the tile's own
+ * ends and labels laid over it. Pure, so every rule is measured in the
+ * gates. */
+function chartScaleFor(axis, lo, hi, maxTicks) {
+  const a = axis || {};
+  const fixedMin = typeof a.yMin === 'number';
+  const fixedMax = typeof a.yMax === 'number';
+  if (!fixedMin && !fixedMax && !Array.isArray(a.yTicks)) return niceScale(lo, hi, maxTicks);
+  const auto = niceScale(fixedMin ? a.yMin : lo, fixedMax ? a.yMax : hi, maxTicks);
+  const min = fixedMin ? a.yMin : auto.min;
+  let max = fixedMax ? a.yMax : auto.max;
+  let grew = false;
+  if (fixedMax && typeof a.yMaxLimit === 'number' && Number.isFinite(hi) && hi > a.yMax) {
+    max = Math.min(a.yMaxLimit, Math.max(a.yMax, ceilToTwoFigures(hi)));
+    grew = max > a.yMax;
+  }
+  let ticks = Array.isArray(a.yTicks) ? a.yTicks.slice() : niceScale(min, max, maxTicks).ticks;
+  if (grew && Array.isArray(a.yTicks)) ticks.push(max);
+  ticks = ticks.filter((v) => v >= min - 1e-9 && v <= max + 1e-9);
+  return { min, max, step: auto.step, ticks };
+}
+
+/* Settings the edit form has no field for yet. Editing a widget keeps
+ * them, as long as it stays the same type: a hand-written "yMin" survives
+ * a save from the form. */
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS);
+
+function keepUneditedKeys(tile, existing) {
+  if (!tile || !existing || existing.viz !== tile.viz) return tile;
+  for (const key of FORM_UNEDITED_KEYS) {
+    if (existing[key] !== undefined && tile[key] === undefined) tile[key] = existing[key];
+  }
+  return tile;
+}
+
 /* The database a tile actually reads. */
 function tileDatabase(tile, spec) {
   return (tile.source && tile.source.database) || spec.database || '';
@@ -812,6 +915,7 @@ function specToJson(spec) {
     if (t.valueSize !== undefined) tile.valueSize = t.valueSize;
     if (t.color) tile.color = t.color;
     if (t.guideColor) tile.guideColor = t.guideColor;
+    Object.assign(tile, chartAxisOf(t));
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1177,12 +1281,12 @@ function prepareTileForRender(tile, table) {
   if (tile.source.series) {
     const wide = pivotSeries(table);
     return {
-      spec: { title: tile.title, viz: tile.viz, x: 'x', y: wide.columns.slice(1), unit: tile.unit, stack: tile.stack },
+      spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: wide.columns.slice(1), unit: tile.unit, stack: tile.stack }, chartAxisOf(tile)),
       table: wide,
     };
   }
   return {
-    spec: { title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays, chartCaption: tile.chartCaption, color: tile.color, guideColor: tile.guideColor },
+    spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays, chartCaption: tile.chartCaption, color: tile.color, guideColor: tile.guideColor }, chartAxisOf(tile)),
     table,
   };
 }
@@ -2082,7 +2186,8 @@ const CHART_MIN_PLOT_WITH_LEGEND = 70;
 
 /* The frame for a W x H chart: paddings, the plot, the y scale, and
  * which labels fit. Pure, so every size can be measured in the gates. */
-function chartLayout(W, H, lo, hi, hasXLabels) {
+/* `axis`, when given, is the tile: its own y range and x-label spacing. */
+function chartLayout(W, H, lo, hi, hasXLabels, axis) {
   W = Math.max(1, Math.floor(W));
   H = Math.max(1, Math.floor(H));
   const top = 6;
@@ -2090,13 +2195,15 @@ function chartLayout(W, H, lo, hi, hasXLabels) {
   const showX = hasXLabels && H >= CHART_MIN_X_H;
   const bottom = showX ? 20 : 4;
   const plotH = Math.max(1, H - top - bottom);
-  const scale = niceScale(lo, hi, Math.max(2, Math.min(5, Math.floor(plotH / 24))));
+  const scale = chartScaleFor(axis, lo, hi, Math.max(2, Math.min(5, Math.floor(plotH / 24))));
   const showY = W >= CHART_MIN_Y_W && plotH >= 30;
   const yText = scale.ticks.map((t) => formatNumber(t));
   const left = showY ? Math.ceil(Math.max(...yText.map((t) => t.length)) * TICK_CHAR_W) + 10 : 4;
   const plotW = Math.max(1, W - left - right);
-  const yOf = (v) => top + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH;
-  return { W, H, top, right, bottom, left, plotW, plotH, scale, showX, showY, yOf };
+  /* A value past a fixed end is drawn at that end, never outside the plot. */
+  const yOf = (v) => Math.max(top, Math.min(top + plotH, top + plotH - ((v - scale.min) / (scale.max - scale.min)) * plotH));
+  const xLabelEvery = axis && Number.isInteger(axis.xLabelEvery) && axis.xLabelEvery > 1 ? axis.xLabelEvery : 1;
+  return { W, H, top, right, bottom, left, plotW, plotH, scale, showX, showY, yOf, xLabelEvery };
 }
 
 /* Which x labels to draw, where, and how anchored: thinned to what fits
@@ -2107,7 +2214,11 @@ function xLabelPlan(L, xLabels, xOf) {
   const n = texts.length;
   const widest = Math.max(...texts.map((t) => t.length)) * TICK_CHAR_W;
   const fit = Math.max(1, Math.floor(L.plotW / (widest + 10)));
-  const every = Math.max(1, Math.ceil(n / Math.min(7, fit)));
+  const fitEvery = Math.max(1, Math.ceil(n / Math.min(7, fit)));
+  /* A tile's own spacing: every Nth label, or a multiple of N when even
+   * that does not fit. */
+  const own = L.xLabelEvery || 1;
+  const every = own * Math.max(1, Math.ceil(fitEvery / own));
   const out = [];
   let lastRight = -Infinity;
   for (let i = 0; i < n; i += every) {
@@ -2268,7 +2379,7 @@ function renderLineChart(parentEl, table, tile, extras) {
   const chart = chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
     /* A snug axis: a heart rate line living between 60 and 90 should use
      * the whole plot, not hover above an empty run down to zero. */
-    const L = chartLayout(W, H, Math.min(...values), Math.max(...values), true);
+    const L = chartLayout(W, H, Math.min(...values), Math.max(...values), true, tile);
     const xOf = (i) => L.left + (n === 1 ? L.plotW / 2 : (i / (n - 1)) * L.plotW);
     const yOf = L.yOf;
     drawAxes(svg, L, xLabels, xOf);
@@ -2363,7 +2474,7 @@ function renderBarChart(parentEl, table, tile, extras) {
   const palette = chartPaletteFor(tile, seriesIdx.length);
   const ghost = extras && extras.ghost;
   const chart = chartBox(parentEl, seriesNames, palette, (svg, W, H) => {
-    const L = chartLayout(W, H, 0, top, true);
+    const L = chartLayout(W, H, 0, top, true, tile);
     const slot = L.plotW / n;
     const gap = Math.min(4, slot * 0.2);
     const yOf = L.yOf;
@@ -4739,8 +4850,8 @@ class WidgetFormModal extends Modal {
     if (!canSave(this.previewState)) return;
     const built = this.buildTile();
     if (!built.ok) { new Notice(built.reason); return; }
-    const tile = built.tile;
     const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
+    const tile = keepUneditedKeys(built.tile, existing);
     if (tile.viz === 'divider') {
       /* One thin row; only the width is chosen. */
       const w = Number(this.state.dividerWidth) || (existing && existing.layout ? existing.layout.w : GRID_MAX_COLS);
@@ -5816,6 +5927,7 @@ IcorSqliteViewerPlugin.lib = {
   dbFileUri, detectCli, cliQuery, executeMigration, ensureFolder,
   bytesOfB64, utf8OfB64, EMBEDDED_SQL_WASM_JS_B64, EMBEDDED_SQL_WASM_B64,
   STARTER_DASHBOARDS, DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
+  checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,
 };
 
 /* The form modal, exposed for the gates only. */
