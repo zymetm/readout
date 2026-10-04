@@ -90,6 +90,6 @@ test('the fields survive the spec file and an edit from the form', () => {
   assert.equal(back.y2TickCompact, true);
   const bar = parse({ title: 'B', sql: 'SELECT 1', x: 'day', y: 'hours', viz: 'bar', yTickSuffix: 'h' }).spec.tiles[0];
   const kept = lib.keepUneditedKeys({ title: 'B', viz: 'bar', sql: 'SELECT 1' }, bar);
-  assert.equal(kept.yTickSuffix, 'h', 'a save from the form keeps it');
+  assert.equal(kept.yTickSuffix, undefined, 'the form has its own axis fields now (form-every-widget), so nothing is kept behind its back');
   assert.equal(JSON.stringify(JSON.parse(lib.specToJson(parse({ title: 'B', sql: 'SELECT 1', x: 'day', y: 'hours', viz: 'bar' }).spec)).tiles[0]).includes('Tick'), false, 'unset stays out of the file');
 });

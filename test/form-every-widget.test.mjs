@@ -131,3 +131,41 @@ test('a half-filled meter says what is missing; a target outside the scale is re
   form.state.y = 'n';
   assert.equal(form.buildTile().ok, true, 'a line chart leaves the meter out instead of refusing');
 });
+
+/* --------------------------------------------------------------- axis -- */
+
+test('the axis: range, growing top, labels, suffix, compact and label spacing, from the form to the file', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  Object.assign(form.state, { mode: 'sql', sqlText: 'SELECT * FROM daily', viz: 'bar', x: 'day', y: 'web' });
+  form.renderForm();
+  await form.runPreview();
+  assert.equal(byLabel(form.formEl, 'Lowest value'), null, 'the group stays closed on a new widget');
+  form.state.groups.axis = true;
+  form.renderForm();
+  assert.ok(byLabel(form.formEl, 'Lowest value'), 'opened, its fields show');
+  Object.assign(form.state, { yMin: '0', yMax: '8000', yMaxLimit: '12000', yTicks: '0, 4000, 8000', yTickSuffix: ' u', yTickCompact: true, xLabelEvery: '7' });
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  const t = asFileTile(l, spec.tiles[0]);
+  assert.deepEqual(unwrap({ yMin: t.yMin, yMax: t.yMax, yMaxLimit: t.yMaxLimit, yTicks: t.yTicks, yTickSuffix: t.yTickSuffix, yTickCompact: t.yTickCompact, xLabelEvery: t.xLabelEvery }),
+    { yMin: 0, yMax: 8000, yMaxLimit: 12000, yTicks: [0, 4000, 8000], yTickSuffix: 'u', yTickCompact: true, xLabelEvery: 7 });
+});
+
+test('axis fields read back into the form, refuse what the file would refuse, and leave with the chart type', async () => {
+  const { form } = await makeForm({ title: 'Web', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'], yMin: 40, yTicks: [54, 70], yTickCompact: true });
+  form.open();
+  assert.equal(byLabel(form.formEl, 'Labels at').value, '54, 70', 'the group opens with the widget\'s values');
+  assert.equal(byLabel(form.formEl, 'Write thousands as k (8k)').checked, true);
+  form.state.yMax = '30';
+  assert.match(form.buildTile().reason, /"yMin" \(40\) must be below "yMax" \(30\)/);
+  form.state.yMax = 'lots';
+  assert.match(form.buildTile().reason, /Axis: highest value must be a number/);
+  form.state.yMax = '';
+  form.state.viz = 'stat';
+  const asStat = form.buildTile();
+  assert.equal(asStat.ok, true, asStat.reason);
+  assert.equal(asStat.tile.yMin, undefined, 'a stat has no axis');
+});
