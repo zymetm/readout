@@ -180,11 +180,10 @@ test('the plugin writes both guides on load, then leaves them alone', async () =
   void PluginClass;
 });
 
-test('the old help file, as the previous version wrote it, is recognised', () => {
-  /* The README.md the previous build wrote, rebuilt from its pieces: its
-   * hash is the last legacy entry. Any change to it would be an edit. */
-  assert.equal(README_FILE.legacy.length, 5, 'four upstream texts and the previous local one');
-  assert.equal(new Set(README_FILE.legacy).size, 5);
+test('the old help files recognised are the four texts released versions wrote', () => {
+  /* Only texts that shipped count: a text that never left a local build
+   * would make a member's copy that happens to match it look unedited. */
+  assert.deepEqual([...README_FILE.legacy], ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'], 'the four upstream texts, nothing local');
   assert.equal(AI_FILE.legacy.length, 0, 'the AI guide is new: every copy carries a fingerprint');
 });
 

@@ -8516,10 +8516,11 @@ build widgets the panel can show in full:
 `;
 
 /* The guides the plugin writes into the dashboards folder. `legacy` holds
- * the fingerprints of texts earlier versions wrote without a fingerprint
- * line, so an unedited old copy is still recognised and refreshed. */
+ * the fingerprints of the texts released versions wrote without a
+ * fingerprint line, so an unedited old copy is still recognised and
+ * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf', '8a4d5b5d'] },
+  { file: 'README.md', text: DASHBOARD_README, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, legacy: [] },
 ];
 
