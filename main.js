@@ -2145,7 +2145,7 @@ function nextFitSize(size, clientWidth, scrollWidth) {
 
 function fitStatValue(statEl, lineEl, observers, after) {
   const fit = () => {
-    lineEl.style.setProperty('font-size', '');
+    lineEl.style.removeProperty('font-size');
     const win = lineEl.win;
     const css = win && typeof win.getComputedStyle === 'function' ? win.getComputedStyle(lineEl) : null;
     let size = css ? parseFloat(css.fontSize) : NaN;

@@ -141,7 +141,7 @@ test('"fit" starts from the theme or snippet size, whatever it is', () => {
   stat.clientWidth = 400;
   fresh.lib.fitStatValue(stat, line, undefined, null);
   assert.equal(px(), 20);
-  assert.equal(line.style['font-size'], '', 'no size of its own when the theme size already fits');
+  assert.equal(line.style['font-size'], undefined, 'no size of its own when the theme size already fits: removed, not set to an empty literal');
 });
 
 test('a "fit" stat tile measures itself; a tile with a fixed size or none adds no observer', () => {
