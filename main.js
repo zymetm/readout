@@ -582,6 +582,7 @@ function parseDashboardSpec(text) {
       if (!builtAxis.ok) return builtAxis;
       const builtMarks = checkChartMarks(t, t.viz, at);
       if (!builtMarks.ok) return builtMarks;
+      if (t.band !== undefined) return { ok: false, reason: at + ': "band" only works on an SQL line chart; a built widget has one value column.' };
       tiles.push(withChartMarks(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
@@ -631,7 +632,9 @@ function parseDashboardSpec(text) {
     if (!sqlAxis.ok) return sqlAxis;
     const sqlMarks = checkChartMarks(t, t.viz, at);
     if (!sqlMarks.ok) return sqlMarks;
-    tiles.push(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    const sqlBand = checkBand(t.band, t.viz, y, at);
+    if (!sqlBand.ok) return sqlBand;
+    tiles.push(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -640,7 +643,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand));
   }
   return {
     ok: true,
@@ -943,6 +946,67 @@ function drawRefLines(svg, L, tile) {
   }
 }
 
+/* A shaded band between two columns on a line chart, opt-in per SQL
+ * tile: "band": {"low": "p25", "high": "p75"} fills the space between the
+ * two columns, row by row, in the first line's colour at "opacity" (0.2
+ * when left out), under the lines. The band's columns are not lines of
+ * their own; the hover readout shows them as a range. A row missing
+ * either value breaks the band. Returns { ok, band } or { ok, reason }. */
+const BAND_OPACITY_DEFAULT = 0.2;
+
+function checkBand(raw, viz, y, at) {
+  if (raw === undefined) return { ok: true, band: undefined };
+  if (viz !== 'line') return { ok: false, reason: at + ': "band" only works on a line chart.' };
+  const isName = (v) => typeof v === 'string' && v.trim();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !isName(raw.low) || !isName(raw.high) || raw.low.trim() === raw.high.trim()) {
+    return { ok: false, reason: at + ': "band" must name two different columns, like {"low": "p25", "high": "p75"}.' };
+  }
+  if (raw.opacity !== undefined && (typeof raw.opacity !== 'number' || !Number.isFinite(raw.opacity) || raw.opacity <= 0 || raw.opacity > 1)) {
+    return { ok: false, reason: at + ': the "band" "opacity" must be a number above 0 and at most 1.' };
+  }
+  const band = { low: raw.low.trim(), high: raw.high.trim() };
+  if (Array.isArray(y) && (y.includes(band.low) || y.includes(band.high))) {
+    return { ok: false, reason: at + ': a "band" column is drawn as the band, so it cannot also be a "y" line.' };
+  }
+  if (raw.opacity !== undefined) band.opacity = raw.opacity;
+  return { ok: true, band };
+}
+
+/* A cell as a number, or NaN when it is empty: an empty cell is a gap,
+ * never a zero. */
+function withBand(tile, check) {
+  if (check.band) tile.band = check.band;
+  return tile;
+}
+
+function cellNumber(v) {
+  if (v === null || v === undefined || v === '' || typeof v === 'boolean') return NaN;
+  return Number(v);
+}
+
+/* The band's polygons, one per unbroken run of rows: the high edge left
+ * to right, then the low edge back. Pure, so the shape is measured. */
+function bandPaths(rows, lowIdx, highIdx, xOf, yOf) {
+  const out = [];
+  let run = [];
+  const flush = () => {
+    if (run.length) {
+      const top = run.map((p) => p.x.toFixed(1) + ' ' + yOf(p.hi).toFixed(1));
+      const bottom = run.slice().reverse().map((p) => p.x.toFixed(1) + ' ' + yOf(p.lo).toFixed(1));
+      out.push('M ' + top.join(' L ') + ' L ' + bottom.join(' L ') + ' Z');
+    }
+    run = [];
+  };
+  rows.forEach((row, i) => {
+    const lo = cellNumber(row[lowIdx]);
+    const hi = cellNumber(row[highIdx]);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) { flush(); return; }
+    run.push({ x: xOf(i), lo: Math.min(lo, hi), hi: Math.max(lo, hi) });
+  });
+  flush();
+  return out;
+}
+
 /* Round a value up to two significant figures: 213 -> 220, 1.34 -> 1.4. */
 function ceilToTwoFigures(v) {
   if (!(v > 0)) return v;
@@ -975,7 +1039,7 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band']);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -1056,6 +1120,7 @@ function specToJson(spec) {
       tile.sql = t.sql;
       if (t.x) tile.x = t.x;
       if (t.y && t.y.length) tile.y = t.y.length === 1 ? t.y[0] : t.y;
+      if (t.band) tile.band = Object.assign({}, t.band);
     }
     return tile;
   });
@@ -2492,6 +2557,13 @@ function renderLineChart(parentEl, table, tile, extras) {
     if (vi >= 0) for (const row of ghost.rows) { const v = Number(row[vi]); if (Number.isFinite(v)) values.push(v); }
   }
   values.push(...chartMarkValues(tile));
+  const band = tile.band && typeof tile.band === 'object' ? tile.band : null;
+  const bandLow = band ? columnIndex(table.columns, band.low) : -1;
+  const bandHigh = band ? columnIndex(table.columns, band.high) : -1;
+  const hasBand = bandLow >= 0 && bandHigh >= 0;
+  if (hasBand) {
+    for (const row of table.rows) for (const i of [bandLow, bandHigh]) { const v = cellNumber(row[i]); if (Number.isFinite(v)) values.push(v); }
+  }
   const palette = chartPaletteFor(tile, seriesIdx.length);
   const xLabels = table.rows.map((r) => r[xIdx]);
   const n = table.rows.length;
@@ -2504,6 +2576,15 @@ function renderLineChart(parentEl, table, tile, extras) {
     drawZones(svg, L, tile);
     drawAxes(svg, L, xLabels, xOf);
     drawRefLines(svg, L, tile);
+    if (hasBand) {
+      /* Under the lines, in the first line's colour. */
+      for (const d of bandPaths(table.rows, bandLow, bandHigh, xOf, yOf)) {
+        const area = svgEl('path', { d, stroke: 'none', class: 'icor-sqlv-band' });
+        area.setAttribute('fill', palette[0]);
+        area.setAttribute('fill-opacity', typeof band.opacity === 'number' ? band.opacity : BAND_OPACITY_DEFAULT);
+        svg.appendChild(area);
+      }
+    }
     seriesIdx.forEach((colIdx, s) => {
       let d = '';
       table.rows.forEach((row, i) => {
@@ -2550,6 +2631,13 @@ function renderLineChart(parentEl, table, tile, extras) {
           dots[s].setAttribute('visibility', 'hidden');
         }
       });
+      if (hasBand) {
+        const lo = cellNumber(table.rows[i][bandLow]);
+        const hi = cellNumber(table.rows[i][bandHigh]);
+        if (Number.isFinite(lo) && Number.isFinite(hi)) {
+          parts.push(band.low + '\u2013' + band.high + ' ' + formatNumber(lo) + '\u2013' + formatNumber(hi) + (tile.unit ? ' ' + tile.unit : ''));
+        }
+      }
       readout.textContent = parts.join('  ·  ');
       const flip = x > W / 2;
       readout.setAttribute('x', flip ? x - 10 : x + 10);
@@ -6053,6 +6141,7 @@ IcorSqliteViewerPlugin.lib = {
   STARTER_DASHBOARDS, DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,
   checkChartMarks, chartMarkValues,
+  checkBand, bandPaths, cellNumber,
 };
 
 /* The form modal, exposed for the gates only. */
