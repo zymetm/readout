@@ -463,3 +463,19 @@ test('an SQL bar chart with two or more y columns offers stacking, and saves it'
   await form.save();
   assert.equal(spec.tiles[0].stack, true);
 });
+
+test('the heatmap form sets square or filling cells and a day or weekday highlight', async () => {
+  const { form, spec, lib: l } = await makeForm({ title: 'Minutes', viz: 'heatmap', sql: 'SELECT day, hr, minutes FROM grid', row: 'day', column: 'hr', value: 'minutes', cells: 'square' });
+  form.open();
+  assert.equal(form.state.heatCells, 'square');
+  const cells = byLabel(form.formEl, 'Cells');
+  assert.ok(cells, 'the group opens with the widget\'s values');
+  assert.deepEqual(unwrap(byLabel(form.formEl, 'Highlight').children.map((o) => o.value)), ['', 'hour', 'day', 'weekday']);
+  Object.assign(form.state, { heatCells: 'fill', heatHighlight: 'weekday' });
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  const t = asFileTile(l, spec.tiles[0]);
+  assert.deepEqual([t.cells, t.highlight], ['fill', 'weekday']);
+});

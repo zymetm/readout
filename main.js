@@ -1509,7 +1509,7 @@ const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'B
 const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap']);
 
 /* The heatmap fields the form keeps, by state key and file key. */
-const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery']];
+const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery'], ['heatCells', 'cells']];
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -5320,7 +5320,7 @@ class WidgetFormModal extends Modal {
 
   renderHeatmapExtras(form) {
     const s = this.state;
-    const body = this.optionGroup(form, { key: 'heat', label: 'Dots, highlight and labels', hasValues: !!(s.heatMarker || s.heatHighlight || s.heatColumnLabelEvery) });
+    const body = this.optionGroup(form, { key: 'heat', label: 'Dots, highlight, cells and labels', hasValues: !!(s.heatMarker || s.heatHighlight || s.heatColumnLabelEvery || s.heatCells) });
     if (!body) return;
     this.columnField(body, { label: 'Dot column', optional: true, noneLabel: 'No dots', value: s.heatMarker, onChange: (v) => { s.heatMarker = v; if (!v) { s.heatMarkerColor = ''; s.heatMarkerLabel = ''; } this.touch(); } });
     if (s.heatMarker) {
@@ -5330,9 +5330,15 @@ class WidgetFormModal extends Modal {
     }
     this.nativeSelect(body, {
       label: 'Highlight', optional: true,
-      options: [['', 'None'], ['hour', 'The current hour’s column (columns named 0 to 23)']],
+      options: [['', 'None'], ['hour', 'The current hour’s column (columns named 0 to 23)'], ['day', 'Today’s row or column (named like 2026-01-31)'], ['weekday', 'Today’s weekday (named like Monday or Mon)']],
       value: s.heatHighlight,
       onChange: (v) => { s.heatHighlight = v; this.renderForm(); this.touch(); },
+    });
+    this.nativeSelect(body, {
+      label: 'Cells', optional: true,
+      options: [['', 'Thin rows (default)'], ['square', 'Square'], ['fill', 'Fill the tile’s height']],
+      value: s.heatCells,
+      onChange: (v) => { s.heatCells = v; this.touch(); },
     });
     const every = this.textInput(body, { label: 'Label every Nth column', optional: true, value: s.heatColumnLabelEvery, placeholder: 'empty: every column', onInput: (v) => { s.heatColumnLabelEvery = v; this.touch(); } });
     every.setAttribute('inputmode', 'numeric');
