@@ -35,7 +35,7 @@ Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in
 | "Stack the bars on top of each other" | A bar chart with two or more Y columns: stacks them. | Off |
 | "Stack the series on top of each other" | The same, for a bar chart built by picking a column to split by. | Off |
 | "Compare with" | Built charts only. Draws an earlier period faintly behind: "No comparison", "Previous period", "Same period last year". | "No comparison" |
-| "Good direction" | Which way the change counts as good: "Up is good", "Down is good (weight, resting heart rate)". | "Up is good" |
+| "Good direction" | Which way the change counts as good: "Up is good", "Down is good (costs, open tasks)". | "Up is good" |
 
 Shared: colours and scrub line, change and roll-up, axis, guide lines and zones, band (line only), hint and footnote.
 
@@ -315,4 +315,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint 17ec2f71). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint a8a1dbfd). If you edit this file, the plugin stops updating it. -->

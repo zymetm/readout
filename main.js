@@ -6319,7 +6319,7 @@ class WidgetFormModal extends Modal {
         if (s.compare !== 'none') {
           this.nativeSelect(form, {
             label: 'Good direction',
-            options: [['up', 'Up is good'], ['down', 'Down is good (weight, resting heart rate)']],
+            options: [['up', 'Up is good'], ['down', 'Down is good (costs, open tasks)']],
             value: s.favorable,
             onChange: (v) => { s.favorable = v; this.touch(); },
             ariaLabel: 'Which direction counts as good for this metric',
@@ -6370,7 +6370,7 @@ class WidgetFormModal extends Modal {
       });
 
       this.textInput(form, {
-        label: 'Unit', optional: true, value: s.unit, placeholder: 'kg, steps, kcal …',
+        label: 'Unit', optional: true, value: s.unit, placeholder: 'orders, %, hours …',
         onInput: (v) => { s.unit = v; this.touch(); },
       });
 
@@ -6387,7 +6387,7 @@ class WidgetFormModal extends Modal {
         onInput: (v) => { s.title = v; this.touch(); },
       });
       this.textInput(form, {
-        label: 'Unit', optional: true, value: s.unit, placeholder: 'kg, steps, kcal …',
+        label: 'Unit', optional: true, value: s.unit, placeholder: 'orders, %, hours …',
         onInput: (v) => { s.unit = v; this.touch(); },
       });
     }
@@ -6729,7 +6729,7 @@ class WidgetFormModal extends Modal {
     });
     form.createDiv({ cls: 'icor-sqlv-note', text: 'A thin line across the dashboard that separates groups of widgets, with an optional heading. In edit mode, drag its right end to change its width.' });
     this.textInput(form, {
-      label: 'Heading', optional: true, value: s.title, placeholder: 'Body, Sleep, Activity …',
+      label: 'Heading', optional: true, value: s.title, placeholder: 'Sales, Costs, Projects …',
       onInput: (v) => { s.title = v; this.touch(); },
     });
     this.nativeSelect(form, {
@@ -6792,7 +6792,7 @@ class WidgetFormModal extends Modal {
       }
     }
     this.textInput(form, {
-      label: 'Unit', optional: true, value: s.unit, placeholder: 'kg, steps, kcal …',
+      label: 'Unit', optional: true, value: s.unit, placeholder: 'orders, %, hours …',
       onInput: (v) => { s.unit = v; this.touch(); },
     });
     this.renderRanges(form, s.viz);
@@ -7526,7 +7526,7 @@ Editing dashboard files by hand, or asking an AI to? Use \`AI-WIDGET-GUIDE.md\` 
 | "Stack the bars on top of each other" | A bar chart with two or more Y columns: stacks them. | Off |
 | "Stack the series on top of each other" | The same, for a bar chart built by picking a column to split by. | Off |
 | "Compare with" | Built charts only. Draws an earlier period faintly behind: "No comparison", "Previous period", "Same period last year". | "No comparison" |
-| "Good direction" | Which way the change counts as good: "Up is good", "Down is good (weight, resting heart rate)". | "Up is good" |
+| "Good direction" | Which way the change counts as good: "Up is good", "Down is good (costs, open tasks)". | "Up is good" |
 
 Shared: colours and scrub line, change and roll-up, axis, guide lines and zones, band (line only), hint and footnote.
 
