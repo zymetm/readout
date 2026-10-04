@@ -479,3 +479,17 @@ test('the heatmap form sets square or filling cells and a day or weekday highlig
   const t = asFileTile(l, spec.tiles[0]);
   assert.deepEqual([t.cells, t.highlight], ['fill', 'weekday']);
 });
+
+test('an SQL stat picks the column it shows, or leaves it to the first column', async () => {
+  const { form, spec } = await makeForm({ title: 'Orders', viz: 'stat', sql: 'SELECT n, basis FROM one', y: ['basis'] });
+  form.open();
+  await form.runPreview();
+  const field = byLabel(form.formEl, 'Value column');
+  assert.equal(field.tagName, 'SELECT');
+  assert.deepEqual(unwrap(field.children.map((o) => o.textContent)), ['The first column', 'n', 'basis']);
+  form.state.y = '';
+  form.touch();
+  await form.runPreview();
+  await form.save();
+  assert.deepEqual(unwrap(spec.tiles[0].y), [], 'unset: the first column');
+});

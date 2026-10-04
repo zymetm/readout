@@ -6745,6 +6745,10 @@ class WidgetFormModal extends Modal {
     this.renderHeaderDeltaFields(form, s.viz, s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
     this.renderChartColorFields(form, s.viz, s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
     if (s.viz === 'stat') {
+      this.columnField(form, {
+        label: 'Value column', optional: true, noneLabel: 'The first column', value: s.y.split(',')[0].trim(),
+        onChange: (v) => { s.y = v; this.touch(); },
+      });
       this.textInput(form, {
         label: 'Judge the ranges on column', optional: true, value: s.rangeColumn,
         placeholder: 'empty: the shown value',
