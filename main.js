@@ -2820,7 +2820,7 @@ function formNumberList(text, label) {
   const out = [];
   for (const p of parts) {
     const n = Number(p);
-    if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be numbers separated by commas, like 54, 70, 180.' };
+    if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be numbers separated by commas, like 0, 50, 100.' };
     out.push(n);
   }
   return { ok: true, value: out };
