@@ -2155,7 +2155,7 @@ function checkHeatmap(t, at) {
     heat.marker = t.marker.trim();
   }
   if (t.markerColor !== undefined) {
-    if (!isLevelColor(t.markerColor)) return { ok: false, reason: at + ': "markerColor" must be a theme colour like "var(--color-cyan)" or a hex colour like "#5af8ff".' };
+    if (!isLevelColor(t.markerColor)) return { ok: false, reason: at + ': "markerColor" must be a theme colour like "var(--color-cyan)" or a hex colour like "#33bbee".' };
     heat.markerColor = t.markerColor.trim();
   }
   if (t.markerLabel !== undefined) {
