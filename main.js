@@ -1471,11 +1471,11 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(['band'], COMBO_KEYS);
+const FORM_UNEDITED_KEYS = [].concat(COMBO_KEYS);
 
 /* The option keys the form sets on a line, bar, stat or table widget,
  * copied from its parser check onto the built tile. */
-const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter'].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
+const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter', 'band'].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
 
 /* A form row's text, each field as typed: numbers stay text until the
  * build reads them. */
@@ -4989,6 +4989,9 @@ class WidgetFormModal extends Modal {
       footnote: existing && existing.footnote ? existing.footnote : '',
       meterMin: existing && existing.meter ? String(existing.meter.min) : '',
       xLabelEvery: existing && existing.xLabelEvery !== undefined ? String(existing.xLabelEvery) : '',
+      bandLow: existing && existing.band ? existing.band.low : '',
+      bandHigh: existing && existing.band ? existing.band.high : '',
+      bandOpacity: existing && existing.band && existing.band.opacity !== undefined ? String(existing.band.opacity) : '',
       meterMax: existing && existing.meter ? String(existing.meter.max) : '',
       meterTarget: existing && existing.meter && existing.meter.target !== undefined ? String(existing.meter.target) : '',
       advancedOpen: false,
@@ -5146,8 +5149,28 @@ class WidgetFormModal extends Modal {
       if (!marks.ok) return marks;
       Object.assign(raw, marks.raw);
     }
+    if (viz === 'line' && !built && (s.bandLow || s.bandHigh)) {
+      if (!s.bandLow || !s.bandHigh) return { ok: false, reason: 'Band: pick both columns, the low edge and the high edge, or neither.' };
+      const op = formNumber(s.bandOpacity, 'Band: opacity');
+      if (!op.ok) return op;
+      raw.band = { low: s.bandLow, high: s.bandHigh };
+      if (op.value !== undefined) raw.band.opacity = op.value;
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* A shaded band between two columns, row by row, under the line. */
+  renderBandFields(form, viz, built) {
+    if (viz !== 'line' || built) return;
+    const s = this.state;
+    const body = this.optionGroup(form, { key: 'band', label: 'Band', hasValues: !!(s.bandLow || s.bandHigh) });
+    if (!body) return;
+    body.createDiv({ cls: 'icor-sqlv-note', text: 'A shaded area between two columns of the query, like a low and a high per day, drawn under the line in its colour.' });
+    this.columnField(body, { label: 'Low edge column', optional: true, value: s.bandLow, onChange: (v) => { s.bandLow = v; this.touch(); } });
+    this.columnField(body, { label: 'High edge column', optional: true, value: s.bandHigh, onChange: (v) => { s.bandHigh = v; this.touch(); } });
+    const op = this.textInput(body, { label: 'Band opacity', optional: true, value: s.bandOpacity, placeholder: '0.2', onInput: (v) => { s.bandOpacity = v; this.touch(); } });
+    op.setAttribute('inputmode', 'decimal');
   }
 
   /* Guide lines and zones as the file writes them. A row left blank is
@@ -6318,10 +6341,10 @@ class WidgetFormModal extends Modal {
   /* The option groups under a widget's own fields, in the order a reader
    * meets them on the widget. */
   renderOptionGroups(form, viz, built) {
-    void built;
     this.renderMeterFields(form, viz);
     this.renderAxisFields(form, viz);
     this.renderMarkFields(form, viz);
+    this.renderBandFields(form, viz, built);
     this.renderNotesFields(form, viz);
   }
 

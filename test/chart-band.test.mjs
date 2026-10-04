@@ -105,7 +105,8 @@ test('the band survives the spec file and an edit from the form', () => {
   assert.deepEqual(JSON.parse(json).tiles[0].band, { low: 'lo', high: 'hi', opacity: 0.18 });
   assert.deepEqual(unwrap(lib.parseDashboardSpec(json).spec.tiles[0].band), { low: 'lo', high: 'hi', opacity: 0.18 });
   assert.equal(JSON.parse(lib.specToJson(parse(lineTile({})).spec)).tiles[0].band, undefined);
-  assert.deepEqual(unwrap(lib.keepUneditedKeys({ viz: 'line' }, { viz: 'line', band: { low: 'a', high: 'b' } }).band), { low: 'a', high: 'b' });
+  /* The edit form owns the band now (form-every-widget.test.mjs). */
+  assert.equal(lib.keepUneditedKeys({ viz: 'line' }, { viz: 'line', band: { low: 'a', high: 'b' } }).band, undefined);
 });
 
 /* ---------------------------------------------- the view and the cache -- */

@@ -206,3 +206,37 @@ test('a guide line without a value, or a zone without a colour, says so; removin
   await form.save();
   assert.equal(spec.tiles[0].refLines, undefined);
 });
+
+/* --------------------------------------------------------------- band -- */
+
+test('the band: two column pickers and an opacity on an SQL line chart, saved as the file writes it', async () => {
+  const { form, spec, lib: l } = await makeForm({ title: 'Orders', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'] });
+  form.open();
+  await form.runPreview();
+  form.state.groups.band = true;
+  form.renderForm();
+  const low = byLabel(form.formEl, 'Low edge column');
+  assert.equal(low.tagName, 'SELECT', 'picked from the result');
+  form.state.bandLow = 'shop';
+  form.state.bandHigh = 'rate';
+  form.state.bandOpacity = '0.3';
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0]).band), { low: 'shop', high: 'rate', opacity: 0.3 });
+});
+
+test('a band with one edge says so, a band column that is also a line is refused, and a bar chart has none', async () => {
+  const { form } = await makeForm({ title: 'Orders', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'] });
+  form.open();
+  form.state.bandLow = 'shop';
+  assert.match(form.buildTile().reason, /Band: pick both columns/);
+  form.state.bandHigh = 'web';
+  assert.match(form.buildTile().reason, /cannot also be a "y" line/);
+  form.state.groups.band = true;
+  form.state.viz = 'bar';
+  form.renderForm();
+  assert.equal(byLabel(form.formEl, 'Low edge column'), null);
+  assert.equal(form.buildTile().tile.band, undefined);
+});
