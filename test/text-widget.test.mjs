@@ -149,7 +149,7 @@ test('written text runs no query; the SQL line does; a phone shows both from the
   assert.deepEqual(byClass(phone.view.contentEl, 'icor-sqlv-text-line').map((l) => l.textContent), ['Data through Jan 2']);
 });
 
-test('in edit mode a text widget can be moved and removed, but the form is not offered for it', async () => {
+test('in edit mode a text widget can be moved, removed and edited in the form', async () => {
   const desk = await makeView({ [DASH]: JSON.stringify(SPEC) }, { '07 Databases/x.db': new Uint8Array([1]) });
   desk.plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   desk.plugin.query.query = async () => ({ columns: ['v'], rows: [[3]], ms: 1 });
@@ -158,7 +158,7 @@ test('in edit mode a text widget can be moved and removed, but the form is not o
   await settle();
   const tiles = byClass(desk.view.contentEl, 'icor-sqlv-tile');
   const labels = (t) => byClass(t, 'icor-sqlv-tile-action').map((b) => b.getAttribute('aria-label'));
-  assert.deepEqual(labels(tiles[0]), ['Remove this widget']);
+  assert.deepEqual(labels(tiles[0]), ['Edit this widget', 'Remove this widget'], 'the form builds text widgets now');
   assert.deepEqual(labels(tiles[2]), ['Edit this widget', 'Remove this widget']);
-  assert.equal(lib.FORM_VIZ.has('text'), false);
+  assert.equal(lib.FORM_VIZ.has('text'), true);
 });

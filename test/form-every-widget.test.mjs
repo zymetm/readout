@@ -240,3 +240,56 @@ test('a band with one edge says so, a band column that is also a line is refused
   assert.equal(byLabel(form.formEl, 'Low edge column'), null);
   assert.equal(form.buildTile().tile.band, undefined);
 });
+
+/* --------------------------------------------------------------- text -- */
+
+test('a new text widget from the form: written words, a card with a title, hint and footnote', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  const addText = [...form.formEl.children].find((b) => b.textContent === 'Add text instead');
+  assert.ok(addText, 'offered on a new widget');
+  for (const fn of addText.handlers.click) fn();
+  assert.equal(form.state.mode, 'text');
+  assert.ok(byLabel(form.formEl, 'Text of the widget'));
+  Object.assign(form.state, { textBody: 'Every number here is invented.\n\nSecond paragraph.', title: 'About', hint: 'read me', sizeKey: 'medium' });
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  assert.ok(byClass(form.previewEl, 'is-text').length, 'the preview draws the words');
+  await form.save();
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), { title: 'About', viz: 'text', hint: 'read me', text: 'Every number here is invented.\n\nSecond paragraph.' });
+});
+
+test('a text line from a query: one thin row, full width, no title; it reads back into the form', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  form.toText();
+  Object.assign(form.state, { textFrom: 'sql', sqlText: "SELECT 'Data through ' || day FROM words", textLine: true, title: 'ignored' });
+  form.renderForm();
+  assert.equal(byLabel(form.formEl, 'Title'), null, 'a line has no title');
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  const t = asFileTile(l, spec.tiles[0]);
+  assert.deepEqual(unwrap(t), { viz: 'text', sql: "SELECT 'Data through ' || day FROM words", line: true });
+  assert.deepEqual(unwrap(spec.tiles[0].layout), { x: 0, y: 0, w: 6, h: 1 });
+
+  const again = await makeForm(spec.tiles[0]);
+  again.form.open();
+  assert.equal(again.form.state.mode, 'text');
+  assert.equal(again.form.state.textFrom, 'sql');
+  assert.equal(again.form.state.textLine, true);
+  assert.equal(byLabel(again.form.formEl, 'SQL query').value, "SELECT 'Data through ' || day FROM words");
+});
+
+test('the SQL form offers Text in its chart types; empty words say so', async () => {
+  const { form } = await makeForm({ title: 'Web', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'] });
+  form.open();
+  const type = byLabel(form.formEl, 'Chart type');
+  assert.ok(type.children.some((o) => o.value === 'text'));
+  form.toText();
+  assert.equal(form.state.textFrom, 'sql', 'the query comes along');
+  form.state.textFrom = 'text';
+  assert.match(form.buildTile().reason, /Write the text first/);
+});

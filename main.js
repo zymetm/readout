@@ -1498,7 +1498,7 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set();
+const FORM_WHOLE_VIZ = new Set(['text']);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -3732,7 +3732,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -4945,10 +4945,14 @@ class WidgetFormModal extends Modal {
     const existing = editIndex >= 0 ? spec.tiles[editIndex] : null;
     const src = existing && existing.source ? existing.source : null;
     this.state = {
-      mode: existing && existing.viz === 'divider' ? 'divider' : (existing && !existing.source ? 'sql' : 'form'),
+      mode: existing && existing.viz === 'divider' ? 'divider' : (existing && existing.viz === 'text' ? 'text' : (existing && !existing.source ? 'sql' : 'form')),
       /* Where "A widget with data" goes back to from the divider form. */
       dataMode: existing && existing.viz !== 'divider' && !existing.source ? 'sql' : 'form',
       dividerWidth: existing ? '' : String(GRID_MAX_COLS),
+      /* A text widget: its words written here, or from a query. */
+      textFrom: existing && existing.viz === 'text' && typeof existing.sql === 'string' ? 'sql' : 'text',
+      textBody: existing && typeof existing.text === 'string' ? existing.text : '',
+      textLine: !!(existing && existing.viz === 'text' && existing.line === true),
       database: (src && src.database) || spec.database || '',
       table: (src && src.table) || '',
       metric: (src && src.metric) || '',
@@ -5414,6 +5418,19 @@ class WidgetFormModal extends Modal {
 
   buildBaseTile() {
     const s = this.state;
+    if (s.mode === 'text') {
+      const tile = { viz: 'text' };
+      if (!s.textLine && String(s.title || '').trim()) tile.title = String(s.title).trim();
+      if (s.textFrom === 'sql') {
+        if (!s.sqlText.trim()) return { ok: false, reason: 'The SQL is empty.' };
+        tile.sql = s.sqlText;
+      } else {
+        if (!s.textBody.trim()) return { ok: false, reason: 'Write the text first.' };
+        tile.text = s.textBody;
+      }
+      if (s.textLine) tile.line = true;
+      return { ok: true, tile };
+    }
     if (s.mode === 'divider') return { ok: true, tile: { title: String(s.title || '').trim(), viz: 'divider' } };
     if (s.mode === 'sql') {
       if (!s.sqlText.trim()) return { ok: false, reason: 'The SQL is empty.' };
@@ -5721,10 +5738,11 @@ class WidgetFormModal extends Modal {
     }
     this.previewState = nextPreviewState(this.previewState, 'run');
     this.syncGate();
-    if (built.tile.viz === 'divider') {
-      /* Nothing to query: the preview is the divider itself. */
+    if (drawsNoData(built.tile)) {
+      /* Nothing to query: the preview is the divider, or the words, itself. */
       this.previewEl.empty();
-      renderTile(this.previewEl.createDiv({ cls: 'icor-sqlv-tile is-preview is-divider' }), built.tile, { columns: [], rows: [] }, {});
+      const cls = built.tile.viz === 'divider' ? ' is-divider' : ' is-text' + (built.tile.line === true ? ' is-line' : '');
+      renderTile(this.previewEl.createDiv({ cls: 'icor-sqlv-tile is-preview' + cls }), built.tile, { columns: [], rows: [] }, {});
       this.previewState = nextPreviewState(this.previewState, 'ok');
       this.syncGate();
       return;
@@ -5888,10 +5906,17 @@ class WidgetFormModal extends Modal {
 
     if (s.mode === 'sql') { this.renderSqlForm(form); return; }
     if (s.mode === 'divider') { this.renderDividerForm(form); return; }
+    if (s.mode === 'text') { this.renderTextForm(form); return; }
     if (this.editIndex < 0) {
       const divider = form.createEl('button', { text: 'Add a section divider instead', cls: 'icor-sqlv-add-filter' });
       divider.setAttribute('aria-label', 'Add a section divider: a thin line with an optional heading, no data');
       divider.addEventListener('click', () => this.toDivider());
+      const text = form.createEl('button', { text: 'Add text instead', cls: 'icor-sqlv-add-filter' });
+      text.setAttribute('aria-label', 'Add a text widget: plain words, written here or from a query');
+      text.addEventListener('click', () => this.toText());
+      const sql = form.createEl('button', { text: 'Write SQL instead', cls: 'icor-sqlv-add-filter' });
+      sql.setAttribute('aria-label', 'Start this widget from an SQL query: every chart type, including combo, segments and heatmap');
+      sql.addEventListener('click', () => { s.mode = 'sql'; s.x = ''; s.y = ''; this.openPicker = ''; this.renderForm(); this.touch(); });
     }
 
     this.pickerField(form, {
@@ -6315,14 +6340,95 @@ class WidgetFormModal extends Modal {
     this.touch();
   }
 
+  toText() {
+    const s = this.state;
+    if (s.mode !== 'divider' && s.mode !== 'text') s.dataMode = s.mode === 'sql' ? 'sql' : 'form';
+    if (s.mode === 'sql' && s.sqlText.trim()) s.textFrom = 'sql';
+    s.mode = 'text';
+    this.openPicker = '';
+    this.renderForm();
+    this.touch();
+  }
+
+  /* The text form: words written here or from a query, as a card with a
+   * title or as one thin line. */
+  renderTextForm(form) {
+    const s = this.state;
+    this.nativeSelect(form, {
+      label: 'Widget type',
+      options: [['text', 'Text'], ['divider', 'Section divider'], ['data', 'A widget with data']],
+      value: 'text',
+      onChange: (v) => {
+        if (v === 'divider') { this.toDivider(); return; }
+        if (v === 'data') { s.mode = s.dataMode || 'form'; this.renderForm(); this.touch(); }
+      },
+    });
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'Plain words on the dashboard, written here or taken from the first column of a query’s first row. Plain text, not Markdown: a blank line starts a paragraph.' });
+    this.nativeSelect(form, {
+      label: 'The words come from',
+      options: [['text', 'Written here'], ['sql', 'A query (its first column, first row)']],
+      value: s.textFrom,
+      onChange: (v) => { s.textFrom = v; this.renderForm(); this.touch(); },
+    });
+    if (s.textFrom === 'sql') {
+      const sqlField = this.field(form, { label: 'SQL', required: true });
+      const area = sqlField.createEl('textarea', { cls: 'icor-sqlv-console' });
+      area.value = s.sqlText;
+      area.setAttribute('rows', '5');
+      area.setAttribute('aria-label', 'SQL query');
+      area.addEventListener('input', () => { s.sqlText = area.value; this.touch(); });
+      this.sqlArea = area;
+    } else {
+      const row = this.field(form, { label: 'Text', required: true });
+      const area = row.createEl('textarea', { cls: 'icor-sqlv-wizard-input' });
+      area.value = s.textBody;
+      area.setAttribute('rows', '4');
+      area.setAttribute('aria-label', 'Text of the widget');
+      area.addEventListener('input', () => { s.textBody = area.value; this.touch(); });
+    }
+    const lineRow = form.createDiv({ cls: 'icor-sqlv-wizard-toggle' });
+    const cb = lineRow.createEl('input', { type: 'checkbox' });
+    cb.checked = s.textLine;
+    cb.setAttribute('id', 'icor-sqlv-text-line');
+    cb.setAttribute('aria-label', 'One thin line, like a section divider');
+    const lbl = lineRow.createEl('label', { text: 'One thin line, like a section divider (no title)' });
+    lbl.setAttribute('for', 'icor-sqlv-text-line');
+    cb.addEventListener('change', () => {
+      s.textLine = cb.checked;
+      if (s.textLine && !s.dividerWidth && this.editIndex < 0) s.dividerWidth = String(GRID_MAX_COLS);
+      this.renderForm();
+      this.touch();
+    });
+    if (!s.textLine) {
+      this.textInput(form, { label: 'Title', optional: true, value: s.title, placeholder: 'no title', onInput: (v) => { s.title = v; this.touch(); } });
+    }
+    this.renderOptionGroups(form, 'text', false);
+    if (s.textLine) {
+      this.nativeSelect(form, {
+        label: 'Width',
+        options: (this.editIndex >= 0 ? [['', 'Keep as is']] : []).concat([[String(GRID_MAX_COLS), 'Full width'], ['3', 'Half'], ['2', 'A third'], ['1', 'One cell']]),
+        value: s.dividerWidth,
+        onChange: (v) => { s.dividerWidth = v; },
+        ariaLabel: 'Width of the text line on the grid',
+      });
+    } else {
+      this.nativeSelect(form, {
+        label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
+        value: s.sizeKey,
+        onChange: (v) => { s.sizeKey = v; },
+        ariaLabel: 'Widget size on the grid',
+      });
+    }
+  }
+
   /* The divider form: a heading and a width. No database, no query. */
   renderDividerForm(form) {
     const s = this.state;
     this.nativeSelect(form, {
       label: 'Widget type',
-      options: [['divider', 'Section divider'], ['data', 'A widget with data']],
+      options: [['divider', 'Section divider'], ['text', 'Text'], ['data', 'A widget with data']],
       value: 'divider',
-      onChange: (v) => { if (v === 'data') { s.mode = s.dataMode || 'form'; this.renderForm(); this.touch(); } },
+      onChange: (v) => { if (v === 'text') { this.toText(); return; } if (v === 'data') { s.mode = s.dataMode || 'form'; this.renderForm(); this.touch(); } },
     });
     form.createDiv({ cls: 'icor-sqlv-note', text: 'A thin line across the dashboard that separates groups of widgets, with an optional heading. In edit mode, drag its right end to change its width.' });
     this.textInput(form, {
@@ -6364,9 +6470,9 @@ class WidgetFormModal extends Modal {
     this.sqlArea = area;
     this.nativeSelect(form, {
       label: 'Chart type',
-      options: [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['divider', 'Section divider']],
+      options: [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['text', 'Text'], ['divider', 'Section divider']],
       value: s.viz,
-      onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } s.viz = v; this.renderForm(); this.touch(); },
+      onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; this.renderForm(); this.touch(); },
     });
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
@@ -6407,8 +6513,8 @@ class WidgetFormModal extends Modal {
     if (!built.ok) { new Notice(built.reason); return; }
     const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
     const tile = this.tileToSave(built.tile);
-    if (tile.viz === 'divider') {
-      /* One thin row; only the width is chosen. */
+    if (isThinTile(tile)) {
+      /* One thin row (a divider, a text line); only the width is chosen. */
       const w = Number(this.state.dividerWidth) || (existing && existing.layout ? existing.layout.w : GRID_MAX_COLS);
       if (existing && existing.layout) {
         tile.layout = { x: existing.layout.x, y: existing.layout.y, w, h: 1 };
