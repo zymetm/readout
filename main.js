@@ -580,7 +580,9 @@ function parseDashboardSpec(text) {
       if (!builtColors.ok) return builtColors;
       const builtAxis = checkChartAxis(t, t.viz, at);
       if (!builtAxis.ok) return builtAxis;
-      tiles.push(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
+      const builtMarks = checkChartMarks(t, t.viz, at);
+      if (!builtMarks.ok) return builtMarks;
+      tiles.push(withChartMarks(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
         unit: typeof t.unit === 'string' ? t.unit : '',
@@ -599,7 +601,7 @@ function parseDashboardSpec(text) {
           timeColumn: t.source.timeColumn || undefined,
           timeframe: t.source.timeframe === undefined ? 'global' : t.source.timeframe,
         },
-      }, levelCheck), builtDelta), builtSize), builtColors), builtAxis));
+      }, levelCheck), builtDelta), builtSize), builtColors), builtAxis), builtMarks));
       continue;
     }
 
@@ -627,7 +629,9 @@ function parseDashboardSpec(text) {
     if (!sqlColors.ok) return sqlColors;
     const sqlAxis = checkChartAxis(t, t.viz, at);
     if (!sqlAxis.ok) return sqlAxis;
-    tiles.push(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    const sqlMarks = checkChartMarks(t, t.viz, at);
+    if (!sqlMarks.ok) return sqlMarks;
+    tiles.push(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -636,7 +640,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks));
   }
   return {
     ok: true,
@@ -825,6 +829,120 @@ function chartAxisOf(tile) {
   return out;
 }
 
+/* Shaded zones and reference lines on a line or bar chart, opt-in per
+ * tile. "zones" are horizontal bands, [{"from": 70, "to": 180, "color":
+ * "#51af6f", "opacity": 0.1}], drawn behind everything; "refLines" are
+ * horizontal lines, [{"y": 50, "color": "#c9c4b8", "dash": "4 3",
+ * "label": "goal"}], drawn over the grid and under the data. Colours take
+ * the level-colour rule; a line without one takes the theme's dim ink. On
+ * an automatic axis they count as data, so a goal above every value is
+ * still in view. Returns { ok, marks } or { ok, reason }. */
+const CHART_MARK_KEYS = ['zones', 'refLines'];
+const CHART_MARKS_MAX = 8;
+const DASH_RE = /^\d{1,3}( \d{1,3}){1,5}$/;
+const ZONE_OPACITY_DEFAULT = 0.15;
+
+function checkChartMarks(t, viz, at) {
+  const marks = {};
+  const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+  for (const key of CHART_MARK_KEYS) {
+    if (t[key] === undefined) continue;
+    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "' + key + '" only work on a line or bar chart.' };
+    if (!Array.isArray(t[key]) || !t[key].length || t[key].length > CHART_MARKS_MAX) {
+      return { ok: false, reason: at + ': "' + key + '" must be a list of 1 to ' + CHART_MARKS_MAX + ' entries.' };
+    }
+  }
+  if (t.zones !== undefined) {
+    marks.zones = [];
+    for (let i = 0; i < t.zones.length; i++) {
+      const z = t.zones[i];
+      const where = at + ', zone ' + (i + 1);
+      if (!z || typeof z !== 'object' || !finite(z.from) || !finite(z.to) || z.from >= z.to) {
+        return { ok: false, reason: where + ' must be like {"from": 70, "to": 180, "color": "#51af6f"}, with "from" below "to".' };
+      }
+      if (!isLevelColor(z.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-green)" or a hex colour like "#51af6f".' };
+      if (z.opacity !== undefined && (!finite(z.opacity) || z.opacity <= 0 || z.opacity > 1)) {
+        return { ok: false, reason: where + ': "opacity" must be a number above 0 and at most 1.' };
+      }
+      const zone = { from: z.from, to: z.to, color: z.color.trim() };
+      if (z.opacity !== undefined) zone.opacity = z.opacity;
+      marks.zones.push(zone);
+    }
+  }
+  if (t.refLines !== undefined) {
+    marks.refLines = [];
+    for (let i = 0; i < t.refLines.length; i++) {
+      const r = t.refLines[i];
+      const where = at + ', reference line ' + (i + 1);
+      if (!r || typeof r !== 'object' || !finite(r.y)) return { ok: false, reason: where + ' must be like {"y": 50}, with a number for "y".' };
+      if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-blue)" or a hex colour like "#c9c4b8".' };
+      if (r.dash !== undefined && (typeof r.dash !== 'string' || !DASH_RE.test(r.dash.trim()))) {
+        return { ok: false, reason: where + ': "dash" must be a dash pattern like "4 3" (dash and gap lengths).' };
+      }
+      if (r.label !== undefined && (typeof r.label !== 'string' || r.label.trim().length > LEVEL_LABEL_MAX)) {
+        return { ok: false, reason: where + ': "label" must be short text, ' + LEVEL_LABEL_MAX + ' characters at most.' };
+      }
+      const line = { y: r.y };
+      if (r.color !== undefined) line.color = r.color.trim();
+      if (r.dash !== undefined) line.dash = r.dash.trim();
+      if (r.label !== undefined && r.label.trim()) line.label = r.label.trim();
+      marks.refLines.push(line);
+    }
+  }
+  return { ok: true, marks };
+}
+
+function withChartMarks(tile, check) {
+  for (const key of CHART_MARK_KEYS) if (check.marks[key]) tile[key] = check.marks[key];
+  return tile;
+}
+
+function chartMarksOf(tile) {
+  const out = {};
+  for (const key of CHART_MARK_KEYS) if (tile && Array.isArray(tile[key])) out[key] = tile[key].map((m) => Object.assign({}, m));
+  return out;
+}
+
+/* The values zones and reference lines add to an automatic axis. */
+function chartMarkValues(tile) {
+  const out = [];
+  if (tile && Array.isArray(tile.zones)) for (const z of tile.zones) out.push(z.from, z.to);
+  if (tile && Array.isArray(tile.refLines)) for (const r of tile.refLines) out.push(r.y);
+  return out.filter((v) => typeof v === 'number' && Number.isFinite(v));
+}
+
+/* Zones go behind everything; reference lines over the grid. */
+function drawZones(svg, L, tile) {
+  if (!tile || !Array.isArray(tile.zones)) return;
+  for (const z of tile.zones) {
+    if (!isLevelColor(z.color)) continue;
+    const y1 = L.yOf(Math.max(z.from, z.to));
+    const y2 = L.yOf(Math.min(z.from, z.to));
+    if (y2 - y1 <= 0) continue;
+    const rect = svgEl('rect', { x: L.left, y: y1.toFixed(1), width: L.plotW, height: (y2 - y1).toFixed(1), class: 'icor-sqlv-zone' });
+    rect.setAttribute('fill', z.color);
+    rect.setAttribute('fill-opacity', typeof z.opacity === 'number' ? z.opacity : ZONE_OPACITY_DEFAULT);
+    svg.appendChild(rect);
+  }
+}
+
+function drawRefLines(svg, L, tile) {
+  if (!tile || !Array.isArray(tile.refLines)) return;
+  for (const r of tile.refLines) {
+    if (typeof r.y !== 'number' || r.y < L.scale.min || r.y > L.scale.max) continue;
+    const y = L.yOf(r.y);
+    const line = svgEl('line', { x1: L.left, y1: y.toFixed(1), x2: L.left + L.plotW, y2: y.toFixed(1), class: 'icor-sqlv-refline' });
+    if (isLevelColor(r.color)) line.setAttribute('stroke', r.color);
+    if (typeof r.dash === 'string' && DASH_RE.test(r.dash)) line.setAttribute('stroke-dasharray', r.dash);
+    svg.appendChild(line);
+    if (r.label) {
+      const text = svgEl('text', { x: L.left + L.plotW - 2, y: (y - 3).toFixed(1), 'text-anchor': 'end', class: 'icor-sqlv-refline-label' });
+      text.textContent = r.label;
+      svg.appendChild(text);
+    }
+  }
+}
+
 /* Round a value up to two significant figures: 213 -> 220, 1.34 -> 1.4. */
 function ceilToTwoFigures(v) {
   if (!(v > 0)) return v;
@@ -857,7 +975,7 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -915,7 +1033,7 @@ function specToJson(spec) {
     if (t.valueSize !== undefined) tile.valueSize = t.valueSize;
     if (t.color) tile.color = t.color;
     if (t.guideColor) tile.guideColor = t.guideColor;
-    Object.assign(tile, chartAxisOf(t));
+    Object.assign(tile, chartAxisOf(t), chartMarksOf(t));
     if (t.source) {
       const s = {};
       if (t.source.database) s.database = t.source.database;
@@ -1281,12 +1399,12 @@ function prepareTileForRender(tile, table) {
   if (tile.source.series) {
     const wide = pivotSeries(table);
     return {
-      spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: wide.columns.slice(1), unit: tile.unit, stack: tile.stack }, chartAxisOf(tile)),
+      spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: wide.columns.slice(1), unit: tile.unit, stack: tile.stack }, chartAxisOf(tile), chartMarksOf(tile)),
       table: wide,
     };
   }
   return {
-    spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays, chartCaption: tile.chartCaption, color: tile.color, guideColor: tile.guideColor }, chartAxisOf(tile)),
+    spec: Object.assign({ title: tile.title, viz: tile.viz, x: 'x', y: ['value'], unit: tile.unit, stack: false, headerDelta: tile.headerDelta, headerDeltaAverageDays: tile.headerDeltaAverageDays, chartCaption: tile.chartCaption, color: tile.color, guideColor: tile.guideColor }, chartAxisOf(tile), chartMarksOf(tile)),
     table,
   };
 }
@@ -2373,6 +2491,7 @@ function renderLineChart(parentEl, table, tile, extras) {
     const vi = columnIndex(ghost.columns || [], 'value');
     if (vi >= 0) for (const row of ghost.rows) { const v = Number(row[vi]); if (Number.isFinite(v)) values.push(v); }
   }
+  values.push(...chartMarkValues(tile));
   const palette = chartPaletteFor(tile, seriesIdx.length);
   const xLabels = table.rows.map((r) => r[xIdx]);
   const n = table.rows.length;
@@ -2382,7 +2501,9 @@ function renderLineChart(parentEl, table, tile, extras) {
     const L = chartLayout(W, H, Math.min(...values), Math.max(...values), true, tile);
     const xOf = (i) => L.left + (n === 1 ? L.plotW / 2 : (i / (n - 1)) * L.plotW);
     const yOf = L.yOf;
+    drawZones(svg, L, tile);
     drawAxes(svg, L, xLabels, xOf);
+    drawRefLines(svg, L, tile);
     seriesIdx.forEach((colIdx, s) => {
       let d = '';
       table.rows.forEach((row, i) => {
@@ -2467,6 +2588,7 @@ function renderBarChart(parentEl, table, tile, extras) {
   } else {
     for (const row of table.rows) for (const i of seriesIdx) top = Math.max(top, Number(row[i]) || 0);
   }
+  for (const v of chartMarkValues(tile)) top = Math.max(top, v);
   const xLabels = table.rows.map((r) => r[xIdx]);
   const n = table.rows.length;
   const titleOf = (rowI, s, v) =>
@@ -2479,7 +2601,9 @@ function renderBarChart(parentEl, table, tile, extras) {
     const gap = Math.min(4, slot * 0.2);
     const yOf = L.yOf;
     const xOfBar = (i) => L.left + i * slot + slot / 2;
+    drawZones(svg, L, tile);
     drawAxes(svg, L, xLabels, xOfBar);
+    drawRefLines(svg, L, tile);
     if (stacked) {
       const stacks = stackRows(table.rows, seriesIdx);
       stacks.forEach((segs, rowI) => {
@@ -5928,6 +6052,7 @@ IcorSqliteViewerPlugin.lib = {
   bytesOfB64, utf8OfB64, EMBEDDED_SQL_WASM_JS_B64, EMBEDDED_SQL_WASM_B64,
   STARTER_DASHBOARDS, DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,
+  checkChartMarks, chartMarkValues,
 };
 
 /* The form modal, exposed for the gates only. */
