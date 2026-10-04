@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -158,7 +158,7 @@ function chartPaletteFor(tile, count) {
 function applyChartColors(box, tile) {
   if (!box || !tile) return;
   if (tile.viz !== 'bar' && isLevelColor(tile.color) && Array.isArray(tile.y) && tile.y.length === 1) box.style.setProperty('--sqlv-tile-series', tile.color.trim());
-  if (tile.viz === 'line' && isLevelColor(tile.guideColor)) box.style.setProperty('--sqlv-tile-guide', tile.guideColor.trim());
+  if ((tile.viz === 'line' || tile.viz === 'combo') && isLevelColor(tile.guideColor)) box.style.setProperty('--sqlv-tile-guide', tile.guideColor.trim());
 }
 
 function seriesPaletteFor(count) {
@@ -517,7 +517,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or combo.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -583,6 +583,7 @@ function parseDashboardSpec(text) {
       const builtMarks = checkChartMarks(t, t.viz, at);
       if (!builtMarks.ok) return builtMarks;
       if (t.band !== undefined) return { ok: false, reason: at + ': "band" only works on an SQL line chart; a built widget has one value column.' };
+      if (t.viz === 'combo') return { ok: false, reason: at + ': a combo chart is an SQL widget; a built widget has one value column.' };
       tiles.push(withChartMarks(withChartAxis(withChartColors(withValueSize(withHeaderDelta(withLevels({
         title: typeof t.title === 'string' ? t.title : '',
         viz: t.viz,
@@ -613,6 +614,12 @@ function parseDashboardSpec(text) {
     if (!database) return { ok: false, reason: at + ' is an SQL tile, so the dashboard needs a top-level "database".' };
     const y = Array.isArray(t.y) ? t.y.slice() : (typeof t.y === 'string' && t.y ? [t.y] : []);
     if (y.some((c) => typeof c !== 'string' || !c)) return { ok: false, reason: at + ': every "y" entry must be a column name.' };
+    const sqlCombo = checkCombo(t, at);
+    if (!sqlCombo.ok) return sqlCombo;
+    if (t.viz === 'combo') {
+      if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for a combo chart.' };
+      if (t.y !== undefined) return { ok: false, reason: at + ': a combo chart lists its columns in "series", not "y".' };
+    }
     if ((t.viz === 'line' || t.viz === 'bar')) {
       if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for a ' + t.viz + ' chart.' };
       if (y.length === 0) return { ok: false, reason: at + ' needs a "y" column for a ' + t.viz + ' chart.' };
@@ -626,7 +633,7 @@ function parseDashboardSpec(text) {
     if (!sqlDelta.ok) return sqlDelta;
     const sqlSize = checkValueSize(t.valueSize, t.viz, at);
     if (!sqlSize.ok) return sqlSize;
-    const sqlColors = checkChartColors(t, t.viz, y.length, at);
+    const sqlColors = checkChartColors(t, t.viz, t.viz === 'combo' ? 2 : y.length, at);
     if (!sqlColors.ok) return sqlColors;
     const sqlAxis = checkChartAxis(t, t.viz, at);
     if (!sqlAxis.ok) return sqlAxis;
@@ -634,7 +641,7 @@ function parseDashboardSpec(text) {
     if (!sqlMarks.ok) return sqlMarks;
     const sqlBand = checkBand(t.band, t.viz, y, at);
     if (!sqlBand.ok) return sqlBand;
-    tiles.push(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -643,7 +650,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo));
   }
   return {
     ok: true,
@@ -759,7 +766,7 @@ function checkChartColors(t, viz, seriesCount, at) {
     if (!isLevelColor(color)) return { ok: false, reason: at + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#df8f48".' };
   }
   if (guideColor !== undefined) {
-    if (viz !== 'line') return { ok: false, reason: at + ': "guideColor" only works on a line chart; it colours the line that follows the pointer.' };
+    if (viz !== 'line' && viz !== 'combo') return { ok: false, reason: at + ': "guideColor" only works on a line or combo chart; it colours the line that follows the pointer.' };
     if (!isLevelColor(guideColor)) return { ok: false, reason: at + ': "guideColor" must be a theme colour like "var(--color-blue)" or a hex colour like "#cccccc".' };
   }
   return {
@@ -792,7 +799,7 @@ function checkChartAxis(t, viz, at) {
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   for (const key of CHART_AXIS_KEYS) {
     if (t[key] === undefined) continue;
-    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "' + key + '" only works on a line or bar chart.' };
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return { ok: false, reason: at + ': "' + key + '" only works on a line, bar or combo chart.' };
     axis[key] = t[key];
   }
   for (const key of ['yMin', 'yMax', 'yMaxLimit']) {
@@ -850,7 +857,7 @@ function checkChartMarks(t, viz, at) {
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   for (const key of CHART_MARK_KEYS) {
     if (t[key] === undefined) continue;
-    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "' + key + '" only work on a line or bar chart.' };
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return { ok: false, reason: at + ': "' + key + '" only work on a line, bar or combo chart.' };
     if (!Array.isArray(t[key]) || !t[key].length || t[key].length > CHART_MARKS_MAX) {
       return { ok: false, reason: at + ': "' + key + '" must be a list of 1 to ' + CHART_MARKS_MAX + ' entries.' };
     }
@@ -869,6 +876,9 @@ function checkChartMarks(t, viz, at) {
       }
       const zone = { from: z.from, to: z.to, color: z.color.trim() };
       if (z.opacity !== undefined) zone.opacity = z.opacity;
+      const zAxis = checkMarkAxis(z.axis, viz, where);
+      if (!zAxis.ok) return zAxis;
+      if (zAxis.axis) zone.axis = zAxis.axis;
       marks.zones.push(zone);
     }
   }
@@ -889,6 +899,9 @@ function checkChartMarks(t, viz, at) {
       if (r.color !== undefined) line.color = r.color.trim();
       if (r.dash !== undefined) line.dash = r.dash.trim();
       if (r.label !== undefined && r.label.trim()) line.label = r.label.trim();
+      const rAxis = checkMarkAxis(r.axis, viz, where);
+      if (!rAxis.ok) return rAxis;
+      if (rAxis.axis) line.axis = rAxis.axis;
       marks.refLines.push(line);
     }
   }
@@ -1007,6 +1020,272 @@ function bandPaths(rows, lowIdx, highIdx, xOf, yOf) {
   return out;
 }
 
+/* Which axis a zone or a reference line on a combo chart follows. */
+function checkMarkAxis(raw, viz, where) {
+  if (raw === undefined) return { ok: true, axis: undefined };
+  if (viz !== 'combo') return { ok: false, reason: where + ': "axis" only works on a combo chart, which has a right axis.' };
+  if (raw !== 'left' && raw !== 'right') return { ok: false, reason: where + ': "axis" must be "left" or "right".' };
+  return { ok: true, axis: raw === 'right' ? 'right' : undefined };
+}
+
+/* A combo chart: bars and lines in one chart, over one x column, each
+ * series on the left or the right axis. "series" lists them in drawing
+ * order: [{"column": "steps", "kind": "bar", "axis": "left", "color":
+ * "#df8f48", "opacity": 0.5, "label": "Steps"}, {"column": "mean",
+ * "kind": "line", "axis": "right", "dash": "3 3", "connect": true}].
+ * "stack" stacks the bars. The right axis takes "y2Min", "y2Max",
+ * "y2MaxLimit", "y2Ticks" and "y2Unit", like the left axis takes "yMin"
+ * and the rest. Returns { ok, combo } or { ok, reason }. */
+const COMBO_SERIES_MAX = 8;
+const COMBO_LABEL_MAX = 40;
+const COMBO_AXIS2_KEYS = ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks', 'y2Unit'];
+const COMBO_KEYS = ['series'].concat(COMBO_AXIS2_KEYS);
+
+function checkCombo(t, at) {
+  if (t.viz !== 'combo') {
+    for (const key of COMBO_KEYS) {
+      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a combo chart.' };
+    }
+    return { ok: true, combo: undefined };
+  }
+  const raw = t.series;
+  if (!Array.isArray(raw) || !raw.length || raw.length > COMBO_SERIES_MAX) {
+    return { ok: false, reason: at + ': a combo chart needs "series": a list of 1 to ' + COMBO_SERIES_MAX + ' columns, like [{"column": "steps", "kind": "bar"}, {"column": "mean", "kind": "line", "axis": "right"}].' };
+  }
+  const series = [];
+  const seen = new Set();
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i];
+    const where = at + ', series ' + (i + 1);
+    if (!r || typeof r !== 'object' || typeof r.column !== 'string' || !r.column.trim()) return { ok: false, reason: where + ' needs a "column".' };
+    const column = r.column.trim();
+    if (seen.has(column)) return { ok: false, reason: where + ': the column "' + column + '" is already a series.' };
+    seen.add(column);
+    const kind = r.kind === undefined ? 'line' : r.kind;
+    if (kind !== 'line' && kind !== 'bar') return { ok: false, reason: where + ': "kind" must be "line" or "bar".' };
+    const axis = r.axis === undefined ? 'left' : r.axis;
+    if (axis !== 'left' && axis !== 'right') return { ok: false, reason: where + ': "axis" must be "left" or "right".' };
+    if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#df8f48".' };
+    if (r.opacity !== undefined && (typeof r.opacity !== 'number' || !Number.isFinite(r.opacity) || r.opacity <= 0 || r.opacity > 1)) {
+      return { ok: false, reason: where + ': "opacity" must be a number above 0 and at most 1.' };
+    }
+    if (r.dash !== undefined && (kind !== 'line' || typeof r.dash !== 'string' || !DASH_RE.test(r.dash.trim()))) {
+      return { ok: false, reason: where + ': "dash" is a dash pattern like "4 3", and only a line has one.' };
+    }
+    if (r.connect !== undefined && (kind !== 'line' || typeof r.connect !== 'boolean')) {
+      return { ok: false, reason: where + ': "connect" is true or false, and only a line has it (true joins the line across empty rows).' };
+    }
+    if (r.label !== undefined && (typeof r.label !== 'string' || r.label.trim().length > COMBO_LABEL_MAX)) {
+      return { ok: false, reason: where + ': "label" must be short text, ' + COMBO_LABEL_MAX + ' characters at most.' };
+    }
+    const one = { column, kind };
+    if (axis === 'right') one.axis = 'right';
+    if (r.color !== undefined) one.color = r.color.trim();
+    if (r.opacity !== undefined) one.opacity = r.opacity;
+    if (r.dash !== undefined) one.dash = r.dash.trim();
+    if (r.connect === true) one.connect = true;
+    if (r.label !== undefined && r.label.trim()) one.label = r.label.trim();
+    series.push(one);
+  }
+  const combo = { series };
+  const axis2 = {};
+  for (const key of ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks']) if (t[key] !== undefined) axis2[key.replace('y2', 'y')] = t[key];
+  const axisCheck = checkChartAxis(axis2, 'combo', at);
+  if (!axisCheck.ok) return { ok: false, reason: axisCheck.reason.replace(/"y(Min|Max|MaxLimit|Ticks)"/g, '"y2$1"') };
+  for (const key of ['y2Min', 'y2Max', 'y2MaxLimit', 'y2Ticks']) if (t[key] !== undefined) combo[key] = axisCheck.axis[key.replace('y2', 'y')];
+  if (t.y2Unit !== undefined) {
+    if (typeof t.y2Unit !== 'string') return { ok: false, reason: at + ': "y2Unit" must be text, like "kcal".' };
+    if (t.y2Unit) combo.y2Unit = t.y2Unit;
+  }
+  if (t.stack === true) {
+    const bars = series.filter((x) => x.kind === 'bar');
+    if (new Set(bars.map((x) => x.axis || 'left')).size > 1) return { ok: false, reason: at + ': "stack" stacks the bars, so every bar series must be on the same axis.' };
+  }
+  return { ok: true, combo };
+}
+
+function withCombo(tile, check) {
+  if (!check.combo) return tile;
+  for (const key of COMBO_KEYS) if (check.combo[key] !== undefined) tile[key] = check.combo[key];
+  tile.y = check.combo.series.map((x) => x.column);
+  return tile;
+}
+
+function renderComboChart(parentEl, table, tile, extras) {
+  const xIdx = columnIndex(table.columns, tile.x);
+  const series = (Array.isArray(tile.series) ? tile.series : [])
+    .map((x) => Object.assign({}, x, { idx: columnIndex(table.columns, x.column) }))
+    .filter((x) => x.idx >= 0);
+  if (xIdx < 0 || !series.length || !table.rows.length) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return;
+  }
+  const palette = seriesPaletteFor(series.length);
+  series.forEach((x, i) => { x.paint = isLevelColor(x.color) ? x.color.trim() : palette[i]; x.name = x.label || x.column; });
+  const bars = series.filter((x) => x.kind === 'bar');
+  const lines = series.filter((x) => x.kind === 'line');
+  const stacked = tile.stack === true && bars.length > 1;
+  const n = table.rows.length;
+  const xLabels = table.rows.map((r) => r[xIdx]);
+  /* What each axis has to hold. Bars stand on zero. */
+  const span = { left: [], right: [] };
+  const sideOf = (x) => (x.axis === 'right' ? 'right' : 'left');
+  if (bars.length) span[sideOf(bars[0])].push(0);
+  if (stacked) {
+    for (const segs of stackRows(table.rows, bars.map((b) => b.idx))) span[sideOf(bars[0])].push(segs[segs.length - 1][1]);
+  } else {
+    for (const b of bars) for (const row of table.rows) { const v = cellNumber(row[b.idx]); if (Number.isFinite(v)) span[sideOf(b)].push(v); }
+  }
+  for (const l of lines) for (const row of table.rows) { const v = cellNumber(row[l.idx]); if (Number.isFinite(v)) span[sideOf(l)].push(v); }
+  for (const z of tile.zones || []) span[z.axis === 'right' ? 'right' : 'left'].push(z.from, z.to);
+  for (const r of tile.refLines || []) span[r.axis === 'right' ? 'right' : 'left'].push(r.y);
+  const hasRight = series.some((x) => x.axis === 'right');
+  const lo = (v) => (v.length ? Math.min(...v) : 0);
+  const hi = (v) => (v.length ? Math.max(...v) : 1);
+  const axis2 = { yMin: tile.y2Min, yMax: tile.y2Max, yMaxLimit: tile.y2MaxLimit, yTicks: tile.y2Ticks };
+  const unitOf = (x) => (x.axis === 'right' ? tile.y2Unit : tile.unit) || '';
+  const chart = chartBox(parentEl, series.map((x) => x.name), series.map((x) => x.paint), (svg, W, H) => {
+    /* The right axis is measured first, so the left layout leaves it room. */
+    const ticksFor = (h) => Math.max(2, Math.min(5, Math.floor(h / 24)));
+    let R = hasRight ? chartScaleFor(axis2, lo(span.right), hi(span.right), ticksFor(H - 26)) : null;
+    const showR = hasRight && W >= CHART_MIN_Y_W;
+    const rightW = showR ? Math.ceil(Math.max(...R.ticks.map((v) => formatNumber(v).length)) * TICK_CHAR_W) + 10 : 0;
+    const L = chartLayout(W - rightW, H, lo(span.left), hi(span.left), true, tile);
+    if (hasRight) R = chartScaleFor(axis2, lo(span.right), hi(span.right), ticksFor(L.plotH));
+    const yOfR = hasRight
+      ? (v) => Math.max(L.top, Math.min(L.top + L.plotH, L.top + L.plotH - ((v - R.min) / (R.max - R.min)) * L.plotH))
+      : L.yOf;
+    const RL = hasRight ? Object.assign({}, L, { yOf: yOfR, scale: R }) : L;
+    const yOfSeries = (x) => (x.axis === 'right' ? yOfR : L.yOf);
+    const slot = L.plotW / n;
+    const gap = Math.min(4, slot * 0.2);
+    const xOf = (i) => L.left + i * slot + slot / 2;
+    drawZones(svg, L, { zones: (tile.zones || []).filter((z) => z.axis !== 'right') });
+    if (hasRight) drawZones(svg, RL, { zones: (tile.zones || []).filter((z) => z.axis === 'right') });
+    drawAxes(svg, L, xLabels, xOf);
+    if (showR) {
+      for (const tick of R.ticks) {
+        const label = svgEl('text', { x: L.left + L.plotW + 6, y: yOfR(tick) + 3, 'text-anchor': 'start', class: 'icor-sqlv-tick' });
+        label.textContent = formatNumber(tick);
+        svg.appendChild(label);
+      }
+    }
+    drawRefLines(svg, L, { refLines: (tile.refLines || []).filter((r) => r.axis !== 'right') });
+    if (hasRight) drawRefLines(svg, RL, { refLines: (tile.refLines || []).filter((r) => r.axis === 'right') });
+    const titleOf = (i, x, v) => String(xLabels[i]) + ' · ' + x.name + ' ' + formatNumber(v) + (unitOf(x) ? ' ' + unitOf(x) : '');
+    /* Bars first, so the lines draw over them. */
+    if (stacked) {
+      const yOf = yOfSeries(bars[0]);
+      stackRows(table.rows, bars.map((b) => b.idx)).forEach((segs, i) => {
+        const x = L.left + i * slot + gap / 2;
+        const w = Math.max(0.5, slot - gap);
+        segs.forEach(([a, b], k) => {
+          if (b <= a) return;
+          const isTopmost = segs.slice(k + 1).every(([a2, b2]) => b2 <= a2);
+          const inset = isTopmost ? 0 : 1;
+          const yTop = yOf(b);
+          const rect = svgEl('rect', { x: x.toFixed(1), y: (yTop + inset).toFixed(1), width: w.toFixed(1), height: Math.max(0.5, yOf(a) - yTop - inset).toFixed(1), class: 'icor-sqlv-combo-bar' });
+          rect.setAttribute('fill', bars[k].paint);
+          if (typeof bars[k].opacity === 'number') rect.setAttribute('fill-opacity', bars[k].opacity);
+          const t = svgEl('title', {});
+          t.textContent = titleOf(i, bars[k], b - a);
+          rect.appendChild(t);
+          svg.appendChild(rect);
+        });
+      });
+    } else if (bars.length) {
+      const inner = Math.max(0.5, (slot - gap) / bars.length);
+      const r = inner >= 8 ? Math.min(2, inner / 2) : 0;
+      table.rows.forEach((row, i) => {
+        bars.forEach((b, k) => {
+          const v = cellNumber(row[b.idx]);
+          if (!Number.isFinite(v) || v <= 0) return;
+          const yOf = yOfSeries(b);
+          const x = L.left + i * slot + gap / 2 + k * inner;
+          const bar = svgEl('path', { d: barPath(x, yOf(v), inner, Math.max(0.5, yOf(0) - yOf(v)), r), class: 'icor-sqlv-combo-bar' });
+          bar.setAttribute('fill', b.paint);
+          if (typeof b.opacity === 'number') bar.setAttribute('fill-opacity', b.opacity);
+          const t = svgEl('title', {});
+          t.textContent = titleOf(i, b, v);
+          bar.appendChild(t);
+          svg.appendChild(bar);
+        });
+      });
+    }
+    for (const l of lines) {
+      const yOf = yOfSeries(l);
+      let d = '';
+      let open = false;
+      table.rows.forEach((row, i) => {
+        const v = cellNumber(row[l.idx]);
+        if (!Number.isFinite(v)) { if (!l.connect) open = false; return; }
+        d += (open ? ' L ' : (d ? ' M ' : 'M ')) + xOf(i).toFixed(1) + ' ' + yOf(v).toFixed(1);
+        open = true;
+      });
+      if (!d) continue;
+      const path = svgEl('path', { d, fill: 'none', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', class: 'icor-sqlv-combo-line' });
+      path.setAttribute('stroke', l.paint);
+      if (l.dash) path.setAttribute('stroke-dasharray', l.dash);
+      if (typeof l.opacity === 'number') path.setAttribute('stroke-opacity', l.opacity);
+      svg.appendChild(path);
+    }
+    /* Hover: a guide, a dot on each line, and every series on the chip. */
+    const guide = svgEl('line', { y1: L.top, y2: L.top + L.plotH, class: 'icor-sqlv-guide', visibility: 'hidden' });
+    const chip = svgEl('rect', { class: 'icor-sqlv-readout-chip', rx: 4, height: 18, visibility: 'hidden' });
+    const readout = svgEl('text', { class: 'icor-sqlv-readout', visibility: 'hidden' });
+    const dots = lines.map((l) => {
+      const dot = svgEl('circle', { r: 3, class: 'icor-sqlv-hover-dot', visibility: 'hidden' });
+      dot.setAttribute('style', 'fill: ' + l.paint);
+      svg.appendChild(dot);
+      return dot;
+    });
+    svg.appendChild(guide);
+    svg.appendChild(chip);
+    svg.appendChild(readout);
+    const hover = svgEl('rect', { x: L.left, y: L.top, width: L.plotW, height: L.plotH, fill: 'transparent' });
+    svg.appendChild(hover);
+    hover.addEventListener('mousemove', (ev) => {
+      const rect = svg.getBoundingClientRect();
+      const px = ((ev.clientX - rect.left) / rect.width) * W;
+      const i = Math.max(0, Math.min(n - 1, Math.floor((px - L.left) / slot)));
+      const x = xOf(i);
+      guide.setAttribute('x1', x); guide.setAttribute('x2', x); guide.setAttribute('visibility', 'visible');
+      const parts = [String(xLabels[i])];
+      for (const sr of series) {
+        const v = cellNumber(table.rows[i][sr.idx]);
+        if (Number.isFinite(v)) parts.push(sr.name + ' ' + formatNumber(v) + (unitOf(sr) ? ' ' + unitOf(sr) : ''));
+      }
+      lines.forEach((l, k) => {
+        const v = cellNumber(table.rows[i][l.idx]);
+        if (Number.isFinite(v)) {
+          dots[k].setAttribute('cx', x); dots[k].setAttribute('cy', yOfSeries(l)(v)); dots[k].setAttribute('visibility', 'visible');
+        } else {
+          dots[k].setAttribute('visibility', 'hidden');
+        }
+      });
+      readout.textContent = parts.join('  ·  ');
+      const flip = x > W / 2;
+      readout.setAttribute('x', flip ? x - 10 : x + 10);
+      readout.setAttribute('y', L.top + 12);
+      readout.setAttribute('text-anchor', flip ? 'end' : 'start');
+      readout.setAttribute('visibility', 'visible');
+      const textW = typeof readout.getComputedTextLength === 'function'
+        ? readout.getComputedTextLength() : readout.textContent.length * 6;
+      chip.setAttribute('width', Math.ceil(textW) + 12);
+      chip.setAttribute('x', flip ? x - 16 - textW : x + 4);
+      chip.setAttribute('y', L.top);
+      chip.setAttribute('visibility', 'visible');
+    });
+    hover.addEventListener('mouseleave', () => {
+      guide.setAttribute('visibility', 'hidden');
+      chip.setAttribute('visibility', 'hidden');
+      readout.setAttribute('visibility', 'hidden');
+      for (const dot of dots) dot.setAttribute('visibility', 'hidden');
+    });
+  }, extras && extras.observers);
+  applyChartColors(chart.box, tile);
+}
+
 /* Round a value up to two significant figures: 213 -> 220, 1.34 -> 1.4. */
 function ceilToTwoFigures(v) {
   if (!(v > 0)) return v;
@@ -1039,7 +1318,7 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band']);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -1119,7 +1398,10 @@ function specToJson(spec) {
     } else {
       tile.sql = t.sql;
       if (t.x) tile.x = t.x;
-      if (t.y && t.y.length) tile.y = t.y.length === 1 ? t.y[0] : t.y;
+      if (t.y && t.y.length && t.viz !== 'combo') tile.y = t.y.length === 1 ? t.y[0] : t.y;
+      for (const key of COMBO_KEYS) {
+        if (t.viz === 'combo' && t[key] !== undefined) tile[key] = key === 'series' ? t.series.map((x) => Object.assign({}, x)) : t[key];
+      }
       if (t.band) tile.band = Object.assign({}, t.band);
     }
     return tile;
@@ -2995,6 +3277,7 @@ function renderTile(tileEl, tileSpec, table, extras) {
   const body = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
   if (tileSpec.viz === 'line') renderLineChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'bar') renderBarChart(body, table, tileSpec, extras);
+  else if (tileSpec.viz === 'combo') renderComboChart(body, table, tileSpec, extras);
   else renderResultTable(body, table, { maxRows: 50 });
 }
 
@@ -6142,6 +6425,7 @@ IcorSqliteViewerPlugin.lib = {
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,
   checkChartMarks, chartMarkValues,
   checkBand, bandPaths, cellNumber,
+  checkCombo,
 };
 
 /* The form modal, exposed for the gates only. */

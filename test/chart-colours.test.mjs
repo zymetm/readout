@@ -89,7 +89,7 @@ test('the spec keeps both colours and names what is wrong, in plain words', () =
     [lineTile({ color: '#ccc' }), /"color" must be a theme colour/],
     [lineTile({ guideColor: 'red; display:none' }), /"guideColor" must be a theme colour/],
     [lineTile({ y: ['km', 'laps'], color: '#112233' }), /"color" only works on a chart with one series/],
-    [{ title: 'B', viz: 'bar', x: 'day', y: 'km', sql: 'SELECT 1 AS day, 2 AS km', guideColor: '#112233' }, /"guideColor" only works on a line chart/],
+    [{ title: 'B', viz: 'bar', x: 'day', y: 'km', sql: 'SELECT 1 AS day, 2 AS km', guideColor: '#112233' }, /"guideColor" only works on a line or combo chart/],
     [{ title: 'S', viz: 'stat', y: 'km', sql: 'SELECT 2 AS km', color: '#112233' }, /"color" only works on a line or bar chart/],
     [{ title: 'Built', viz: 'line', color: '#112233', source: { table: 't', metric: 'v', agg: 'sum', timeColumn: 'd', series: 'kind' } }, /"color" only works on a chart with one series/],
   ];
