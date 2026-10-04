@@ -146,9 +146,10 @@ test('a combo survives the spec file with its series and right axis, and no "y"'
   assert.deepEqual(back.y2Ticks, [40, 220]);
   assert.equal(back.y2Unit, 'mg');
   assert.equal(lib.parseDashboardSpec(json).ok, true);
+  /* The edit form owns the series and the right axis now (form-every-widget.test.mjs). */
   const kept = lib.keepUneditedKeys({ viz: 'combo' }, parse(comboTile({ y2Max: 9 })).spec.tiles[0]);
-  assert.equal(kept.series.length, 2, 'an edit from the form keeps the series');
-  assert.equal(kept.y2Max, 9);
+  assert.equal(kept.series, undefined);
+  assert.equal(kept.y2Max, undefined);
 });
 
 /* ---------------------------------------------- the view and the cache -- */

@@ -1471,7 +1471,7 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(COMBO_KEYS);
+const FORM_UNEDITED_KEYS = [];
 
 /* The option keys the form sets on a line, bar, stat or table widget,
  * copied from its parser check onto the built tile. */
@@ -1498,10 +1498,10 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'combo']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
 const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap']);
@@ -3741,7 +3741,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'combo']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -5020,6 +5020,8 @@ class WidgetFormModal extends Modal {
     }
     this.state.refLines = formRowsOf(existing && existing.refLines, ['y', 'label', 'color', 'dash', 'axis']);
     for (const [key, file] of FORM_HEAT_FIELDS) this.state[key] = existing && existing.viz === 'heatmap' && existing[file] !== undefined ? String(existing[file]) : '';
+    this.state.comboSeries = formRowsOf(existing && existing.viz === 'combo' && existing.series, ['column', 'kind', 'axis', 'color', 'label', 'opacity', 'dash', 'connect']);
+    this.state.y2Unit = existing && existing.y2Unit ? existing.y2Unit : '';
     this.state.segmentColors = existing && existing.segmentColors ? Object.entries(existing.segmentColors).map(([name, color]) => ({ name, color })) : [];
     this.state.zones = formRowsOf(existing && existing.zones, ['from', 'to', 'color', 'opacity', 'axis']);
     /* The columns of the last query the preview ran, for the column
@@ -5125,6 +5127,7 @@ class WidgetFormModal extends Modal {
     if (!opts.ok) return opts;
     const raw = Object.assign({}, tile, opts.raw);
     if (tile.viz === 'heatmap') { delete raw.x; delete raw.y; }
+    if (tile.viz === 'combo') { delete raw.y; raw.stack = this.state.stack === true; }
     const check = checkFormTile(raw, this.spec.database);
     if (!check.ok) return check;
     if (FORM_WHOLE_VIZ.has(tile.viz)) return { ok: true, tile: check.tile };
@@ -5195,8 +5198,75 @@ class WidgetFormModal extends Modal {
         }
       }
     }
+    if (viz === 'combo') {
+      const series = [];
+      for (let i = 0; i < s.comboSeries.length; i++) {
+        const r = s.comboSeries[i];
+        const where = 'Series ' + (i + 1);
+        if (!String(r.column || '').trim()) return { ok: false, reason: where + ' needs a column.' };
+        const one = { column: r.column.trim(), kind: r.kind === 'bar' ? 'bar' : 'line' };
+        if (r.axis === 'right') one.axis = 'right';
+        if (r.color) one.color = r.color;
+        const op = formNumber(r.opacity, where + ': opacity');
+        if (!op.ok) return op;
+        if (op.value !== undefined) one.opacity = op.value;
+        if (one.kind === 'line' && String(r.dash || '').trim()) one.dash = r.dash.trim();
+        if (one.kind === 'line' && r.connect === true) one.connect = true;
+        if (String(r.label || '').trim()) one.label = r.label.trim();
+        series.push(one);
+      }
+      if (series.length) raw.series = series;
+      const axis2 = this.axisFromForm('y2', 'Right axis');
+      if (!axis2.ok) return axis2;
+      Object.assign(raw, axis2.raw);
+      if (s.y2Unit.trim()) raw.y2Unit = s.y2Unit.trim();
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* A combo chart: one x column and a list of series, each a bar or a
+   * line on the left or the right axis. */
+  renderComboFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'Bars and lines over one x column, each series on the left or the right axis. One row per series, drawn in this order; the legend shows when there are two or more.' });
+    this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
+    const wrap = this.field(form, { label: 'Series', required: true });
+    this.rowsEditor(wrap, {
+      rows: s.comboSeries, what: 'Series', max: COMBO_SERIES_MAX,
+      newRow: () => ({ column: '', kind: s.comboSeries.length ? 'line' : 'bar', axis: '', color: '', label: '', opacity: '', dash: '', connect: false }),
+      fields: [
+        { key: 'column', label: 'column', kind: 'column' },
+        { key: 'kind', label: 'drawn as', kind: 'select', options: () => [['bar', 'Bars'], ['line', 'Line']] },
+        { key: 'axis', label: 'axis', kind: 'select', options: () => [['left', 'Left axis'], ['right', 'Right axis']] },
+        { key: 'color', label: 'colour', kind: 'color' },
+        { key: 'label', label: 'name in the legend', placeholder: 'legend name (optional)' },
+        { key: 'opacity', label: 'opacity', kind: 'number', placeholder: 'opacity 1' },
+        { key: 'dash', label: 'dash', placeholder: 'solid, or like 4 3', show: (r) => r.kind !== 'bar' },
+        { key: 'connect', label: 'join across empty rows', kind: 'bool', show: (r) => r.kind !== 'bar' },
+      ],
+    });
+    if (s.comboSeries.filter((r) => r.kind === 'bar').length > 1) {
+      const row = form.createDiv({ cls: 'icor-sqlv-wizard-toggle' });
+      const cb = row.createEl('input', { type: 'checkbox' });
+      cb.checked = s.stack === true;
+      cb.setAttribute('id', 'icor-sqlv-combo-stack');
+      cb.setAttribute('aria-label', 'Stack the bars on top of each other');
+      const lbl = row.createEl('label', { text: 'Stack the bars on top of each other' });
+      lbl.setAttribute('for', 'icor-sqlv-combo-stack');
+      cb.addEventListener('change', () => { s.stack = cb.checked; this.touch(); });
+    }
+  }
+
+  /* The right axis of a combo chart: the left axis's fields, and the unit
+   * its values carry in the readout. */
+  renderRightAxisFields(form) {
+    const s = this.state;
+    const has = FORM_AXIS_FIELDS.some(([name, , kind]) => (kind === 'bool' ? s['y2' + name] === true : String(s['y2' + name]).trim())) || !!s.y2Unit.trim();
+    const body = this.optionGroup(form, { key: 'axis2', label: 'Right axis', hasValues: has });
+    if (!body) return;
+    this.renderAxisFieldsFor(body, 'y2');
+    this.textInput(body, { label: 'Unit of the right axis', optional: true, value: s.y2Unit, placeholder: 'like kcal or %', ariaLabel: 'Right axis: unit', onInput: (v) => { s.y2Unit = v; this.touch(); } });
   }
 
   /* A heatmap: which columns place a cell (row, column) and colour it
@@ -5367,7 +5437,19 @@ class WidgetFormModal extends Modal {
       for (const f of fields) {
         if (f.show && !f.show(row)) continue;
         const aria = at + ': ' + f.label;
-        if (f.kind === 'color') {
+        if (f.kind === 'column' && this.resultColumns && this.resultColumns.length) {
+          const cols = this.resultColumns;
+          const select = rowEl.createEl('select', { cls: 'dropdown' });
+          select.setAttribute('aria-label', aria);
+          const opts = [['', 'Pick a column']].concat(cols.map((c) => [c, c]));
+          if (row[f.key] && !cols.includes(row[f.key])) opts.push([row[f.key], row[f.key] + ' (not in the result)']);
+          for (const [v, text] of opts) {
+            const opt = select.createEl('option', { text });
+            opt.value = v;
+            if (v === (row[f.key] || '')) opt.selected = true;
+          }
+          select.addEventListener('change', () => { row[f.key] = select.value; this.touch(); });
+        } else if (f.kind === 'color') {
           this.rowColor(rowEl, { value: row[f.key], ariaLabel: aria, emptyLabel: f.emptyLabel, onChange: (v) => { row[f.key] = v; } });
         } else if (f.kind === 'select') {
           const options = f.options(row);
@@ -5721,7 +5803,7 @@ class WidgetFormModal extends Modal {
     const s = this.state;
     const raw = {};
     if (s.color && (viz === 'line' || viz === 'bar') && seriesCount === 1) raw.color = s.color;
-    if (s.guideColor && viz === 'line') raw.guideColor = s.guideColor;
+    if (s.guideColor && (viz === 'line' || viz === 'combo')) raw.guideColor = s.guideColor;
     return checkChartColors(raw, viz, seriesCount, 'This widget');
   }
 
@@ -5762,6 +5844,10 @@ class WidgetFormModal extends Modal {
   }
 
   renderChartColorFields(form, viz, seriesCount) {
+    if (viz === 'combo') {
+      this.colorField(form, { label: 'Scrub line colour', key: 'guideColor', ariaLabel: 'Colour of the line that follows the pointer' });
+      return;
+    }
     if ((viz !== 'line' && viz !== 'bar') || seriesCount !== 1) return;
     this.colorField(form, {
       label: viz === 'line' ? 'Line colour' : 'Bar colour', key: 'color',
@@ -6561,6 +6647,7 @@ class WidgetFormModal extends Modal {
   renderOptionGroups(form, viz, built) {
     this.renderMeterFields(form, viz);
     this.renderAxisFields(form, viz);
+    if (viz === 'combo') this.renderRightAxisFields(form);
     this.renderMarkFields(form, viz);
     this.renderBandFields(form, viz, built);
     this.renderNotesFields(form, viz);
@@ -6588,6 +6675,7 @@ class WidgetFormModal extends Modal {
     });
     if (s.viz === 'segments') this.renderSegmentsFields(form);
     if (s.viz === 'heatmap') this.renderHeatmapFields(form);
+    if (s.viz === 'combo') this.renderComboFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
       this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });

@@ -391,3 +391,61 @@ test('a heatmap reads back into the form; a dot colour without a dot column cann
   assert.match(form.buildTile().reason, /"markerColor" and "markerLabel" need a "marker" column/);
   assert.equal(lib.FORM_VIZ.has('heatmap'), true);
 });
+
+/* -------------------------------------------------------------- combo -- */
+
+const COMBO_TARGET = {
+  title: 'Orders and returns', viz: 'combo', unit: 'orders', stack: true,
+  hint: 'by channel', footnote: 'Bars: orders by channel. Dashed line: return rate (right axis).',
+  guideColor: '#cccccc', yMin: 0, yTickCompact: true,
+  refLines: [{ y: 5, color: '#c9c4b8', dash: '4 3', label: 'daily goal' }],
+  sql: 'SELECT day, web, shop, rate FROM daily', x: 'day',
+  series: [
+    { column: 'web', kind: 'bar', color: '#e7bc82', label: 'Web' },
+    { column: 'shop', kind: 'bar', color: '#b26d3a', label: 'Shop', opacity: 0.5 },
+    { column: 'rate', kind: 'line', axis: 'right', color: '#75ef9c', dash: '5 3', connect: true, label: 'Return rate (%)' },
+  ],
+  y2Min: 0, y2Max: 20, y2TickSuffix: '%', y2Unit: '%',
+};
+
+test('a combo chart built from a blank widget in the form matches the hand-written one field for field', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  Object.assign(form.state, { mode: 'sql', sqlText: COMBO_TARGET.sql, viz: 'combo', title: 'Orders and returns', unit: 'orders', x: '', y: '', sizeKey: 'wide' });
+  form.renderForm();
+  await form.runPreview();
+  assert.match(form.previewError, /needs an "x" column for a combo chart|needs a column|needs "series"/);
+  form.state.x = 'day';
+  const add = () => { const b = [...walk(form.formEl)].find((e) => e.textContent === '+ Add series'); for (const fn of b.handlers.click) fn(); };
+  add(); add(); add();
+  assert.equal(byLabel(form.formEl, 'Series 1: column').tagName, 'SELECT', 'series columns come from the result');
+  assert.equal(byLabel(form.formEl, 'Series 1: dash'), null, 'a bar has no dash');
+  Object.assign(form.state.comboSeries[0], { column: 'web', kind: 'bar', color: '#e7bc82', label: 'Web' });
+  Object.assign(form.state.comboSeries[1], { column: 'shop', kind: 'bar', color: '#b26d3a', label: 'Shop', opacity: '0.5' });
+  Object.assign(form.state.comboSeries[2], { column: 'rate', kind: 'line', axis: 'right', color: '#75ef9c', dash: '5 3', connect: true, label: 'Return rate (%)' });
+  form.renderForm();
+  assert.ok(byLabel(form.formEl, 'Stack the bars on top of each other'), 'two bars offer stacking');
+  Object.assign(form.state, { stack: true, guideColor: '#cccccc', yMin: '0', yTickCompact: true, y2Min: '0', y2Max: '20', y2TickSuffix: '%', y2Unit: '%',
+    hint: 'by channel', footnote: 'Bars: orders by channel. Dashed line: return rate (right axis).' });
+  form.state.refLines = [{ y: '5', label: 'daily goal', color: '#c9c4b8', dash: '4 3', axis: '' }];
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  await form.save();
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
+});
+
+test('a combo reads back into the form with its series and right axis; stacked bars on two sides are refused', async () => {
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
+  const { form } = await makeForm(parsed);
+  form.open();
+  assert.equal(form.state.comboSeries.length, 3);
+  assert.equal(form.state.comboSeries[2].connect, true);
+  assert.equal(byLabel(form.formEl, 'Right axis: Highest value').value, '20', 'the right axis group opens with its values');
+  assert.equal(byLabel(form.formEl, 'Colour of the line that follows the pointer').children.find((o) => o.selected).value, 'custom');
+  form.state.comboSeries[1].axis = 'right';
+  assert.match(form.buildTile().reason, /every bar series must be on the same axis/);
+  assert.equal(lib.FORM_VIZ.has('combo'), true);
+  assert.deepEqual(unwrap(lib.keepUneditedKeys({ viz: 'line' }, { viz: 'line', yMin: 1, zones: [], band: {}, hint: 'h', meter: {} })), { viz: 'line' }, 'every setting has a field now, so none is kept behind the form');
+});
