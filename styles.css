@@ -1636,6 +1636,8 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   .icor-sqlv-modal-bar button,
   .icor-sqlv-edit-toggle { min-height: 44px; }
   .icor-sqlv-tabs button { min-height: 44px; }
+  button.icor-sqlv-add-filter { min-height: 44px; }
+  button.icor-sqlv-advanced-toggle { display: inline-flex; align-items: center; min-height: 44px; }
 }
 
 /* ---------------------------------------------------- section divider -- */
