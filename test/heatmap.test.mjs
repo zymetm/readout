@@ -15,7 +15,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { readFileSync } from 'node:fs';
+
 import { loadPlugin, makeFakeAdapter, unwrap } from './harness.mjs';
+
+const CSS = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
 
 const { lib, obsidian } = loadPlugin();
 
@@ -104,7 +108,8 @@ test('the spec keeps a heatmap and names what is wrong, in plain words', () => {
     [heatTile({ marker: '' }), /"marker" must be the name of a column/],
     [heatTile({ markerColor: 'cyan', marker: 'flag' }), /"markerColor" must be a theme colour/],
     [heatTile({ markerLabel: 'x' }), /need a "marker" column/],
-    [heatTile({ highlight: 'day' }), /"highlight" must be "hour"/],
+    [heatTile({ highlight: 'month' }), /"highlight" must be "hour" \(the column for the current hour\), "day"/],
+    [heatTile({ cells: 'round' }), /"cells" must be "square"/],
     [heatTile({ columnLabelEvery: 0 }), /"columnLabelEvery" must be a whole number/],
     [{ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', marker: 'm' }, /"marker" only works on a heatmap/],
     [{ title: 'Built', viz: 'heatmap', source: { table: 't', metric: 'v', agg: 'sum', timeColumn: 'd' } }, /use an SQL tile for a heatmap/],
@@ -158,4 +163,39 @@ test('a phone draws the same heatmap from the desktop cache: the cache keeps the
   await settle();
   assert.equal(cells(phone.view.contentEl).length, 6);
   assert.equal(cells(phone.view.contentEl).filter((c) => c.classSet.has('has-marker')).length, 2);
+});
+
+/* ---------------------------------------------- cells and day highlight -- */
+
+test('"highlight": "day" and "weekday" light up the row or column named for today, in local time', () => {
+  const now = new Date(2026, 0, 7, 10, 30); // a Wednesday
+  const grid = { rows: ['2026-01-06', '2026-01-07', 'Wed'], cols: ['Mon', 'wednesday', '10', '2026-01-07'] };
+  assert.deepEqual(unwrap(lib.heatmapHighlight(grid, 'day', now)), { row: 1, col: 3 });
+  assert.deepEqual(unwrap(lib.heatmapHighlight(grid, 'weekday', now)), { row: 2, col: 1 });
+  assert.deepEqual(unwrap(lib.heatmapHighlight(grid, 'hour', now)), { row: -1, col: 2 });
+  assert.deepEqual(unwrap(lib.heatmapHighlight(grid, undefined, now)), { row: -1, col: -1 });
+});
+
+test('a lit row brightens its label and every cell in it', () => {
+  const today = new Date();
+  const iso = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+  const rows = [['2000-01-01', 1, 12, 0], [iso, 1, 12, 0], [iso, 2, 30, 0]];
+  const el = draw(heatTile({ highlight: 'day' }), { columns: TABLE.columns, rows });
+  const heads = byClass(el, 'icor-sqlv-heatmap-row');
+  assert.deepEqual(heads.map((h) => h.classSet.has('is-current')), [false, true]);
+  assert.equal(cells(el).filter((c) => c.classSet.has('is-current')).length, 2, 'both cells of today\'s row');
+});
+
+test('"cells": "square" and "fill" mark the heatmap; fill shares the tile\'s height between the rows', () => {
+  const sq = draw(heatTile({ cells: 'square' }), TABLE);
+  assert.ok(byClass(sq, 'icor-sqlv-heatmap')[0].classSet.has('is-square'));
+  const fill = draw(heatTile({ cells: 'fill' }), TABLE);
+  assert.ok(byClass(fill, 'icor-sqlv-heatmap')[0].classSet.has('is-fill'));
+  const grid = byClass(fill, 'icor-sqlv-heatmap-grid')[0];
+  assert.match(grid.style['grid-template-rows'], /^14px repeat\(\d+, minmax\(13px, 1fr\)\)$/);
+  const plain = draw(heatTile(), TABLE);
+  assert.equal(byClass(plain, 'icor-sqlv-heatmap')[0].classSet.has('is-fill'), false);
+  const back = JSON.parse(lib.specToJson(parse(heatTile({ cells: 'fill', highlight: 'weekday' })).spec)).tiles[0];
+  assert.deepEqual([back.cells, back.highlight], ['fill', 'weekday']);
+  assert.ok(/\.icor-sqlv-heatmap\.is-square \.icor-sqlv-heatmap-cell \{[^}]*aspect-ratio: 1 \/ 1/.test(CSS), 'square cells in the stylesheet');
 });

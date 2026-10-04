@@ -1785,7 +1785,8 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-heatmap-col { text-align: center; }
 
-.icor-sqlv-heatmap-col.is-current { color: var(--sqlv-fg); font-weight: 600; }
+.icor-sqlv-heatmap-col.is-current,
+.icor-sqlv-heatmap-row.is-current { color: var(--sqlv-fg); font-weight: 600; }
 
 .icor-sqlv-heatmap-row { text-align: right; padding-right: var(--sqlv-s2); }
 
@@ -1799,6 +1800,17 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 .icor-sqlv-heatmap-cell.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline-subtle); }
 
 .icor-sqlv-heatmap-cell.is-current { filter: brightness(1.3); }
+
+/* "cells": square cells as tall as they are wide, or rows that share the
+ * tile's height; the labels stay centred on their row. */
+.icor-sqlv-heatmap.is-square .icor-sqlv-heatmap-cell { height: auto; aspect-ratio: 1 / 1; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-grid { height: 100%; align-items: stretch; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-cell { height: auto; min-height: 13px; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-row,
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-col { align-self: center; }
 
 .icor-sqlv-heatmap-dot {
   position: absolute;
