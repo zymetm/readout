@@ -94,6 +94,15 @@ test('zones and reference lines follow the axis they name', () => {
   assert.equal(Number(zone.getAttribute('y')), y100, 'the zone top and the right-axis line at 100 meet');
 });
 
+test('each hover dot takes the colour of its line through a custom property, never a style attribute', () => {
+  const el = draw(comboTile({ series: [{ column: 'walks', kind: 'bar' }, { column: 'mood', kind: 'line', color: '#336699' }, { column: 'naps', kind: 'line' }] }));
+  const dots = byAttrClass(el, 'icor-sqlv-hover-dot');
+  assert.equal(dots.length, 2, 'one per line');
+  assert.deepEqual(dots.map((d) => d.style['--sqlv-tile-series']), lines(el).map((l) => l.getAttribute('stroke')), 'the colour of its own line');
+  assert.equal(dots[0].style['--sqlv-tile-series'], '#336699');
+  assert.ok(dots.every((d) => d.getAttribute('style') === null), 'no inline style attribute');
+});
+
 test('the hover reads every series with its axis unit, and the legend names them', () => {
   const el = draw(comboTile({ unit: 'steps', y2Unit: 'mg' }));
   const svg = byTag(el, 'svg')[0];
