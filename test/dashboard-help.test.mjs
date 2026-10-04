@@ -1,17 +1,19 @@
-/* THE HELP FILE KEEPS UP WITH THE EDIT PANEL, AND THE AI GUIDE SHIPS BESIDE IT.
+/* THE HELP FILE KEEPS UP WITH THE WIDGET SETTINGS, AND THE AI GUIDE SHIPS BESIDE IT.
  *
- * The README.md the plugin writes into the dashboards folder is a help file
- * for people: it explains every setting, list and field of the edit panel,
- * per widget type, in the panel's own words, with the file reference last.
- * Beside it the plugin writes AI-WIDGET-GUIDE.md, for AI assistants asked
- * to build a widget. These gates keep both true and safe:
+ * The README.md the plugin writes into the dashboards folder is a widget
+ * reference for people: what each widget type shows, what it is good for,
+ * and what each of its settings in the edit panel does, in the panel's own
+ * words. The dashboard around the widgets, picking data from a table, the
+ * time range and the dashboard file are not its subject: the file format
+ * lives in AI-WIDGET-GUIDE.md, which the plugin writes beside it for AI
+ * assistants asked to build a widget. These gates keep both true and safe:
  *
- * - every label the panel can show is in the help file: the panel is drawn
- *   in each of its shapes with every group open (panel-labels.mjs), and
- *   each field label, group, button, tick box, row field, list choice,
- *   placeholder and picker choice must appear;
- * - the panel's own messages quoted in the help file are still the panel's;
- * - the walkthrough comes first and the JSON last;
+ * - every widget setting the panel can show is in the help file: the panel
+ *   is drawn in each of its shapes with every group open (panel-labels.mjs)
+ *   and each label must appear, except the few the help file leaves out on
+ *   purpose (OMITTED below); a new setting that is neither fails;
+ * - every label the help file quotes is still one the panel shows;
+ * - the help file has no file-format reference and points at the AI guide;
  * - both files are refreshed only while they are the plugin's own unedited
  *   text, never once a member has edited them, and never rewritten when
  *   nothing changed;
@@ -42,65 +44,76 @@ const AI_FILE = lib.GUIDE_FILES.find((g) => g.file === 'AI-WIDGET-GUIDE.md');
 
 /* ----------------------------------------------------- the help file -- */
 
-test('every label the edit panel can show is in the help file', async () => {
+/* The panel labels the help file leaves out on purpose: they are not a
+ * widget's own settings. Picking data from a table (the built form's
+ * fields, their choices and filter conditions), the time frame and its
+ * choices, the chart type, the "Advanced" group, the buttons that switch
+ * to another kind of widget, an empty column list, and placeholders that
+ * only show an example. Anything the panel shows that is neither here nor
+ * in the help file fails the gate: a new widget setting must be documented
+ * (or, if it is truly not a widget setting, listed here). */
+const OMITTED = {
+  'data-picking fields': ['Database', 'Date', 'Dimension', 'Group by', 'Filter data', 'Add it up', '+ Add filter'],
+  'data-picking choices': ['Add up', 'Count rows', 'Latest value', 'No split', 'The date'],
+  'filter conditions': ['contains', 'does not contain', 'greater than', 'at least', 'less than', 'at most', 'is empty'],
+  'time frame': ['Time frame', 'Follow the dashboard', 'Last 7 days', 'Last 30 days', 'Last 90 days', 'Last 12 months', 'All time'],
+  'chart type': ['Chart type', 'Bar chart'],
+  'the Advanced group': ['Advanced'],
+  'switching to another kind of widget': ['Edit as SQL', 'Write SQL instead', 'Add text instead', 'Add a section divider instead'],
+  'an empty column list': ['Pick a column'],
+  'example placeholders': ['SQL widget', 'kg, steps, kcal …', 'Body, Sleep, Activity …'],
+};
+const OMITTED_SET = new Set(Object.values(OMITTED).flat());
+
+test('every widget setting the edit panel can show is in the help file, apart from the deliberate omissions', async () => {
   const labels = await panelLabels();
   const floors = { field: 60, group: 9, button: 12, check: 6, row: 15, option: 85, placeholder: 30, picker: 4 };
+  const shown = new Set();
   for (const [kind, set] of Object.entries(labels)) {
     assert.ok(set.size >= floors[kind], kind + ': the walk reached the panel (' + set.size + ')');
-    const missing = [...set].filter((label) => !inHelp(label));
+    for (const label of set) shown.add(label);
+    const missing = [...set].filter((label) => !OMITTED_SET.has(label) && !inHelp(label));
     assert.deepEqual(missing, [], kind + ' not in the help file: ' + missing.join(' | '));
   }
+  /* The omissions name only what the panel still shows, so the list
+   * cannot hide a label that is gone. */
+  const stale = [...OMITTED_SET].filter((label) => !shown.has(label));
+  assert.deepEqual(stale, [], 'omitted but no longer in the panel: ' + stale.join(' | '));
 });
 
-test('the panel messages the help file quotes are still the panel\'s own', () => {
-  const quoted = [
-    'leaves out what this widget had: ',
-    'Change the type back to keep them.',
-    'The preview ran. Save is open.',
-    'The preview runs after each change; a widget saves only after its preview worked.',
-    'Running the preview …',
-    'The query ran but returned no rows. Check the filters and the period.',
-    ' (not in settings)',
-    ' (not in the result)',
-    'Edit as SQL?',
-    'The dashboard reads fine: ',
-    'The dashboard will not open like this: ',
-    'All filter rows must match (AND).',
-    'No levels are set up yet. Add them in the plugin settings first.',
-    'Changed for this widget',
-    'Remove this widget?',
-    'Open as text',
-    'Done editing',
-    'Create your first dashboard',
-    'This widget is written in SQL. It runs read-only: one statement, starting with SELECT, WITH, PRAGMA or EXPLAIN.',
-  ];
-  for (const text of quoted) {
-    assert.ok(MAIN.includes(text.trim()), 'the plugin still says: ' + text);
-    assert.ok(inHelp(text.trim()), 'the help file quotes: ' + text);
-  }
-  for (const word of ['New widget', 'Edit widget', 'Add widget', 'Save widget', 'Cancel', 'Preview', 'Open as text', 'Edit this widget', 'New dashboard', 'Refresh', 'Range', 'Custom range', 'Apply', 'Add a level', 'Back to Good, Watch, Alert']) {
-    assert.ok(MAIN.includes("'" + word + "'") || MAIN.includes("'" + word + ' '), 'the plugin has: ' + word);
-    assert.ok(inHelp('"' + word), 'the help file names: ' + word);
-  }
+test('a new widget setting that the help file does not document fails the gate', async () => {
+  /* Negative control: a panel with one more labelled field than today. */
+  const labels = await panelLabels();
+  labels.field.add('Wobble the bars');
+  const missing = [...labels.field].filter((label) => !OMITTED_SET.has(label) && !inHelp(label));
+  assert.deepEqual([...missing], ['Wobble the bars']);
 });
 
-test('the help file starts with the walkthrough and keeps the JSON for the appendix', () => {
-  const walk = HELP.indexOf('## Make your first widget');
-  const appendix = HELP.indexOf('## Appendix: the dashboard file');
-  const firstJson = HELP.indexOf('```json');
-  assert.ok(walk > 0 && walk < HELP.indexOf('## A widget made with the panel\'s fields'), 'the walkthrough comes first');
-  assert.match(HELP.slice(walk, walk + 2000), /pencil/, 'the walkthrough uses the pencil');
-  assert.ok(appendix > walk && firstJson > appendix, 'no JSON before the appendix');
-  assert.ok(HELP.indexOf('<!-- field reference -->') > appendix, 'the reference is the appendix');
+test('every label the help file quotes is still one the panel shows', async () => {
+  const labels = await panelLabels();
+  const shown = new Set(Object.values(labels).flatMap((set) => [...set]));
+  const quoted = [...new Set([...HELP.matchAll(/"([^"\n]+)"/g)].map((m) => m[1]))];
+  assert.ok(quoted.length > 100, 'the help file quotes the panel (' + quoted.length + ')');
+  /* A few quoted words are the panel's but not drawn by the walk: the
+   * size choices on a new widget, a level name. MAIN catches those. */
+  const gone = quoted.filter((q) => !shown.has(q) && !MAIN.includes(q));
+  assert.deepEqual(gone, [], 'quoted but not in the panel: ' + gone.join(' | '));
+});
+
+test('the help file is the widget reference: no file format, and a pointer to the AI guide', () => {
+  assert.equal(HELP.indexOf('```json'), -1, 'no JSON in the help file');
+  assert.equal(HELP.indexOf('<!-- field reference -->'), -1, 'the field reference lives in the AI guide');
+  assert.doesNotMatch(HELP, /"viz"|"tiles"|globalTimeframe/, 'no file keys');
   assert.match(HELP, /`AI-WIDGET-GUIDE\.md`/, 'the help file points at the AI guide');
+  assert.match(HELP, /pencil/, 'it says where the settings are');
 });
 
-test('every widget type has its own section in the panel\'s words', () => {
-  for (const heading of ['### Line chart and bar chart', '### Bars and lines (combo)', '### One big number', '### Table', '### Part-to-whole bar (segments)', '### Heatmap', '## Text', '## Section divider', '## A widget made with the panel\'s fields', '## A widget written in SQL']) {
+test('every widget type has its own section, and the shared settings theirs', () => {
+  for (const heading of ['## Line chart and bar chart', '## Bars and lines (combo)', '## One big number', '## Table', '## Part-to-whole bar (segments)', '## Heatmap', '## Text', '## Section divider', '## Settings shared by several widgets']) {
     assert.ok(HELP.includes('\n' + heading + '\n'), heading);
   }
-  for (const family of ['### Colours', '### Value levels', '### Change and roll-up', '### Line, bar and scrub line colour', '### Meter under the number', '### Axis', '### Guide lines and zones', '### Band', '### Hint and footnote']) {
-    assert.ok(HELP.includes('\n' + family), family);
+  for (const family of ['### Colours and scrub line', '### Number size', '### Value levels', '### Change and roll-up', '### Meter under the number', '### Axis', '### Guide lines and zones', '### Band', '### Hint and footnote']) {
+    assert.ok(HELP.includes('\n' + family + '\n'), family);
   }
 });
 
@@ -120,7 +133,7 @@ test('a guide is written when missing, left alone when current, refreshed when t
   assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'current');
   assert.equal(adapter.log.filter(([op]) => op === 'write').length, 1, 'nothing rewritten when nothing changed');
 
-  const older = lib.guideTextFor({ text: HELP.replace('# Dashboards: how to use the edit panel', '# Dashboards') }, '07 Databases');
+  const older = lib.guideTextFor({ text: HELP.replace('# Dashboard widgets', '# Widgets') }, '07 Databases');
   adapter.files.set(PATH, older);
   assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, [], '07 Databases'), 'refreshed');
   assert.equal(adapter.files.get(PATH), text);
@@ -133,17 +146,17 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [1, '222cc051'], 'AI-WIDGET-GUIDE.md': [1, 'f2cb0693'] };
+  const pinned = { 'README.md': [2, '17ec2f71'], 'AI-WIDGET-GUIDE.md': [2, '4321423e'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 1, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 2, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {
   const mine = lib.guideTextFor(README_FILE, '07 Databases');
-  /* A device on a newer plugin wrote revision 2: this one leaves it. */
-  const newer = lib.guideTextFor({ text: HELP + '\nNewer.\n', revision: 2 }, '07 Databases');
+  /* A device on a newer plugin wrote the next revision: this one leaves it. */
+  const newer = lib.guideTextFor({ text: HELP + '\nNewer.\n', revision: README_FILE.revision + 1 }, '07 Databases');
   let adapter = makeFakeAdapter({ [PATH]: newer });
   assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, mine, README_FILE.legacy, '07 Databases'), 'newer');
   assert.equal(adapter.files.get(PATH), newer, 'never replaced by an older revision');
@@ -164,8 +177,8 @@ test('a guide is refreshed only forward, so two devices sharing a vault never re
 
   /* A copy from before revisions (the fingerprint line alone) is revision 0. */
   const body = mine.replace(/<!-- Written by[^\n]*\n$/, '');
-  const unrevised = body + '<!-- Written by the SQLite Viewer plugin (fingerprint ' + lib.guideHash(body.replace('# Dashboards: how to use the edit panel', '# Dashboards')) + '). If you edit this file, the plugin stops updating it. -->\n';
-  const oldOwn = unrevised.replace('# Dashboards: how to use the edit panel', '# Dashboards');
+  const unrevised = body + '<!-- Written by the SQLite Viewer plugin (fingerprint ' + lib.guideHash(body.replace('# Dashboard widgets', '# Widgets')) + '). If you edit this file, the plugin stops updating it. -->\n';
+  const oldOwn = unrevised.replace('# Dashboard widgets', '# Widgets');
   assert.equal(lib.guideRevision(oldOwn), 0);
   assert.equal(lib.guideIsPluginOwn(oldOwn, [], '07 Databases'), true, 'still recognised as the plugin\'s own');
   adapter = makeFakeAdapter({ [PATH]: oldOwn });
@@ -183,8 +196,8 @@ test('an edited guide is never overwritten, wherever the edit is', async () => {
   const text = lib.guideTextFor(README_FILE, '07 Databases');
   const newer = lib.guideTextFor({ text: HELP + '\nMore.\n' }, '07 Databases');
   const edits = {
-    'a line added': text.replace('## Make your first widget', 'My own note.\n\n## Make your first widget'),
-    'a word changed': text.replace('invented shop', 'invented bakery'),
+    'a line added': text.replace('## Table', 'My own note.\n\n## Table'),
+    'a word changed': text.replace('Revenue per day', 'Takings per day'),
     'the fingerprint line removed': text.replace(/<!-- Written by[^\n]*\n$/, ''),
     'the fingerprint changed': text.replace(/fingerprint [0-9a-f]{8}/, 'fingerprint 00000000'),
     'a property added': text.replace('status: active\n', 'status: active\nmine: yes\n'),

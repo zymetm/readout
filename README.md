@@ -45,11 +45,11 @@ writes it, and every widget type and setting below can be set there.
 The plugin writes two guides into the dashboards folder, mirrored here:
 
 - `README.md` ([DASHBOARD-HELP.md](DASHBOARD-HELP.md) in this repository):
-  how to use the edit panel, every setting of every widget type in the
-  panel's own words, with the reference below as its appendix.
+  what each widget type shows, what it is good for, and what each of its
+  settings in the edit panel does, in the panel's own words.
 - [AI-WIDGET-GUIDE.md](AI-WIDGET-GUIDE.md): for AI assistants asked to
-  build a widget: the rules, the procedure, the schema and the result
-  shapes.
+  build a widget: the rules, the procedure, the schema, the result
+  shapes, and the reference below for the dashboard file.
 
 Each copy ends with a fingerprint of its text. A newer plugin replaces a
 copy only while it still matches (nobody has edited it); an edited copy

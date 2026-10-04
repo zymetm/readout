@@ -1,14 +1,15 @@
-/* THE DASHBOARD GUIDE KEEPS UP WITH THE PLUGIN.
+/* THE FIELD REFERENCE KEEPS UP WITH THE PLUGIN.
  *
- * The plugin writes a README.md into the dashboards folder; it listed four
- * widget types and none of the settings added since. The guide now
- * documents every type and every setting, with examples on an invented
- * shop database, and the repository README carries the same reference.
- * These gates keep it true: every widget type is named; every setting the
- * plugin writes back to a file appears in it (a widget of each type with
- * every setting set, sent through the save path's serializer); every
- * example in it reads as a valid widget; and the repository README's
- * reference is the same text.
+ * The reference for the dashboard file (every type and every setting, with
+ * examples on an invented shop database) lives in the AI widget guide the
+ * plugin writes beside the help file, and the repository README carries
+ * the same reference. It used to be the help file's appendix; the help file
+ * is now for people and describes the edit panel only. These gates keep
+ * the reference true: every widget type is named; every setting the plugin
+ * writes back to a file appears in it (a widget of each type with every
+ * setting set, sent through the save path's serializer); every example in
+ * it reads as a valid widget; and the repository README's reference is the
+ * same text.
  */
 
 import test from 'node:test';
@@ -19,7 +20,7 @@ import { loadPlugin } from './harness.mjs';
 import { SINK, DB, keysOf } from './guide-sink.mjs';
 
 const { lib } = loadPlugin();
-const GUIDE = lib.DASHBOARD_README;
+const GUIDE = lib.AI_WIDGET_GUIDE;
 const README = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 
 const named = (key) => GUIDE.includes('`' + key + '`') || GUIDE.includes('"' + key + '"');

@@ -89,9 +89,11 @@ test('a new vault with 07 Databases boots onto it, and starters follow the folde
   assert.equal(adapter.files.has('07 Databases/Dashboards/engagement-overview.json'), true);
   const spec = JSON.parse(adapter.files.get('07 Databases/Dashboards/engagement-overview.json'));
   assert.equal(spec.database, '07 Databases/engagement.db', 'the starter points at the actual database');
+  /* The help file names no folder; the AI guide's examples do. */
   const readme = adapter.files.get('07 Databases/Dashboards/README.md');
-  assert.match(readme, /07 Databases/);
-  assert.doesNotMatch(readme, /07 Data\//, 'the folder README names the real home');
+  const guide = adapter.files.get('07 Databases/Dashboards/AI-WIDGET-GUIDE.md');
+  assert.match(guide, /07 Databases/);
+  for (const text of [readme, guide]) assert.doesNotMatch(text, /07 Data\//, 'the guides name the real home');
 });
 
 test('an empty vault boots onto the default and creates nothing', async () => {
