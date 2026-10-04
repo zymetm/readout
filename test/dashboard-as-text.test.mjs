@@ -15,7 +15,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, notices } from './harness.mjs';
 
 const VIEW_JSON = 'icor-sqlite-viewer-json';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
@@ -49,12 +49,23 @@ async function setup() {
   const adapter = makeFakeAdapter(files);
   const fileMenus = [];
   const modified = [];
+  const modifyHandlers = [];
+  /* Like Obsidian: every change to a file, by anyone, fires 'modify'. */
+  const fire = async (path) => { for (const fn of modifyHandlers) await fn({ path }); };
   const app = {
     vault: {
       adapter,
       getFiles: () => [],
       read: async (f) => adapter.files.get(f.path),
+      process: async (f, fn) => {
+        const next = fn(adapter.files.get(f.path));
+        adapter.files.set(f.path, next);
+        modified.push(f.path);
+        return next;
+      },
+      /* Upstream's blind write, kept so the old code can be measured. */
       modify: async (f, text) => { adapter.files.set(f.path, text); modified.push(f.path); },
+      on: (name, fn) => { if (name === 'modify') modifyHandlers.push(fn); return {}; },
     },
     workspace: {
       onLayoutReady: () => {},
@@ -67,7 +78,7 @@ async function setup() {
   await plugin.onload();
   const states = [];
   const leaf = { app, view: null, setViewState: async (s) => { states.push(s); } };
-  return { plugin, app, adapter, leaf, states, fileMenus, modified };
+  return { plugin, app, adapter, leaf, states, fileMenus, modified, fire };
 }
 
 async function jsonViewAsText(ctx) {
@@ -75,6 +86,7 @@ async function jsonViewAsText(ctx) {
   view.app = ctx.app;
   view.leaf = ctx.leaf;
   const file = { path: PATH, name: 'shop.json', stat: { size: ctx.adapter.files.get(PATH).length } };
+  if (view.onOpen) await view.onOpen();
   await view.setState({ file: PATH, asText: true }, {});
   view.file = file;
   await view.onLoadFile(file);
@@ -182,4 +194,87 @@ test('the file menu offers "Open as text" on a dashboard file, and nowhere else'
   assert.equal(ctx.states.pop().state.file, PATH);
   assert.equal(offered('notes/data.json'), undefined, 'a JSON elsewhere does not');
   assert.equal(offered('07 Databases/Dashboards/README.md'), undefined, 'a note in the folder does not');
+});
+
+/* --------------------------------------- a file that changed on disk -- */
+
+const RENAMED = JSON.stringify(Object.assign({}, SPEC, { title: 'Shop, renamed as text' }), null, 2);
+
+async function dashboardsView(ctx) {
+  const view = ctx.plugin.viewFactories[VIEW_DASHBOARDS](ctx.leaf);
+  view.app = ctx.app;
+  view.leaf = ctx.leaf;
+  ctx.plugin.query.cli = { ok: false, reason: 'gate' };
+  await view.onOpen();
+  await settle();
+  return view;
+}
+
+test('the dashboards view shows a change made as text in another pane, and ignores the echo of its own save', async () => {
+  const ctx = await setup();
+  const view = await dashboardsView(ctx);
+  assert.equal(view.specs[0].title, 'Shop');
+  ctx.adapter.files.set(PATH, RENAMED);
+  await ctx.fire(PATH);
+  await settle();
+  assert.equal(view.specs[0].title, 'Shop, renamed as text', 'reloaded from the file');
+
+  let reloads = 0;
+  const reload = view.reload.bind(view);
+  view.reload = async () => { reloads++; return reload(); };
+  view.specs[0].title = 'Shop, from the form';
+  await view.saveAndRender(view.specs[0]);
+  await ctx.fire(PATH);
+  await settle();
+  assert.equal(reloads, 0, 'its own save is not a change from elsewhere');
+  assert.equal(JSON.parse(ctx.adapter.files.get(PATH)).title, 'Shop, from the form');
+});
+
+test('a save from the dashboards view never overwrites a change made on disk since it loaded', async () => {
+  const ctx = await setup();
+  const view = await dashboardsView(ctx);
+  /* The form still holds the spec it opened with; the text edit lands. */
+  const held = view.specs[0];
+  ctx.adapter.files.set(PATH, RENAMED);
+  held.title = 'Shop, from a stale form';
+  notices.length = 0;
+  await view.saveAndRender(held);
+  await settle();
+  assert.equal(ctx.adapter.files.get(PATH), RENAMED, 'the text edit survives');
+  assert.ok(notices.some((n) => /changed on disk/.test(n)), 'and the member is told why nothing was saved');
+  assert.equal(view.specs[0].title, 'Shop, renamed as text', 'the view now shows the file as it is');
+});
+
+test('the text editor never overwrites a file that changed on disk under it', async () => {
+  const ctx = await setup();
+  const view = await jsonViewAsText(ctx);
+  const area = byClass(view.contentEl, 'icor-sqlv-json-editor')[0];
+  area.value = JSON.stringify(Object.assign({}, SPEC, { title: 'Typed here' }));
+  const fromDashboard = JSON.stringify(Object.assign({}, SPEC, { title: 'Saved by the dashboards view' }));
+  ctx.adapter.files.set(PATH, fromDashboard);
+  notices.length = 0;
+  for (const fn of area.handlers.keydown || []) await fn({ metaKey: true, key: 's', preventDefault() {} });
+  await settle();
+  assert.equal(ctx.adapter.files.get(PATH), fromDashboard, 'the newer file is kept');
+  assert.ok(notices.some((n) => /changed on disk/.test(n)), 'and the member is told');
+  const done = buttons(view.contentEl).find((b) => b.textContent === 'Done editing');
+  await click(done);
+  await settle();
+  assert.equal(ctx.states.length, 0, 'a refused save stays in the editor, with the typed text');
+  assert.ok(byClass(view.contentEl, 'icor-sqlv-json-editor')[0], 'the editor is still open');
+});
+
+test('the text editor picks up a change on disk when nothing is typed, and leaves half-typed text unsaved on blur', async () => {
+  const ctx = await setup();
+  const view = await jsonViewAsText(ctx);
+  ctx.adapter.files.set(PATH, RENAMED);
+  await ctx.fire(PATH);
+  await settle();
+  const area = byClass(view.contentEl, 'icor-sqlv-json-editor')[0];
+  assert.match(area.value, /renamed as text/, 'the editor shows the new text');
+
+  area.value = '{"id": "shop", "title": "Sh';
+  for (const fn of area.handlers.blur || []) await fn();
+  assert.deepEqual(ctx.modified, [], 'a dashboard that does not read is not written on blur');
+  assert.equal(ctx.adapter.files.get(PATH), RENAMED);
 });

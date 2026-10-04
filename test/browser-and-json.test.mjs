@@ -85,6 +85,7 @@ async function makeJsonView(files, { size } = {}) {
       getFiles: () => [],
       read: async (f) => files[f.path],
       modify: async (f, text) => { files[f.path] = text; modified.push(f.path); },
+      process: async (f, fn) => { files[f.path] = fn(files[f.path]); modified.push(f.path); return files[f.path]; },
     },
     workspace: { onLayoutReady: () => {}, on: () => ({}) },
   };
