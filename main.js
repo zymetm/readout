@@ -1110,7 +1110,9 @@ function renderComboChart(parentEl, table, tile, extras) {
     const readout = svgEl('text', { class: 'icor-sqlv-readout', visibility: 'hidden' });
     const dots = lines.map((l) => {
       const dot = svgEl('circle', { r: 3, class: 'icor-sqlv-hover-dot', visibility: 'hidden' });
-      dot.setAttribute('style', 'fill: ' + l.paint);
+      /* Each dot in its line's colour, through the custom property the
+       * hover-dot rule already reads. */
+      dot.style.setProperty('--sqlv-tile-series', l.paint);
       svg.appendChild(dot);
       return dot;
     });
