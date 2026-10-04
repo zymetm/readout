@@ -3865,7 +3865,7 @@ class JsonFileView extends FileView {
 
   handToDashboards(id) {
     const leaf = this.leaf;
-    setTimeout(async () => {
+    window.setTimeout(async () => {
       try {
         await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
         const view = leaf.view;

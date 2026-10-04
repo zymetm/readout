@@ -278,3 +278,24 @@ test('the text editor picks up a change on disk when nothing is typed, and leave
   assert.deepEqual(ctx.modified, [], 'a dashboard that does not read is not written on blur');
   assert.equal(ctx.adapter.files.get(PATH), RENAMED);
 });
+
+test('the hand-off to the dashboards view uses window.setTimeout, as the Obsidian guidelines ask', async () => {
+  /* Obsidian's guideline (prefer-window-timers): a bare setTimeout is the
+   * main window's. Here the sandbox has no global one, only window's. */
+  const { makePlugin } = loadPlugin({ globals: { setTimeout: undefined, clearTimeout: undefined } });
+  const adapter = makeFakeAdapter({ [PATH]: JSON.stringify(SPEC) });
+  const app = { vault: { adapter, getFiles: () => [], read: async (f) => adapter.files.get(f.path) }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const plugin = makePlugin(app);
+  plugin.app = app;
+  await plugin.onload();
+  const states = [];
+  const leaf = { app, view: null, setViewState: async (s) => { states.push(s); } };
+  const view = plugin.viewFactories[VIEW_JSON](leaf);
+  view.app = app;
+  view.leaf = leaf;
+  await view.setState({ file: PATH }, {});
+  await view.onLoadFile({ path: PATH, name: 'shop.json', stat: { size: 10 } });
+  await settle();
+  assert.equal(states.length, 1, 'handed over');
+  assert.equal(states[0].type, VIEW_DASHBOARDS);
+});
