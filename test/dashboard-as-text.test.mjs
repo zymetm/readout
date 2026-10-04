@@ -300,3 +300,22 @@ test('the hand-off to the dashboards view uses window.setTimeout, as the Obsidia
   assert.equal(states.length, 1, 'handed over');
   assert.equal(states[0].type, VIEW_DASHBOARDS);
 });
+
+test('clicking "Done editing" right after typing saves once and goes back, with no false "changed on disk"', async () => {
+  /* A click on Done first blurs the editor (a save starts), then clicks (a
+   * second save). The second must wait for the first, not race it. */
+  const ctx = await setup();
+  const view = await jsonViewAsText(ctx);
+  const area = byClass(view.contentEl, 'icor-sqlv-json-editor')[0];
+  area.value = RENAMED;
+  notices.length = 0;
+  const done = buttons(view.contentEl).find((b) => b.textContent === 'Done editing');
+  for (const fn of area.handlers.blur || []) fn();
+  for (const fn of done.handlers.click || []) fn({ preventDefault() {}, stopPropagation() {} });
+  await settle();
+  await settle();
+  assert.equal(ctx.adapter.files.get(PATH), RENAMED, 'the typed text is saved');
+  assert.equal(ctx.modified.length, 1, 'written once');
+  assert.equal(notices.some((n) => /changed on disk/.test(n)), false, 'no false conflict');
+  assert.equal(ctx.states.length, 1, 'handed back to the dashboard');
+});
