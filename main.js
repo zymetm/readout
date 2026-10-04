@@ -1296,7 +1296,7 @@ function checkLevelColors(raw, viz, at) {
   if (raw === undefined) return { ok: true, colors: undefined };
   if (viz !== 'stat') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number).' };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#d04040"}.' };
+    return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#cc3311"}.' };
   }
   const out = {};
   for (const [name, color] of Object.entries(raw)) {
@@ -1305,7 +1305,7 @@ function checkLevelColors(raw, viz, at) {
       return { ok: false, reason: at + ': every name in "levelColors" must be a level name, like "Alert".' };
     }
     if (!isLevelColor(color)) {
-      return { ok: false, reason: at + ': the colour for "' + key + '" in "levelColors" must be a theme colour like "var(--color-red)" or a hex colour like "#d04040".' };
+      return { ok: false, reason: at + ': the colour for "' + key + '" in "levelColors" must be a theme colour like "var(--color-red)" or a hex colour like "#cc3311".' };
     }
     out[key] = color.trim();
   }
