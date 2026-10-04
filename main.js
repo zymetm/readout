@@ -2812,7 +2812,7 @@ function formNumber(text, label) {
   return { ok: true, value: n };
 }
 
-/* A comma-separated list of numbers, like "54, 70, 180". */
+/* A comma-separated list of numbers, like "0, 50, 100". */
 function formNumberList(text, label) {
   const t = String(text === undefined || text === null ? '' : text).trim();
   if (!t) return { ok: true, value: undefined };
@@ -2820,7 +2820,7 @@ function formNumberList(text, label) {
   const out = [];
   for (const p of parts) {
     const n = Number(p);
-    if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be numbers separated by commas, like 54, 70, 180.' };
+    if (!Number.isFinite(n)) return { ok: false, reason: label + ' must be numbers separated by commas, like 0, 50, 100.' };
     out.push(n);
   }
   return { ok: true, value: out };
