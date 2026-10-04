@@ -63,3 +63,32 @@ test('a widget still being set up runs its query anyway, so the column lists fil
   assert.deepEqual(unwrap(form.resultColumns), ['day', 'web', 'shop', 'rate']);
   assert.equal(byLabel(form.formEl, 'X column').tagName, 'SELECT');
 });
+
+/* -------------------------------------------------------------- notes -- */
+
+test('hint and footnote: shown, saved, cleared, on SQL and built widgets alike', async () => {
+  const { form, spec } = await makeForm({ title: 'Web', viz: 'line', sql: 'SELECT * FROM daily', x: 'day', y: ['web'], hint: 'per day', footnote: 'Web orders only.' });
+  form.open();
+  assert.equal(byLabel(form.formEl, 'Hint by the title').value, 'per day', 'the group opens by itself when it has values');
+  assert.equal(byLabel(form.formEl, 'Footnote under the widget').value, 'Web orders only.');
+  form.state.hint = '';
+  form.state.footnote = '  Updated nightly. ';
+  form.touch();
+  await form.runPreview();
+  await form.save();
+  assert.equal(spec.tiles[0].hint, undefined, 'a cleared hint stays cleared');
+  assert.equal(spec.tiles[0].footnote, 'Updated nightly.');
+
+  const built = await makeForm(null);
+  built.form.open();
+  assert.equal(byLabel(built.form.formEl, 'Hint by the title'), null, 'closed and empty until asked for');
+});
+
+test('a hint that is too long is refused in the parser\'s words', async () => {
+  const { form } = await makeForm({ title: 'Web', viz: 'stat', sql: 'SELECT n FROM one', y: ['n'] });
+  form.open();
+  form.state.hint = 'x'.repeat(61);
+  const built = form.buildTile();
+  assert.equal(built.ok, false);
+  assert.match(built.reason, /This widget: "hint" must be text, 60 characters at most/);
+});

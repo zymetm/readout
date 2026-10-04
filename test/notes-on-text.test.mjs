@@ -30,8 +30,10 @@ test('a text widget keeps its hint and footnote through the spec, the drawing an
   assert.match(bad.reason, /"footnote" must be text/);
 });
 
-test('editing a widget in the form keeps its hint and footnote', () => {
+test('the edit form owns the hint and footnote, so a save never puts back a cleared one', () => {
+  /* The form has fields for them (form-every-widget.test.mjs); keeping
+   * them from the old widget would undo clearing a field. */
   const kept = lib.keepUneditedKeys({ viz: 'line', title: 'New' }, { viz: 'line', hint: 'h', footnote: 'f' });
-  assert.equal(kept.hint, 'h');
-  assert.equal(kept.footnote, 'f');
+  assert.equal(kept.hint, undefined);
+  assert.equal(kept.footnote, undefined);
 });

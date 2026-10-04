@@ -1471,7 +1471,14 @@ function chartScaleFor(axis, lo, hi, maxTicks) {
 /* Settings the edit form has no field for yet. Editing a widget keeps
  * them, as long as it stays the same type: a hand-written "yMin" survives
  * a save from the form. */
-const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS, ['meter'], ['hint', 'footnote']);
+const FORM_UNEDITED_KEYS = [].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS, ['band'], COMBO_KEYS, ['meter']);
+
+/* The option keys the form sets on a line, bar, stat or table widget,
+ * copied from its parser check onto the built tile. */
+const FORM_OPTION_KEYS = ['hint', 'footnote'];
+
+/* Widget types the form builds whole through the parser. */
+const FORM_WHOLE_VIZ = new Set();
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -4958,6 +4965,8 @@ class WidgetFormModal extends Modal {
       valueSizeCustom: !!(existing && typeof existing.valueSize === 'number' && !VALUE_SIZE_PRESETS.some(([px]) => px === existing.valueSize)),
       color: existing && existing.color ? existing.color : '',
       guideColor: existing && existing.guideColor ? existing.guideColor : '',
+      hint: existing && existing.hint ? existing.hint : '',
+      footnote: existing && existing.footnote ? existing.footnote : '',
       advancedOpen: false,
       /* Which option groups are open; a group opens by itself when the
        * widget already has a value in it. */
@@ -5052,7 +5061,58 @@ class WidgetFormModal extends Modal {
   }
 
   /* The state as a tile, or a plain-words reason. */
+  /* The state as a tile: the type's own fields first, then the option
+   * families, and the parser's check over the whole. */
   buildTile() {
+    const base = this.buildBaseTile();
+    if (!base.ok) return base;
+    return this.withFormOptions(base.tile);
+  }
+
+  withFormOptions(tile) {
+    if (tile.viz === 'divider') return { ok: true, tile };
+    const opts = this.optionsFromForm(tile.viz, !!tile.source);
+    if (!opts.ok) return opts;
+    const check = checkFormTile(Object.assign({}, tile, opts.raw), this.spec.database);
+    if (!check.ok) return check;
+    if (FORM_WHOLE_VIZ.has(tile.viz)) return { ok: true, tile: check.tile };
+    for (const key of FORM_OPTION_KEYS) if (check.tile[key] !== undefined) tile[key] = check.tile[key];
+    return { ok: true, tile };
+  }
+
+  /* The option families as the file writes them, for the widget type at
+   * hand: a family the type cannot carry is left out. */
+  optionsFromForm(viz, built) {
+    const s = this.state;
+    const raw = {};
+    if (viz !== 'divider') {
+      if (s.hint.trim()) raw.hint = s.hint;
+      if (s.footnote.trim()) raw.footnote = s.footnote;
+    }
+    void built;
+    return { ok: true, raw };
+  }
+
+  /* A hint at the right of the title, a footnote under the widget. */
+  renderNotesFields(form, viz) {
+    if (viz === 'divider') return;
+    const s = this.state;
+    const body = this.optionGroup(form, { key: 'notes', label: 'Hint and footnote', hasValues: !!(s.hint || s.footnote) });
+    if (!body) return;
+    this.textInput(body, {
+      label: 'Hint by the title', optional: true, value: s.hint, placeholder: 'a few words, up to ' + HINT_MAX + ' characters',
+      onInput: (v) => { s.hint = v; this.touch(); },
+    });
+    const row = this.field(body, { label: 'Footnote under the widget', optional: true });
+    const area = row.createEl('textarea', { cls: 'icor-sqlv-wizard-input' });
+    area.value = s.footnote;
+    area.setAttribute('rows', '2');
+    area.setAttribute('placeholder', 'a sentence, up to ' + FOOTNOTE_MAX + ' characters');
+    area.setAttribute('aria-label', 'Footnote under the widget');
+    area.addEventListener('input', () => { s.footnote = area.value; this.touch(); });
+  }
+
+  buildBaseTile() {
     const s = this.state;
     if (s.mode === 'divider') return { ok: true, tile: { title: String(s.title || '').trim(), viz: 'divider' } };
     if (s.mode === 'sql') {
@@ -5673,6 +5733,7 @@ class WidgetFormModal extends Modal {
       this.renderHeaderDeltaFields(form, s.agg === 'latest' ? 'stat' : s.viz, s.series ? 2 : 1);
       this.renderValueSizeField(form, s.agg === 'latest' ? 'stat' : s.viz);
       this.renderChartColorFields(form, s.agg === 'latest' ? 'stat' : s.viz, s.series ? 2 : 1);
+      this.renderOptionGroups(form, s.agg === 'latest' ? 'stat' : s.viz, true);
 
       this.nativeSelect(form, {
         label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
@@ -5977,6 +6038,13 @@ class WidgetFormModal extends Modal {
     });
   }
 
+  /* The option groups under a widget's own fields, in the order a reader
+   * meets them on the widget. */
+  renderOptionGroups(form, viz, built) {
+    void built;
+    this.renderNotesFields(form, viz);
+  }
+
   renderSqlForm(form) {
     const s = this.state;
     form.createDiv({ cls: 'icor-sqlv-note', text: 'This widget is written in SQL. It runs read-only: one statement, starting with SELECT, WITH, PRAGMA or EXPLAIN.' });
@@ -6021,6 +6089,7 @@ class WidgetFormModal extends Modal {
       });
       this.renderValueSizeField(form, s.viz);
     }
+    this.renderOptionGroups(form, s.viz, false);
     this.nativeSelect(form, {
       label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),
       value: s.sizeKey,
