@@ -17,7 +17,7 @@ import { loadPlugin, unwrap } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
-import { byClass, byLabel, makeForm, asFileTile } from './form-kit.mjs';
+import { byClass, byLabel, makeForm, asFileTile, walkEl as walk } from './form-kit.mjs';
 
 /* ------------------------------------------------------------ helpers -- */
 
@@ -292,4 +292,56 @@ test('the SQL form offers Text in its chart types; empty words say so', async ()
   assert.equal(form.state.textFrom, 'sql', 'the query comes along');
   form.state.textFrom = 'text';
   assert.match(form.buildTile().reason, /Write the text first/);
+});
+
+/* ----------------------------------------------------------- segments -- */
+
+const SEG_TARGET = {
+  title: 'Tasks', viz: 'segments', unit: '%', footnote: 'Done counts closed tasks only.',
+  ranges: [{ low: 2, level: 'Good', label: 'on track' }, { level: 'Alert', label: 'behind' }],
+  rangeColumn: 'verdict', levelColors: { Good: '#2a7fff' },
+  segmentColors: { Done: 'var(--color-green)', Late: '#d08080' },
+  sql: 'SELECT status, n, verdict FROM parts', x: 'status', y: ['n'],
+};
+
+test('a segments bar built from a blank widget in the form matches the hand-written one field for field', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  const sqlBtn = [...form.formEl.children].find((b) => b.textContent === 'Write SQL instead');
+  for (const fn of sqlBtn.handlers.click) fn();
+  Object.assign(form.state, { sqlText: SEG_TARGET.sql, viz: 'segments', title: 'Tasks', unit: '%', sizeKey: 'medium' });
+  form.renderForm();
+  await form.runPreview();
+  assert.equal(byLabel(form.formEl, 'Part name column').tagName, 'SELECT', 'the columns come from the preview');
+  form.state.x = 'status';
+  form.state.y = 'n';
+  form.renderForm();
+  await form.runPreview();
+  const fill = [...walk(form.formEl)].find((b) => b.textContent === '+ A row for each part in the preview');
+  for (const fn of fill.handlers.click) fn();
+  assert.deepEqual(unwrap(form.state.segmentColors.map((r) => r.name)), ['Done', 'Open', 'Late']);
+  form.state.segmentColors[0].color = 'var(--color-green)';
+  form.state.segmentColors[2].color = '#d08080';
+  form.state.ranges = [{ low: '2', high: '', level: 'Good', label: 'on track' }, { low: '', high: '', level: 'Alert', label: 'behind' }];
+  form.state.levelColors = { Good: '#2a7fff' };
+  form.state.rangeColumn = 'verdict';
+  form.state.footnote = 'Done counts closed tasks only.';
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  assert.ok(byClass(form.previewEl, 'icor-sqlv-level-pill').length, 'the preview draws the pill');
+  await form.save();
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0])));
+});
+
+test('a segments bar with ranges but no judged column says so; it reads back into the form with its pencil', async () => {
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0];
+  const { form } = await makeForm(parsed);
+  form.open();
+  assert.equal(form.state.mode, 'sql');
+  assert.equal(form.state.segmentColors.length, 2);
+  assert.equal(form.state.ranges.length, 2);
+  form.state.rangeColumn = '';
+  assert.match(form.buildTile().reason, /need a "rangeColumn" to judge/);
+  assert.equal(lib.FORM_VIZ.has('segments'), true);
 });

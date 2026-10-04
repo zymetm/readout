@@ -1498,7 +1498,13 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments']);
+
+/* The chart types the SQL form offers, in the order of its list. */
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['text', 'Text'], ['divider', 'Section divider']];
+
+/* Widget types that judge values against ranges of levels. */
+const LEVEL_VIZ = new Set(['stat', 'segments']);
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -3732,7 +3738,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -5010,6 +5016,7 @@ class WidgetFormModal extends Modal {
       }
     }
     this.state.refLines = formRowsOf(existing && existing.refLines, ['y', 'label', 'color', 'dash', 'axis']);
+    this.state.segmentColors = existing && existing.segmentColors ? Object.entries(existing.segmentColors).map(([name, color]) => ({ name, color })) : [];
     this.state.zones = formRowsOf(existing && existing.zones, ['from', 'to', 'color', 'opacity', 'axis']);
     /* The columns of the last query the preview ran, for the column
      * pickers of an SQL widget. */
@@ -5160,8 +5167,61 @@ class WidgetFormModal extends Modal {
       raw.band = { low: s.bandLow, high: s.bandHigh };
       if (op.value !== undefined) raw.band.opacity = op.value;
     }
+    if (viz === 'segments') {
+      const colors = {};
+      for (const row of s.segmentColors) {
+        const name = String(row.name || '').trim();
+        if (!name || !row.color) continue;
+        colors[name] = row.color;
+      }
+      if (Object.keys(colors).length) raw.segmentColors = colors;
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* A segments bar: which column names each part, which sizes it, and a
+   * colour per part name. */
+  renderSegmentsFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'One bar split into the query’s rows, each part as wide as its share of the total, in the order of the rows.' });
+    this.columnField(form, { label: 'Part name column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
+    this.columnField(form, { label: 'Part size column', value: s.y, onChange: (v) => { s.y = v; this.touch(); } });
+  }
+
+  renderSegmentColors(form) {
+    const s = this.state;
+    const wrap = this.field(form, { label: 'Part colours', optional: true });
+    wrap.createDiv({ cls: 'icor-sqlv-note', text: 'A colour for a part, by its name exactly as the query writes it. A part without one takes the theme colours in turn.' });
+    this.rowsEditor(wrap, {
+      rows: s.segmentColors, what: 'Part colour', max: SEGMENTS_MAX,
+      newRow: () => ({ name: '', color: '' }),
+      fields: [
+        { key: 'name', label: 'part name', placeholder: 'part name' },
+        { key: 'color', label: 'colour', kind: 'color', emptyLabel: 'Theme colour' },
+      ],
+    });
+    const names = this.partNames();
+    const missing = names.filter((n) => !s.segmentColors.some((r) => r.name === n));
+    if (missing.length) {
+      const fill = wrap.createEl('button', { text: '+ A row for each part in the preview', cls: 'icor-sqlv-add-filter' });
+      fill.addEventListener('click', () => {
+        for (const name of missing) if (s.segmentColors.length < SEGMENTS_MAX) s.segmentColors.push({ name, color: '' });
+        this.renderForm();
+      });
+    }
+  }
+
+  /* The part names in the last preview, in their order. */
+  partNames() {
+    const cols = this.resultColumns;
+    const rows = this.resultRows;
+    if (!cols || !rows) return [];
+    const i = cols.indexOf(this.state.x);
+    if (i < 0) return [];
+    const out = [];
+    for (const r of rows) { const v = r[i] === null || r[i] === undefined ? '' : String(r[i]); if (v && !out.includes(v)) out.push(v); }
+    return out.slice(0, SEGMENTS_MAX);
   }
 
   /* A shaded band between two columns, row by row, under the line. */
@@ -5453,7 +5513,7 @@ class WidgetFormModal extends Modal {
       if (!levels.ok) return levels;
       const sqlDelta = this.headerDeltaFromForm(tile.viz, y.length);
       if (!sqlDelta.ok) return sqlDelta;
-      const score = s.rangeColumn.trim() && tile.viz === 'stat' && levels.ranges
+      const score = s.rangeColumn.trim() && (tile.viz === 'stat' || tile.viz === 'segments') && levels.ranges
         ? checkRangeColumn(s.rangeColumn, tile.viz, levels.ranges, y, 'This widget')
         : { ok: true };
       if (!score.ok) return score;
@@ -5669,7 +5729,7 @@ class WidgetFormModal extends Modal {
   /* The form's range rows as checked ranges. Only a stat widget carries
    * them; the rows stay in the form if the chart type changes back. */
   levelsFromForm(viz) {
-    if (viz !== 'stat') return { ok: true, ranges: undefined };
+    if (!LEVEL_VIZ.has(viz)) return { ok: true, ranges: undefined };
     const colors = checkLevelColors(Object.keys(this.state.levelColors).length ? this.state.levelColors : undefined, viz, 'This widget');
     if (!colors.ok) return colors;
     if (!this.state.ranges.length) return { ok: true, ranges: undefined, colors: colors.colors };
@@ -5731,7 +5791,7 @@ class WidgetFormModal extends Modal {
       if (this.state.mode === 'sql' && gateStatement(this.state.sqlText).ok) {
         try {
           const res = await this.plugin.query.query(this.spec.database, this.state.sqlText, { cap: 20 });
-          if (seq === this.previewSeq) this.noteColumns(res.columns);
+          if (seq === this.previewSeq) { this.resultRows = res.rows; this.noteColumns(res.columns); }
         } catch (e) { /* the build error already says what to fix first */ }
       }
       return;
@@ -5766,7 +5826,7 @@ class WidgetFormModal extends Modal {
       if (!res.rows.length) this.previewEl.createDiv({ cls: 'icor-sqlv-note', text: 'The query ran but returned no rows. Check the filters and the period.' });
       this.previewState = nextPreviewState(this.previewState, 'ok');
       this.syncGate();
-      if (!tile.source) this.noteColumns(res.columns);
+      if (!tile.source) { this.resultRows = res.rows; this.noteColumns(res.columns); }
     } catch (e) {
       if (seq !== this.previewSeq) return;
       this.previewState = nextPreviewState(this.previewState, 'error');
@@ -6182,12 +6242,15 @@ class WidgetFormModal extends Modal {
    * range, the first that holds the number wins. The levels themselves
    * (names and colours) live in the plugin settings. */
   renderRanges(form, viz) {
-    if (viz !== 'stat') return;
+    if (!LEVEL_VIZ.has(viz)) return;
     const s = this.state;
     const levels = (this.plugin.settings && this.plugin.settings.levels) || [];
     const names = levels.map((l) => l.name);
     const wrap = this.field(form, { label: 'Value levels', optional: true });
-    wrap.createDiv({ cls: 'icor-sqlv-note', text: 'Colour the number by where it lands. The first range that holds it wins; leave low or high empty for no limit. The levels and their colours live in the plugin settings.' });
+    const what = viz === 'segments' ? 'Mark the whole bar, and show a pill, by where the judged value lands.'
+      : viz === 'heatmap' ? 'Colour each cell by where its value lands.'
+      : 'Colour the number by where it lands.';
+    wrap.createDiv({ cls: 'icor-sqlv-note', text: what + ' The first range that holds it wins; leave low or high empty for no limit. The levels and their colours live in the plugin settings.' });
     const rows = wrap.createDiv({ cls: 'icor-sqlv-filter-rows icor-sqlv-range-rows' });
     s.ranges.forEach((row, i) => {
       const at = 'Range ' + (i + 1);
@@ -6470,10 +6533,11 @@ class WidgetFormModal extends Modal {
     this.sqlArea = area;
     this.nativeSelect(form, {
       label: 'Chart type',
-      options: [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['text', 'Text'], ['divider', 'Section divider']],
+      options: SQL_FORM_VIZ,
       value: s.viz,
       onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; this.renderForm(); this.touch(); },
     });
+    if (s.viz === 'segments') this.renderSegmentsFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
       this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
@@ -6497,6 +6561,10 @@ class WidgetFormModal extends Modal {
         onInput: (v) => { s.captions = v; this.touch(); },
       });
       this.renderValueSizeField(form, s.viz);
+    }
+    if (s.viz === 'segments') {
+      this.columnField(form, { label: 'Judge the ranges on column', optional: true, noneLabel: 'None (needed when there are ranges)', value: s.rangeColumn, onChange: (v) => { s.rangeColumn = v; this.touch(); } });
+      this.renderSegmentColors(form);
     }
     this.renderOptionGroups(form, s.viz, false);
     this.nativeSelect(form, {
