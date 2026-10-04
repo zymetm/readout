@@ -1498,13 +1498,16 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
-const LEVEL_VIZ = new Set(['stat', 'segments']);
+const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap']);
+
+/* The heatmap fields the form keeps, by state key and file key. */
+const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery']];
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -3738,7 +3741,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -5016,6 +5019,7 @@ class WidgetFormModal extends Modal {
       }
     }
     this.state.refLines = formRowsOf(existing && existing.refLines, ['y', 'label', 'color', 'dash', 'axis']);
+    for (const [key, file] of FORM_HEAT_FIELDS) this.state[key] = existing && existing.viz === 'heatmap' && existing[file] !== undefined ? String(existing[file]) : '';
     this.state.segmentColors = existing && existing.segmentColors ? Object.entries(existing.segmentColors).map(([name, color]) => ({ name, color })) : [];
     this.state.zones = formRowsOf(existing && existing.zones, ['from', 'to', 'color', 'opacity', 'axis']);
     /* The columns of the last query the preview ran, for the column
@@ -5119,7 +5123,9 @@ class WidgetFormModal extends Modal {
     if (tile.viz === 'divider') return { ok: true, tile };
     const opts = this.optionsFromForm(tile.viz, !!tile.source);
     if (!opts.ok) return opts;
-    const check = checkFormTile(Object.assign({}, tile, opts.raw), this.spec.database);
+    const raw = Object.assign({}, tile, opts.raw);
+    if (tile.viz === 'heatmap') { delete raw.x; delete raw.y; }
+    const check = checkFormTile(raw, this.spec.database);
     if (!check.ok) return check;
     if (FORM_WHOLE_VIZ.has(tile.viz)) return { ok: true, tile: check.tile };
     for (const key of FORM_OPTION_KEYS) if (check.tile[key] !== undefined) tile[key] = check.tile[key];
@@ -5176,8 +5182,51 @@ class WidgetFormModal extends Modal {
       }
       if (Object.keys(colors).length) raw.segmentColors = colors;
     }
+    if (viz === 'heatmap') {
+      for (const [key, file] of FORM_HEAT_FIELDS) {
+        const v = String(s[key] || '').trim();
+        if (!v) continue;
+        if (file === 'columnLabelEvery') {
+          const n = Number(v);
+          if (!Number.isInteger(n)) return { ok: false, reason: 'Label every Nth column must be a whole number.' };
+          raw[file] = n;
+        } else {
+          raw[file] = v;
+        }
+      }
+    }
     void built;
     return { ok: true, raw };
+  }
+
+  /* A heatmap: which columns place a cell (row, column) and colour it
+   * (value), an optional dot per cell, and the current hour lit up. */
+  renderHeatmapFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'A grid with one cell per row of the query, placed by its row and column values and coloured by the value levels below. Rows and columns appear in the order the query returns them.' });
+    this.columnField(form, { label: 'Row column', value: s.heatRow, onChange: (v) => { s.heatRow = v; this.touch(); } });
+    this.columnField(form, { label: 'Column column', value: s.heatColumn, onChange: (v) => { s.heatColumn = v; this.touch(); } });
+    this.columnField(form, { label: 'Value column', value: s.heatValue, onChange: (v) => { s.heatValue = v; this.touch(); } });
+  }
+
+  renderHeatmapExtras(form) {
+    const s = this.state;
+    const body = this.optionGroup(form, { key: 'heat', label: 'Dots, highlight and labels', hasValues: !!(s.heatMarker || s.heatHighlight || s.heatColumnLabelEvery) });
+    if (!body) return;
+    this.columnField(body, { label: 'Dot column', optional: true, noneLabel: 'No dots', value: s.heatMarker, onChange: (v) => { s.heatMarker = v; if (!v) { s.heatMarkerColor = ''; s.heatMarkerLabel = ''; } this.touch(); } });
+    if (s.heatMarker) {
+      body.createDiv({ cls: 'icor-sqlv-note', text: 'A cell gets a dot where this column is not empty, 0 or false.' });
+      this.colorField(body, { label: 'Dot colour', key: 'heatMarkerColor', ariaLabel: 'Colour of the dot' });
+      this.textInput(body, { label: 'Dot label in the legend', optional: true, value: s.heatMarkerLabel, placeholder: 'empty: the column name', onInput: (v) => { s.heatMarkerLabel = v; this.touch(); } });
+    }
+    this.nativeSelect(body, {
+      label: 'Highlight', optional: true,
+      options: [['', 'None'], ['hour', 'The current hour’s column (columns named 0 to 23)']],
+      value: s.heatHighlight,
+      onChange: (v) => { s.heatHighlight = v; this.renderForm(); this.touch(); },
+    });
+    const every = this.textInput(body, { label: 'Label every Nth column', optional: true, value: s.heatColumnLabelEvery, placeholder: 'empty: every column', onInput: (v) => { s.heatColumnLabelEvery = v; this.touch(); } });
+    every.setAttribute('inputmode', 'numeric');
   }
 
   /* A segments bar: which column names each part, which sizes it, and a
@@ -6538,6 +6587,7 @@ class WidgetFormModal extends Modal {
       onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; this.renderForm(); this.touch(); },
     });
     if (s.viz === 'segments') this.renderSegmentsFields(form);
+    if (s.viz === 'heatmap') this.renderHeatmapFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
       this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
@@ -6566,6 +6616,7 @@ class WidgetFormModal extends Modal {
       this.columnField(form, { label: 'Judge the ranges on column', optional: true, noneLabel: 'None (needed when there are ranges)', value: s.rangeColumn, onChange: (v) => { s.rangeColumn = v; this.touch(); } });
       this.renderSegmentColors(form);
     }
+    if (s.viz === 'heatmap') this.renderHeatmapExtras(form);
     this.renderOptionGroups(form, s.viz, false);
     this.nativeSelect(form, {
       label: 'Size', options: [['', 'Keep as is']].concat(Object.entries(SIZE_PRESETS).map(([k, p]) => [k, p.label])).slice(this.editIndex >= 0 ? 0 : 1),

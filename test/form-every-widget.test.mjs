@@ -345,3 +345,49 @@ test('a segments bar with ranges but no judged column says so; it reads back int
   assert.match(form.buildTile().reason, /need a "rangeColumn" to judge/);
   assert.equal(lib.FORM_VIZ.has('segments'), true);
 });
+
+/* ------------------------------------------------------------ heatmap -- */
+
+const HEAT_TARGET = {
+  title: 'Minutes by hour', viz: 'heatmap', unit: 'min', hint: 'busiest hours',
+  ranges: [{ high: 20, level: 'Good', label: 'light' }, { low: 21, high: 45, level: 'Watch' }, { level: 'Alert', label: 'heavy' }],
+  levelColors: { Watch: '#a08040' },
+  sql: 'SELECT day, hr, minutes, meeting FROM grid', row: 'day', column: 'hr', value: 'minutes',
+  marker: 'meeting', markerColor: '#5af8ff', markerLabel: 'meeting booked', highlight: 'hour', columnLabelEvery: 3,
+};
+
+test('a heatmap built from a blank widget in the form matches the hand-written one field for field', async () => {
+  const { form, spec, lib: l } = await makeForm(null);
+  form.open();
+  Object.assign(form.state, { mode: 'sql', sqlText: HEAT_TARGET.sql, viz: 'heatmap', title: 'Minutes by hour', unit: 'min', sizeKey: 'wide' });
+  form.renderForm();
+  await form.runPreview();
+  assert.equal(form.previewState, 'error', 'not complete without its columns');
+  for (const label of ['Row column', 'Column column', 'Value column']) assert.equal(byLabel(form.formEl, label).tagName, 'SELECT', label + ' is a picker');
+  Object.assign(form.state, { heatRow: 'day', heatColumn: 'hr', heatValue: 'minutes' });
+  form.state.groups.heat = true;
+  form.renderForm();
+  assert.equal(byLabel(form.formEl, 'Dot column').tagName, 'SELECT');
+  Object.assign(form.state, { heatMarker: 'meeting', heatMarkerColor: '#5af8ff', heatMarkerLabel: 'meeting booked', heatHighlight: 'hour', heatColumnLabelEvery: '3', hint: 'busiest hours' });
+  form.state.ranges = [{ low: '', high: '20', level: 'Good', label: 'light' }, { low: '21', high: '45', level: 'Watch', label: '' }, { low: '', high: '', level: 'Alert', label: 'heavy' }];
+  form.state.levelColors = { Watch: '#a08040' };
+  form.touch();
+  await form.runPreview();
+  assert.equal(form.previewState, 'ok', form.previewError);
+  assert.ok(byClass(form.previewEl, 'icor-sqlv-heatmap-cell').length, 'the preview draws the grid');
+  await form.save();
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
+});
+
+test('a heatmap reads back into the form; a dot colour without a dot column cannot be left behind', async () => {
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
+  const { form } = await makeForm(parsed);
+  form.open();
+  assert.equal(form.state.heatRow, 'day');
+  assert.equal(form.state.heatColumnLabelEvery, '3');
+  assert.equal(byLabel(form.formEl, 'Dot label in the legend').value, 'meeting booked', 'the group opens with its values');
+  form.state.heatMarker = '';
+  assert.match(form.buildTile().reason, /"markerColor" and "markerLabel" need a "marker" column/);
+  assert.equal(lib.FORM_VIZ.has('heatmap'), true);
+});
