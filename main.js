@@ -705,9 +705,9 @@ function chartAxisOf(tile) {
 }
 
 /* Shaded zones and reference lines on a line or bar chart, opt-in per
- * tile. "zones" are horizontal bands, [{"from": 70, "to": 180, "color":
- * "#51af6f", "opacity": 0.1}], drawn behind everything; "refLines" are
- * horizontal lines, [{"y": 50, "color": "#c9c4b8", "dash": "4 3",
+ * tile. "zones" are horizontal bands, [{"from": 20, "to": 30, "color":
+ * "#228833", "opacity": 0.1}], drawn behind everything; "refLines" are
+ * horizontal lines, [{"y": 50, "color": "#bbbbbb", "dash": "4 3",
  * "label": "goal"}], drawn over the grid and under the data. Colours take
  * the level-colour rule; a line without one takes the theme's dim ink. On
  * an automatic axis they count as data, so a goal above every value is
@@ -733,9 +733,9 @@ function checkChartMarks(t, viz, at) {
       const z = t.zones[i];
       const where = at + ', zone ' + (i + 1);
       if (!z || typeof z !== 'object' || !finite(z.from) || !finite(z.to) || z.from >= z.to) {
-        return { ok: false, reason: where + ' must be like {"from": 70, "to": 180, "color": "#51af6f"}, with "from" below "to".' };
+        return { ok: false, reason: where + ' must be like {"from": 20, "to": 30, "color": "#228833"}, with "from" below "to".' };
       }
-      if (!isLevelColor(z.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-green)" or a hex colour like "#51af6f".' };
+      if (!isLevelColor(z.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-green)" or a hex colour like "#228833".' };
       if (z.opacity !== undefined && (!finite(z.opacity) || z.opacity <= 0 || z.opacity > 1)) {
         return { ok: false, reason: where + ': "opacity" must be a number above 0 and at most 1.' };
       }
@@ -750,7 +750,7 @@ function checkChartMarks(t, viz, at) {
       const r = t.refLines[i];
       const where = at + ', reference line ' + (i + 1);
       if (!r || typeof r !== 'object' || !finite(r.y)) return { ok: false, reason: where + ' must be like {"y": 50}, with a number for "y".' };
-      if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-blue)" or a hex colour like "#c9c4b8".' };
+      if (r.color !== undefined && !isLevelColor(r.color)) return { ok: false, reason: where + ': "color" must be a theme colour like "var(--color-blue)" or a hex colour like "#bbbbbb".' };
       if (r.dash !== undefined && (typeof r.dash !== 'string' || !DASH_RE.test(r.dash.trim()))) {
         return { ok: false, reason: where + ': "dash" must be a dash pattern like "4 3" (dash and gap lengths).' };
       }

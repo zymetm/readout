@@ -94,7 +94,7 @@ test('the spec keeps the fields and names what is wrong, in plain words', () => 
   assert.deepEqual(unwrap(ok.spec.tiles[0].refLines), [{ y: 50, color: 'var(--color-blue)', dash: '4 3', label: 'goal' }]);
   const bad = [
     [lineTile({ zones: [] }), /"zones" must be a list of 1 to 8 entries/],
-    [lineTile({ zones: [{ from: 180, to: 70, color: '#51af6f' }] }), /zone 1 must be like \{"from": 70/],
+    [lineTile({ zones: [{ from: 180, to: 70, color: '#51af6f' }] }), /zone 1 must be like \{"from": 20/],
     [lineTile({ zones: [{ from: 70, to: 180 }] }), /zone 1: "color" must be a theme colour/],
     [lineTile({ zones: [{ from: 70, to: 180, color: 'green' }] }), /zone 1: "color" must be a theme colour/],
     [lineTile({ zones: [{ from: 70, to: 180, color: '#51af6f', opacity: 2 }] }), /"opacity" must be a number above 0 and at most 1/],
