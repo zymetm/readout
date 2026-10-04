@@ -5280,7 +5280,7 @@ class WidgetFormModal extends Modal {
 
   /* The widget a save writes, from the built tile. */
   tileToSave(tile) {
-    return tile;
+    return keepUneditedKeys(tile, this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null);
   }
 
   /* Say before the save which settings of the widget being edited the
@@ -5925,7 +5925,7 @@ class WidgetFormModal extends Modal {
     const built = this.buildTile();
     if (!built.ok) { new Notice(built.reason); return; }
     const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
-    const tile = keepUneditedKeys(built.tile, existing);
+    const tile = this.tileToSave(built.tile);
     if (tile.viz === 'divider') {
       /* One thin row; only the width is chosen. */
       const w = Number(this.state.dividerWidth) || (existing && existing.layout ? existing.layout.w : GRID_MAX_COLS);
