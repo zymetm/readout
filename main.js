@@ -2284,7 +2284,7 @@ class SqliteDashboardsView extends ItemView {
     const spec = this.specs.find((s) => s.id === this.activeId);
     if (!spec || !spec.path) return;
     menu.addItem((item) => {
-      item.setTitle('Open dashboard file as text');
+      item.setTitle('Open as text');
       item.setIcon('file-code');
       item.onClick(() => this.plugin.openDashboardAsText(spec.path, this.leaf));
     });
@@ -2583,8 +2583,7 @@ class SqliteDashboardsView extends ItemView {
     if (this.editMode && spec.path) {
       const textBtn = header.createEl('button', { cls: 'icor-sqlv-edit-toggle icor-sqlv-edit-text' });
       setIcon(textBtn, 'file-code');
-      textBtn.createSpan({ text: 'As text' });
-      textBtn.setAttribute('aria-label', 'Open the dashboard file as text, for settings the edit form has no field for');
+      textBtn.createSpan({ text: 'Open as text' });
       textBtn.addEventListener('click', () => this.plugin.openDashboardAsText(spec.path, this.leaf));
     }
   }

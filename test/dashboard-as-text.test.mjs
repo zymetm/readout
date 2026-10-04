@@ -8,8 +8,8 @@
  * (it rides getState/setState like any Obsidian view option): the file
  * stays in the text editor, a line under it says whether the dashboard
  * still reads, and "Done editing" goes back to the dashboard. Three ways
- * in: the dashboards pane's "More options" menu, an "As text" button in
- * edit mode, and the file menu of a dashboard file.
+ * in, all named "Open as text": the dashboards pane's "More options" menu,
+ * a button in edit mode, and the file menu of a dashboard file.
  */
 
 import test from 'node:test';
@@ -166,17 +166,18 @@ test('the dashboards pane menu and the edit-mode button open the dashboard file 
   await settle();
   const menu = fakeMenu();
   view.onPaneMenu(menu, 'more-options');
-  const item = menu.items.find((i) => i.title === 'Open dashboard file as text');
+  const item = menu.items.find((i) => i.title === 'Open as text');
   assert.ok(item, 'the pane menu offers it');
   await item.click();
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.states.pop())), { type: VIEW_JSON, state: { file: PATH, asText: true }, active: true });
 
-  assert.equal(buttons(view.contentEl).some((b) => /As text/.test(textOf(b))), false, 'not shown outside edit mode');
+  assert.equal(buttons(view.contentEl).some((b) => /Open as text/.test(textOf(b))), false, 'not shown outside edit mode');
   view.editMode = true;
   view.render();
   await settle();
-  const asText = buttons(view.contentEl).find((b) => /As text/.test(textOf(b)));
+  const asText = buttons(view.contentEl).find((b) => /Open as text/.test(textOf(b)));
   assert.ok(asText, 'edit mode shows the button');
+  assert.equal(asText.getAttribute('aria-label'), null, 'its visible name is its only name');
   await click(asText);
   assert.equal(ctx.states.pop().state.asText, true);
 });
