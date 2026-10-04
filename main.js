@@ -6678,7 +6678,19 @@ class WidgetFormModal extends Modal {
     if (s.viz === 'combo') this.renderComboFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
-      this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
+      const yInput = this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
+      /* Leaving the field redraws the form, so stacking shows for two bars. */
+      yInput.addEventListener('change', () => this.renderForm());
+      if (s.viz === 'bar' && s.y.split(',').map((v) => v.trim()).filter(Boolean).length > 1) {
+        const row = form.createDiv({ cls: 'icor-sqlv-wizard-toggle' });
+        const cb = row.createEl('input', { type: 'checkbox' });
+        cb.checked = s.stack === true;
+        cb.setAttribute('id', 'icor-sqlv-sql-stack');
+        cb.setAttribute('aria-label', 'Stack the bars on top of each other');
+        const lbl = row.createEl('label', { text: 'Stack the bars on top of each other' });
+        lbl.setAttribute('for', 'icor-sqlv-sql-stack');
+        cb.addEventListener('change', () => { s.stack = cb.checked; this.touch(); });
+      }
     }
     this.textInput(form, {
       label: 'Unit', optional: true, value: s.unit, placeholder: 'kg, steps, kcal …',

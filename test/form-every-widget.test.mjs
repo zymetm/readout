@@ -449,3 +449,17 @@ test('a combo reads back into the form with its series and right axis; stacked b
   assert.equal(lib.FORM_VIZ.has('combo'), true);
   assert.deepEqual(unwrap(lib.keepUneditedKeys({ viz: 'line' }, { viz: 'line', yMin: 1, zones: [], band: {}, hint: 'h', meter: {} })), { viz: 'line' }, 'every setting has a field now, so none is kept behind the form');
 });
+
+test('an SQL bar chart with two or more y columns offers stacking, and saves it', async () => {
+  const { form, spec } = await makeForm({ title: 'Orders', viz: 'bar', sql: 'SELECT * FROM daily', x: 'day', y: ['web'] });
+  form.open();
+  assert.equal(byLabel(form.formEl, 'Stack the bars on top of each other'), null);
+  form.state.y = 'web, shop';
+  form.renderForm();
+  assert.ok(byLabel(form.formEl, 'Stack the bars on top of each other'));
+  form.state.stack = true;
+  form.touch();
+  await form.runPreview();
+  await form.save();
+  assert.equal(spec.tiles[0].stack, true);
+});
