@@ -7510,12 +7510,12 @@ the widget's settings, and the button at the bottom reads "Save widget".
   whose "Time frame" is "Follow the dashboard". A widget written in SQL
   sets its own period in its query.
 - **"Edit"** turns edit mode on; **"Done"** turns it off.
-- **"As text"** (in edit mode) opens the dashboard file as text inside
+- **"Open as text"** (in edit mode) opens the dashboard file as text inside
   Obsidian. A line under the text says either "The dashboard reads fine: 3
   widgets." or "The dashboard will not open like this:" followed by the
-  reason. "Done editing" saves and goes back to the dashboard. The same is
-  in the view's "More options" menu ("Open dashboard file as text") and in
-  the file's menu ("Open as text").
+  reason. "Done editing" saves and goes back to the dashboard. The same
+  "Open as text" is in the view's "More options" menu and in the file's
+  menu.
 
 ## How the panel works
 
@@ -7980,7 +7980,7 @@ they were computed. Small databases render live everywhere.
 ## Appendix: the dashboard file
 
 You do not need this to use the panel. It describes what the panel writes,
-for reading a file "As text" or sharing one.
+for reading a file with "Open as text" or sharing one.
 
 <!-- field reference -->
 ## The file
@@ -8390,7 +8390,7 @@ newest text; it is written again on the next load or on "New dashboard".
    using only the fields in section 4. Leave \`layout\` out to let the
    plugin place the widget, or give a free spot (\`{"x":0,"y":0,"w":2,"h":2}\`
    in grid cells, 6 columns wide). Keep the file valid JSON.
-4. **Validate.** Open the dashboard, press "Edit", then "As text". The line
+4. **Validate.** Open the dashboard, press "Edit", then "Open as text". The line
    under the text says "The dashboard reads fine: N widgets." or "The
    dashboard will not open like this:" with the reason, naming the widget
    ("Tile 3") and the setting. Fix until it reads fine. The same reasons

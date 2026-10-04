@@ -103,7 +103,7 @@ newest text; it is written again on the next load or on "New dashboard".
    using only the fields in section 4. Leave `layout` out to let the
    plugin place the widget, or give a free spot (`{"x":0,"y":0,"w":2,"h":2}`
    in grid cells, 6 columns wide). Keep the file valid JSON.
-4. **Validate.** Open the dashboard, press "Edit", then "As text". The line
+4. **Validate.** Open the dashboard, press "Edit", then "Open as text". The line
    under the text says "The dashboard reads fine: N widgets." or "The
    dashboard will not open like this:" with the reason, naming the widget
    ("Tile 3") and the setting. Fix until it reads fine. The same reasons
@@ -226,4 +226,4 @@ build widgets the panel can show in full:
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in `tiles`.
 - Leaving a test dashboard or test widget behind (rule 9).
-<!-- Written by the SQLite Viewer plugin (fingerprint 23a5c26f). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (fingerprint f2cb0693). If you edit this file, the plugin stops updating it. -->

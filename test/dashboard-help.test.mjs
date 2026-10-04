@@ -68,7 +68,6 @@ test('the panel messages the help file quotes are still the panel\'s own', () =>
     'No levels are set up yet. Add them in the plugin settings first.',
     'Changed for this widget',
     'Remove this widget?',
-    'Open dashboard file as text',
     'Open as text',
     'Done editing',
     'Create your first dashboard',
@@ -78,7 +77,7 @@ test('the panel messages the help file quotes are still the panel\'s own', () =>
     assert.ok(MAIN.includes(text.trim()), 'the plugin still says: ' + text);
     assert.ok(inHelp(text.trim()), 'the help file quotes: ' + text);
   }
-  for (const word of ['New widget', 'Edit widget', 'Add widget', 'Save widget', 'Cancel', 'Preview', 'As text', 'Edit this widget', 'New dashboard', 'Refresh', 'Range', 'Custom range', 'Apply', 'Add a level', 'Back to Good, Watch, Alert']) {
+  for (const word of ['New widget', 'Edit widget', 'Add widget', 'Save widget', 'Cancel', 'Preview', 'Open as text', 'Edit this widget', 'New dashboard', 'Refresh', 'Range', 'Custom range', 'Apply', 'Add a level', 'Back to Good, Watch, Alert']) {
     assert.ok(MAIN.includes("'" + word + "'") || MAIN.includes("'" + word + ' '), 'the plugin has: ' + word);
     assert.ok(inHelp('"' + word), 'the help file names: ' + word);
   }
@@ -202,7 +201,7 @@ test('the repository mirrors are the files the plugin writes', () => {
 
 test('the AI guide carries the rules and the procedure', () => {
   for (const rule of [/`dashboardFolder`/, /Read-only/, /One database per dashboard/, /No ATTACH/, /plugin's engine/, /5,000 rows/, /Query timeout \(seconds\)/,
-    /newest data row/, /SELECT MAX\(day\) FROM sales/, /Never leave test widgets/, /"As text"/, /The dashboard reads fine: N widgets\./, /`Good`, `Watch` and `Alert`/, /pencil/]) {
+    /newest data row/, /SELECT MAX\(day\) FROM sales/, /Never leave test widgets/, /"Open as text"/, /The dashboard reads fine: N widgets\./, /`Good`, `Watch` and `Alert`/, /pencil/]) {
     assert.match(AI, rule);
   }
   const steps = ['Read the schema, read-only', 'Write the query and test it', 'Write the widget', 'Validate', 'Open the dashboard and look', 'Open it in the edit panel', 'Clean up'];

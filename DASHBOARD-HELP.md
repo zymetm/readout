@@ -76,12 +76,12 @@ the widget's settings, and the button at the bottom reads "Save widget".
   whose "Time frame" is "Follow the dashboard". A widget written in SQL
   sets its own period in its query.
 - **"Edit"** turns edit mode on; **"Done"** turns it off.
-- **"As text"** (in edit mode) opens the dashboard file as text inside
+- **"Open as text"** (in edit mode) opens the dashboard file as text inside
   Obsidian. A line under the text says either "The dashboard reads fine: 3
   widgets." or "The dashboard will not open like this:" followed by the
-  reason. "Done editing" saves and goes back to the dashboard. The same is
-  in the view's "More options" menu ("Open dashboard file as text") and in
-  the file's menu ("Open as text").
+  reason. "Done editing" saves and goes back to the dashboard. The same
+  "Open as text" is in the view's "More options" menu and in the file's
+  menu.
 
 ## How the panel works
 
@@ -546,7 +546,7 @@ they were computed. Small databases render live everywhere.
 ## Appendix: the dashboard file
 
 You do not need this to use the panel. It describes what the panel writes,
-for reading a file "As text" or sharing one.
+for reading a file with "Open as text" or sharing one.
 
 <!-- field reference -->
 ## The file
@@ -847,4 +847,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (fingerprint 511647ae). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (fingerprint 222cc051). If you edit this file, the plugin stops updating it. -->
