@@ -2812,7 +2812,7 @@ function formNumber(text, label) {
   return { ok: true, value: n };
 }
 
-/* A comma-separated list of numbers, like "54, 70, 180". */
+/* A comma-separated list of numbers, like "0, 50, 100". */
 function formNumberList(text, label) {
   const t = String(text === undefined || text === null ? '' : text).trim();
   if (!t) return { ok: true, value: undefined };
