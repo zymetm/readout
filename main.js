@@ -5006,6 +5006,7 @@ class WidgetFormModal extends Modal {
       metric: (src && src.metric) || '',
       agg: (src && src.agg) || 'sum',
       series: (src && src.series) || '',
+      groupBy: (src && src.groupBy) || '',
       timeColumn: (src && src.timeColumn) || '',
       timeframe: src ? (src.timeframe === undefined ? 'global' : src.timeframe) : 'global',
       filters: src && src.filters ? src.filters.map((f) => Object.assign({}, f)) : [],
@@ -5723,6 +5724,7 @@ class WidgetFormModal extends Modal {
       agg: s.agg,
       filters,
       series: s.series || undefined,
+      groupBy: s.groupBy || undefined,
       timeColumn: s.timeColumn || undefined,
       timeframe: s.timeframe,
     };
@@ -6247,6 +6249,21 @@ class WidgetFormModal extends Modal {
           label: 'By ' + c.name,
           selected: s.series === c.name,
           onPick: () => this.pick(() => { s.series = c.name; s.compare = 'none'; if (s.viz === 'stat') s.viz = 'bar'; }),
+        }))),
+      });
+
+      this.pickerField(form, {
+        key: 'groupBy', label: 'Group by', optional: true,
+        valueText: s.groupBy ? 'By ' + s.groupBy : '',
+        placeholder: 'The date (default)',
+        getItems: () => [{
+          label: 'The date', detail: 'one point per day, week or month',
+          selected: !s.groupBy,
+          onPick: () => this.pick(() => { s.groupBy = ''; }),
+        }].concat(table.columns.map((c) => ({
+          label: 'By ' + c.name, detail: c.type,
+          selected: s.groupBy === c.name,
+          onPick: () => this.pick(() => { s.groupBy = c.name; }),
         }))),
       });
 

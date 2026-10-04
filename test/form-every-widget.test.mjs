@@ -493,3 +493,15 @@ test('an SQL stat picks the column it shows, or leaves it to the first column', 
   await form.save();
   assert.deepEqual(unwrap(spec.tiles[0].y), [], 'unset: the first column');
 });
+
+test('a built widget keeps and edits its groupBy: a picker, never dropped by a save', async () => {
+  const { form, spec, plugin } = await makeForm({ title: 'By channel', viz: 'bar', unit: '', source: { table: 'sales', metric: 'orders', agg: 'sum', groupBy: 'channel', filters: [], timeframe: 'global' } });
+  plugin.schemaFor = async () => ({ live: true, tables: [{ name: 'sales', columns: [{ name: 'day', type: 'TEXT' }, { name: 'channel', type: 'TEXT' }, { name: 'orders', type: 'INT' }] }] });
+  form.open();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(form.state.groupBy, 'channel');
+  assert.ok(byLabel(form.formEl, 'Group by: By channel'), 'the picker shows it');
+  await form.runPreview();
+  await form.save();
+  assert.equal(spec.tiles[0].source.groupBy, 'channel', 'a save keeps it');
+});
