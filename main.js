@@ -1336,6 +1336,19 @@ function nextPreviewState(state, event) {
 
 function canSave(previewState) { return previewState === 'ok'; }
 
+/* What a widget type is called in the form, for the plain sentences. */
+const VIZ_NAMES = { line: 'a line chart', bar: 'a bar chart', stat: 'one big number', table: 'a table' };
+
+/* The settings of the widget being edited that the widget about to be
+ * saved does not carry. The widget's frame (its type, query or source,
+ * columns, name, unit, place) is the form's own and is never listed. */
+const FORM_FRAME_KEYS = new Set(['title', 'viz', 'sql', 'source', 'x', 'y', 'unit', 'stack', 'compare', 'favorable', 'layout']);
+
+function droppedSettings(existing, tile) {
+  if (!existing || !tile) return [];
+  return Object.keys(existing).filter((k) => !FORM_FRAME_KEYS.has(k) && existing[k] !== undefined && tile[k] === undefined);
+}
+
 /* Size presets for the form: names a member can pick without thinking in
  * grid cells. */
 const SIZE_PRESETS = {
@@ -3182,6 +3195,7 @@ class WidgetFormModal extends Modal {
     side.createDiv({ cls: 'icor-sqlv-wizard-group', text: 'Preview' });
     this.previewEl = side.createDiv({ cls: 'icor-sqlv-form-preview' });
     this.previewNote = side.createDiv({ cls: 'icor-sqlv-note' });
+    this.dropNote = side.createDiv({ cls: 'icor-sqlv-note icor-sqlv-form-dropped' });
     const bar = contentEl.createDiv({ cls: 'icor-sqlv-console-bar icor-sqlv-modal-bar' });
     this.saveBtn = bar.createEl('button', { text: this.editIndex >= 0 ? 'Save widget' : 'Add widget', cls: 'mod-cta' });
     this.saveBtn.addEventListener('click', () => this.save());
@@ -3336,9 +3350,28 @@ class WidgetFormModal extends Modal {
     return what ? (what + (how && s.viz !== 'stat' ? ', ' + how : '')) : 'New widget';
   }
 
+  /* The widget a save writes, from the built tile. */
+  tileToSave(tile) {
+    return tile;
+  }
+
+  /* Say before the save which settings of the widget being edited the
+   * saved widget will not carry: a type change can leave some out (a
+   * line chart has no value levels), and so can a cleared field. */
+  showDropped(tile) {
+    if (!this.dropNote) return;
+    const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
+    const dropped = tile ? droppedSettings(existing, this.tileToSave(tile)) : [];
+    this.dropNote.setText(!dropped.length ? ''
+      : (existing.viz !== tile.viz
+        ? 'Saving as ' + (VIZ_NAMES[tile.viz] || tile.viz) + ' leaves out what this widget had: ' + dropped.join(', ') + '. Change the type back to keep them.'
+        : 'Saving leaves out what this widget had: ' + dropped.join(', ') + '.'));
+  }
+
   async runPreview() {
     const seq = ++this.previewSeq;
     const built = this.buildTile();
+    this.showDropped(built.ok ? built.tile : null);
     if (!built.ok) {
       this.previewState = 'error';
       this.previewError = built.reason;
@@ -3848,7 +3881,7 @@ class WidgetFormModal extends Modal {
     if (!canSave(this.previewState)) return;
     const built = this.buildTile();
     if (!built.ok) { new Notice(built.reason); return; }
-    const tile = built.tile;
+    const tile = this.tileToSave(built.tile);
     const existing = this.editIndex >= 0 ? this.spec.tiles[this.editIndex] : null;
     if (this.state.sizeKey && SIZE_PRESETS[this.state.sizeKey]) {
       const p = SIZE_PRESETS[this.state.sizeKey];
@@ -4854,7 +4887,7 @@ IcorSqliteViewerPlugin.lib = {
   matchesNeedle, colsForWidth, defaultSpanFor, clampLayout, rectsCollide,
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
-  deltaBadge, nextPreviewState, canSave, SIZE_PRESETS, sizePresetOf, makeDebounce,
+  deltaBadge, nextPreviewState, canSave, droppedSettings, SIZE_PRESETS, sizePresetOf, makeDebounce,
   chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, normalizeLevels, normalizeLevelLooks, checkRanges, levelOf, resolveLevel, levelLookFor,
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
