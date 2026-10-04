@@ -58,7 +58,7 @@ test('a zone is shaded between its two values, behind everything, in its colour 
   assert.equal(zones(plain)[0].getAttribute('fill-opacity'), '0.15', 'a default opacity when none is given');
 });
 
-test('a reference line sits at its value, dashed and coloured as asked, with its label; under the data', () => {
+test('a reference line sits at its value, dashed and coloured as asked, its label in the legend; under the data', () => {
   const el = draw({ viz: 'line', x: 'day', y: ['v'], yMin: 0, yMax: 40, refLines: [{ y: 25, color: '#c9c4b8', dash: '4 3', label: 'goal' }, { y: 5 }] });
   const [a, b] = lines(el);
   const L = lib.chartLayout(640, 260, 0, 40, true, { yMin: 0, yMax: 40 });
@@ -67,7 +67,7 @@ test('a reference line sits at its value, dashed and coloured as asked, with its
   assert.equal(a.getAttribute('stroke-dasharray'), '4 3');
   assert.equal(b.getAttribute('stroke'), null, 'no colour: the stylesheet gives the theme ink');
   assert.equal(b.getAttribute('stroke-dasharray'), null, 'no dash: a solid line');
-  assert.deepEqual(byAttrClass(el, 'icor-sqlv-refline-label').map((t) => t.textContent), ['goal']);
+  assert.ok(!byTag(el, 'text').some((x) => x.textContent === 'goal'), 'the label is named in the legend, not on the plot');
   const kids = svgOf(el).children;
   const dataLine = kids.find((k) => k.tagName === 'PATH' && k.getAttribute('fill') === 'none');
   assert.ok(kids.indexOf(a) < kids.indexOf(dataLine), 'the data draws over the line');

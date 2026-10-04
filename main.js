@@ -1074,12 +1074,14 @@ function drawRefLines(svg, L, tile) {
     if (isLevelColor(r.color)) line.setAttribute('stroke', r.color);
     if (typeof r.dash === 'string' && DASH_RE.test(r.dash)) line.setAttribute('stroke-dasharray', r.dash);
     svg.appendChild(line);
-    if (r.label) {
-      const text = svgEl('text', { x: L.left + L.plotW - 2, y: (y - 3).toFixed(1), 'text-anchor': 'end', class: 'icor-sqlv-refline-label' });
-      text.textContent = r.label;
-      svg.appendChild(text);
-    }
   }
+}
+
+/* A labelled reference line is named in the legend, never on the plot,
+ * where bars would draw over its words. */
+function guideEntries(tile) {
+  if (!tile || !Array.isArray(tile.refLines)) return [];
+  return tile.refLines.filter((r) => r && r.label).map((r) => ({ name: r.label, color: isLevelColor(r.color) ? r.color.trim() : '' }));
 }
 
 /* A shaded band between two columns on a line chart, opt-in per SQL
@@ -1405,7 +1407,7 @@ function renderComboChart(parentEl, table, tile, extras) {
       readout.setAttribute('visibility', 'hidden');
       for (const dot of dots) dot.setAttribute('visibility', 'hidden');
     });
-  }, extras && extras.observers);
+  }, extras && extras.observers, guideEntries(tile));
   applyChartColors(chart.box, tile);
 }
 
@@ -3113,16 +3115,25 @@ function shortXLabel(v) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(5) : (s.length > 10 ? s.slice(0, 10) : s);
 }
 
-function legendFor(parentEl, names, palette) {
-  if (names.length < 2) return null;
+function legendFor(parentEl, names, palette, guides) {
+  const shown = names.length < 2 ? [] : names;
+  const lines = Array.isArray(guides) ? guides : [];
+  if (!shown.length && !lines.length) return null;
   const legend = parentEl.createDiv({ cls: 'icor-sqlv-legend' });
-  names.forEach((name, i) => {
+  shown.forEach((name, i) => {
     const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
     item.setAttribute('title', name);
     const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' });
     chip.style.background = palette[i];
     item.createSpan({ cls: 'icor-sqlv-legend-name', text: name });
   });
+  for (const g of lines) {
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    item.setAttribute('title', g.name);
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip is-guide' });
+    if (g.color) chip.style.setProperty('border-top-color', g.color);
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: g.name });
+  }
   return legend;
 }
 
@@ -3140,10 +3151,10 @@ function resizeObserverFor(el, callback) {
  * legend steps aside when the plot would get too short. Redraws only when
  * the measured size changes; stops when the tile is gone. `observers`, when
  * given, collects the box's observer so its owner can disconnect it. */
-function chartBox(parentEl, names, palette, draw, observers) {
+function chartBox(parentEl, names, palette, draw, observers, guides) {
   const box = parentEl.createDiv({ cls: 'icor-sqlv-chart-box' });
   const host = box.createDiv({ cls: 'icor-sqlv-chart-host' });
-  const legend = legendFor(box, names, palette);
+  const legend = legendFor(box, names, palette, guides);
   let last = '';
   const redraw = () => {
     if (legend) {
@@ -3330,7 +3341,7 @@ function renderLineChart(parentEl, table, tile, extras) {
       readout.setAttribute('visibility', 'hidden');
       for (const dot of dots) dot.setAttribute('visibility', 'hidden');
     });
-  }, extras && extras.observers);
+  }, extras && extras.observers, guideEntries(tile));
   applyChartColors(chart.box, tile);
 }
 
@@ -3408,7 +3419,7 @@ function renderBarChart(parentEl, table, tile, extras) {
       });
     }
     if (ghost) drawGhost(svg, ghost, { xOf: xOfBar, yOf, scale: L.scale, color: 'var(--sqlv-fg-dim)', top: L.top, count: n });
-  }, extras && extras.observers);
+  }, extras && extras.observers, guideEntries(tile));
   applyChartColors(chart.box, tile);
 }
 
