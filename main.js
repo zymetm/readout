@@ -4314,6 +4314,12 @@ class SqliteBrowserView extends FileView {
 
 /* -------------------------------------------------- the dashboards view -- */
 
+/* The text each loaded dashboard spec was read from, or last saved as.
+ * A save checks the file against it, and the view tells its own save's
+ * echo from a change made somewhere else. Keyed by the spec object, so a
+ * spec held by an open form keeps the text it was read from. */
+const DASHBOARD_LOADED_TEXT = new WeakMap();
+
 class SqliteDashboardsView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -4328,6 +4334,7 @@ class SqliteDashboardsView extends ItemView {
     /* Every chart tile's ResizeObserver, disconnected on redraw and close. */
     this.tileROs = [];
     this.dragging = false;
+    this.reloadPending = false;
   }
 
   getViewType() { return VIEW_DASHBOARDS; }
@@ -4341,13 +4348,21 @@ class SqliteDashboardsView extends ItemView {
     const spec = this.specs.find((s) => s.id === this.activeId);
     if (!spec || !spec.path) return;
     menu.addItem((item) => {
-      item.setTitle('Open dashboard file as text');
+      item.setTitle('Open as text');
       item.setIcon('file-code');
       item.onClick(() => this.plugin.openDashboardAsText(spec.path, this.leaf));
     });
   }
 
   async onOpen() {
+    /* A dashboard file changed on disk (an edit as text in another pane,
+     * or one that arrived through Sync): show it, rather than keep a spec
+     * the next save would write over it. The gates' fake vaults have no
+     * events. */
+    const vault = this.app.vault;
+    if (vault && typeof vault.on === 'function') {
+      this.registerEvent(vault.on('modify', (file) => { this.onDashboardFileChanged(file).catch(() => {}); }));
+    }
     try {
       await this.reload();
     } catch (e) {
@@ -4355,7 +4370,24 @@ class SqliteDashboardsView extends ItemView {
     }
   }
 
+  async onDashboardFileChanged(file) {
+    const path = file && file.path;
+    if (typeof path !== 'string') return;
+    const spec = this.specs.find((s) => s.path === path);
+    if (!spec && !this.errors.some((e) => e.path === path)) return;
+    if (spec) {
+      let text;
+      try { text = await this.app.vault.adapter.read(path); } catch (e) { return; }
+      if (this.plugin.dashboardTextIsLoaded(spec, text)) return;
+    }
+    /* Mid-drag the drop's save finds the change and reloads; a cancelled
+     * drag reloads here. */
+    if (this.dragging) { this.reloadPending = true; return; }
+    await this.reload();
+  }
+
   async reload() {
+    this.reloadPending = false;
     let { specs, errors } = await this.plugin.loadDashboardSpecs();
     /* An empty folder heals itself: seed the starters (a write happens
      * only for a file that is missing) and look again, so a view opened
@@ -4387,7 +4419,7 @@ class SqliteDashboardsView extends ItemView {
   }
 
   async saveAndRender(spec) {
-    await this.plugin.saveDashboardSpec(spec);
+    if (!(await this.plugin.saveDashboardSpec(spec))) { await this.reload(); return; }
     this.render();
   }
 
@@ -4629,8 +4661,7 @@ class SqliteDashboardsView extends ItemView {
     if (this.editMode && spec.path) {
       const textBtn = header.createEl('button', { cls: 'icor-sqlv-edit-toggle icor-sqlv-edit-text' });
       setIcon(textBtn, 'file-code');
-      textBtn.createSpan({ text: 'As text' });
-      textBtn.setAttribute('aria-label', 'Open the dashboard file as text, for settings the edit form has no field for');
+      textBtn.createSpan({ text: 'Open as text' });
       textBtn.addEventListener('click', () => this.plugin.openDashboardAsText(spec.path, this.leaf));
     }
   }
@@ -4729,7 +4760,7 @@ class SqliteDashboardsView extends ItemView {
       this.placeAddTile();
       gs.spec.tiles.forEach((t, j) => { t.layout = Object.assign({}, gs.layouts[j]); });
       try {
-        await this.plugin.saveDashboardSpec(gs.spec);
+        if (!(await this.plugin.saveDashboardSpec(gs.spec))) await this.reload();
       } catch (e) {
         new Notice('The layout could not be saved: ' + e.message);
       }
@@ -4738,6 +4769,7 @@ class SqliteDashboardsView extends ItemView {
     const cancel = () => {
       cleanup();
       this.applyGridDisplay();
+      if (this.reloadPending) this.reload().catch((e) => this.showFailure(e));
     };
 
     surface.addEventListener('pointermove', onMove);
@@ -7170,6 +7202,26 @@ class JsonFileView extends FileView {
     }
   }
 
+  async onOpen() {
+    if (super.onOpen) await super.onOpen();
+    /* The file changed on disk (the dashboards view saved it, or Sync
+     * brought a newer copy): show the new text, unless there is unsaved
+     * text in the editor, which a save then refuses to write over. */
+    const vault = this.app.vault;
+    if (vault && typeof vault.on === 'function') {
+      this.registerEvent(vault.on('modify', (file) => { this.onFileChanged(file).catch(() => {}); }));
+    }
+  }
+
+  async onFileChanged(file) {
+    if (!this.file || !file || file.path !== this.file.path || this.text === null || this.tooBig) return;
+    const text = await this.app.vault.read(this.file);
+    if (text === this.text) return;
+    if (this.editing && this.area && this.area.value !== this.text) return;
+    this.text = text;
+    this.render();
+  }
+
   async onLoadFile(file) {
     this.tooBig = file.stat.size > JSON_RENDER_CAP;
     this.editing = this.asText && !this.tooBig;
@@ -7189,7 +7241,7 @@ class JsonFileView extends FileView {
 
   handToDashboards(id) {
     const leaf = this.leaf;
-    setTimeout(async () => {
+    window.setTimeout(async () => {
       try {
         await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
         const view = leaf.view;
@@ -7206,11 +7258,13 @@ class JsonFileView extends FileView {
   async onUnloadFile() {
     this.text = null;
     this.editing = false;
+    this.area = null;
   }
 
   render() {
     const root = this.contentEl;
     root.empty();
+    this.area = null;
     root.addClass('icor-sqlv-root');
     root.setAttribute('data-ink-plugin', 'icor-for-life-sqlite-viewer');
     if (this.text === null) return;
@@ -7226,6 +7280,7 @@ class JsonFileView extends FileView {
     if (this.editing) {
       const area = host.createEl('textarea', { cls: 'icor-sqlv-console icor-sqlv-json-editor' });
       area.value = this.text;
+      this.area = area;
       area.setAttribute('aria-label', 'JSON text');
       /* Opened as a dashboard: say after each change whether it still
        * reads, in the same plain words the dashboards view uses. */
@@ -7241,19 +7296,39 @@ class JsonFileView extends FileView {
         recheck();
         area.addEventListener('input', recheck);
       }
+      /* The save goes through Vault.process and writes only over the text
+       * this editor loaded: a file that changed on disk since (a save from
+       * the dashboards view, or a Sync arrival) is never overwritten. */
       const save = async () => {
-        if (area.value === this.text) return;
-        this.text = area.value;
-        await this.app.vault.modify(this.file, this.text);
+        if (area.value === this.text) return true;
+        const loaded = this.text;
+        const next = area.value;
+        let changed = false;
+        await this.app.vault.process(this.file, (current) => {
+          if (current !== loaded) { changed = true; return current; }
+          return next;
+        });
+        if (changed) {
+          new Notice(this.file.name + ' changed on disk since it was opened here, so this text was not saved. Copy what you need, then reopen the file.');
+          return false;
+        }
+        this.text = next;
         new Notice('Saved ' + this.file.name + '.');
+        return true;
       };
-      area.addEventListener('blur', save);
+      /* Leaving the editor saves a dashboard file only when it reads, so
+       * half-typed text never reaches the dashboard; Cmd+S and "Done
+       * editing" always save. */
+      area.addEventListener('blur', () => {
+        if (this.asText && !parseDashboardSpec(area.value).ok) return;
+        save();
+      });
       area.addEventListener('keydown', (ev) => {
         if ((ev.metaKey || ev.ctrlKey) && ev.key === 's') { ev.preventDefault(); save(); }
       });
       const done = bar.createEl('button', { text: 'Done editing', cls: 'mod-cta' });
       done.addEventListener('click', async () => {
-        await save();
+        if (!(await save())) return;
         this.editing = false;
         /* Opened from a dashboard: go back to it when it reads, else stay
          * here, in the reader, which says why it does not. */
@@ -8785,9 +8860,13 @@ class IcorSqliteViewerPlugin extends Plugin {
     for (const path of listing.files.sort()) {
       if (!path.toLowerCase().endsWith('.json')) continue;
       try {
-        const parsed = parseDashboardSpec(await adapter.read(path));
-        if (parsed.ok) { parsed.spec.path = path; specs.push(parsed.spec); }
-        else errors.push({ path, reason: parsed.reason });
+        const text = await adapter.read(path);
+        const parsed = parseDashboardSpec(text);
+        if (parsed.ok) {
+          parsed.spec.path = path;
+          DASHBOARD_LOADED_TEXT.set(parsed.spec, text);
+          specs.push(parsed.spec);
+        } else errors.push({ path, reason: parsed.reason });
       } catch (e) {
         errors.push({ path, reason: e.message });
       }
@@ -8796,12 +8875,31 @@ class IcorSqliteViewerPlugin extends Plugin {
   }
 
   /* The builder writes a dashboard back to its own file; a new dashboard
-   * gets a fresh file named after its id. */
+   * gets a fresh file named after its id. A file that changed on disk
+   * since this spec was read (an edit as text in another pane, or one that
+   * arrived through Sync) is not overwritten: the save is refused with a
+   * notice and returns false, so the caller reloads and shows the file as
+   * it is now. */
   async saveDashboardSpec(spec) {
     const adapter = this.app.vault.adapter;
     await ensureFolder(adapter, this.settings.dashboardFolder);
     if (!spec.path) spec.path = normalizePath(this.settings.dashboardFolder + '/' + spec.id + '.json');
-    await adapter.write(spec.path, specToJson(spec));
+    const loaded = DASHBOARD_LOADED_TEXT.get(spec);
+    if (loaded !== undefined && (await adapter.exists(spec.path)) && (await adapter.read(spec.path)) !== loaded) {
+      new Notice(spec.path.split('/').pop() + ' changed on disk since this dashboard was loaded, so this change was not saved. The dashboard now shows the file as it is.');
+      return false;
+    }
+    const text = specToJson(spec);
+    await adapter.write(spec.path, text);
+    DASHBOARD_LOADED_TEXT.set(spec, text);
+    return true;
+  }
+
+  /* Whether a dashboard file's text on disk is still the text this spec
+   * was read from or last saved as: true for the echo of the view's own
+   * save, false for a change made somewhere else. */
+  dashboardTextIsLoaded(spec, text) {
+    return DASHBOARD_LOADED_TEXT.get(spec) === text;
   }
 
   async createDashboard() {
