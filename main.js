@@ -1063,11 +1063,39 @@ function colsForWidth(width) {
  * "row" and "column" values in the order the query returns them, and
  * coloured by the value levels of its "value" ("ranges", judged per
  * cell). An optional "marker" column puts a dot on the cells where it is
- * true ("markerColor", "markerLabel" for the legend). "highlight":
- * "hour" brightens the column whose value is the current hour (0 to 23).
+ * true ("markerColor", "markerLabel" for the legend). "highlight" lights
+ * up today on this device: "hour" the column named for the current hour
+ * (0 to 23), "day" the row or column named for today's date (YYYY-MM-DD),
+ * "weekday" the row or column named for today's weekday (Monday or Mon).
+ * "cells": "square" draws square cells, "fill" stretches the rows over the
+ * tile's height; unset, cells are a thin fixed height.
  * "columnLabelEvery" labels every Nth column. A legend names every range,
  * an empty cell and the marker. Returns { ok, heat } or { ok, reason }. */
-const HEAT_KEYS = ['row', 'column', 'value', 'marker', 'markerColor', 'markerLabel', 'highlight', 'columnLabelEvery'];
+const HEAT_KEYS = ['row', 'column', 'value', 'marker', 'markerColor', 'markerLabel', 'highlight', 'columnLabelEvery', 'cells'];
+const HEAT_HIGHLIGHTS = ['hour', 'day', 'weekday'];
+const HEAT_CELLS = ['square', 'fill'];
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/* Which row and column a highlight lights up at the given moment, in the
+ * device's local time: { row, col } indexes, -1 for none. Pure. */
+function heatmapHighlight(grid, mode, now) {
+  const none = { row: -1, col: -1 };
+  if (!grid || !HEAT_HIGHLIGHTS.includes(mode)) return none;
+  const d = now instanceof Date ? now : new Date();
+  if (mode === 'hour') {
+    const h = d.getHours();
+    return { row: -1, col: grid.cols.findIndex((c) => String(c).trim() !== '' && Number(c) === h) };
+  }
+  let match;
+  if (mode === 'day') {
+    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    match = (k) => String(k).trim() === iso;
+  } else {
+    const full = WEEKDAYS[d.getDay()];
+    match = (k) => { const t = String(k).trim().toLowerCase(); return t === full || t === full.slice(0, 3); };
+  }
+  return { row: grid.rows.findIndex(match), col: grid.cols.findIndex(match) };
+}
 const HEAT_LABEL_MAX = 40;
 
 function checkHeatmap(t, at) {
@@ -1098,8 +1126,12 @@ function checkHeatmap(t, at) {
   }
   if ((heat.markerColor || heat.markerLabel) && !heat.marker) return { ok: false, reason: at + ': "markerColor" and "markerLabel" need a "marker" column.' };
   if (t.highlight !== undefined) {
-    if (t.highlight !== 'hour') return { ok: false, reason: at + ': "highlight" must be "hour" (the column for the current hour).' };
-    heat.highlight = 'hour';
+    if (!HEAT_HIGHLIGHTS.includes(t.highlight)) return { ok: false, reason: at + ': "highlight" must be "hour" (the column for the current hour), "day" (the row or column for today\'s date) or "weekday" (the row or column for today\'s weekday).' };
+    heat.highlight = t.highlight;
+  }
+  if (t.cells !== undefined) {
+    if (!HEAT_CELLS.includes(t.cells)) return { ok: false, reason: at + ': "cells" must be "square" (square cells) or "fill" (the rows share the tile\'s height).' };
+    heat.cells = t.cells;
   }
   if (t.columnLabelEvery !== undefined) {
     if (!Number.isInteger(t.columnLabelEvery) || t.columnLabelEvery < 1 || t.columnLabelEvery > 1000) {
@@ -1146,13 +1178,14 @@ function renderHeatmap(parentEl, table, tile, extras) {
   }
   const levels = extras && extras.levels;
   const unit = tile.unit ? ' ' + tile.unit : '';
-  const now = new Date().getHours();
-  const live = tile.highlight === 'hour' ? grid.cols.findIndex((c) => Number(c) === now && c.trim() !== '') : -1;
+  const lit = heatmapHighlight(grid, tile.highlight, new Date());
+  const live = lit.col;
   const every = Number.isInteger(tile.columnLabelEvery) && tile.columnLabelEvery > 1 ? tile.columnLabelEvery : 1;
-  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-heatmap' });
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-heatmap' + (tile.cells === 'square' ? ' is-square' : '') + (tile.cells === 'fill' ? ' is-fill' : '') });
   const scroll = wrap.createDiv({ cls: 'icor-sqlv-heatmap-scroll' });
   const el = scroll.createDiv({ cls: 'icor-sqlv-heatmap-grid' });
   el.style.setProperty('grid-template-columns', 'max-content repeat(' + grid.cols.length + ', minmax(9px, 1fr))');
+  if (tile.cells === 'fill') el.style.setProperty('grid-template-rows', '14px repeat(' + grid.rows.length + ', minmax(13px, 1fr))');
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', 'Heatmap, ' + grid.rows.length + ' rows by ' + grid.cols.length + ' columns. Hover a cell for its value.');
   el.createDiv({ cls: 'icor-sqlv-heatmap-corner' });
@@ -1160,8 +1193,10 @@ function renderHeatmap(parentEl, table, tile, extras) {
     const head = el.createDiv({ cls: 'icor-sqlv-heatmap-col', text: j % every === 0 ? c : '' });
     if (j === live) head.addClass('is-current');
   });
-  for (const r of grid.rows) {
-    el.createDiv({ cls: 'icor-sqlv-heatmap-row', text: r }).setAttribute('title', r);
+  grid.rows.forEach((r, i) => {
+    const rowHead = el.createDiv({ cls: 'icor-sqlv-heatmap-row', text: r });
+    rowHead.setAttribute('title', r);
+    if (i === lit.row) rowHead.addClass('is-current');
     grid.cols.forEach((c, j) => {
       const cell = grid.cell(r, c);
       const box = el.createDiv({ cls: 'icor-sqlv-heatmap-cell' });
@@ -1170,7 +1205,7 @@ function renderHeatmap(parentEl, table, tile, extras) {
       const level = empty ? null : resolveLevel(v, tile, levels);
       if (empty) box.addClass('is-empty');
       else if (level && level.known && level.color) box.style.setProperty('background', level.color);
-      if (j === live) box.addClass('is-current');
+      if (j === live || i === lit.row) box.addClass('is-current');
       const parts = [r, c];
       parts.push(empty ? 'no data' : formatNumber(Number(v)) + unit);
       if (level && (level.label || level.name)) parts.push(level.label || level.name);
@@ -1182,7 +1217,7 @@ function renderHeatmap(parentEl, table, tile, extras) {
       }
       box.setAttribute('title', parts.join(' · '));
     });
-  }
+  });
   const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend' });
   for (const range of tile.ranges || []) {
     const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
@@ -4992,7 +5027,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 
 /* The pure library, exposed for the gates. */
 IcorSqliteViewerPlugin.lib = {
-  checkHeatmap, heatmapGrid,
+  checkHeatmap, heatmapHighlight, heatmapGrid,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
   cliTable, wasmTable, toCsv,
