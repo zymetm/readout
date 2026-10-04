@@ -330,7 +330,7 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Text after each label" | Up to 6 characters. | "like h or %" |
 | "Write thousands as k (8k)" | 8,000 shows as 8k. | Off |
 | "Label every Nth value along the bottom" | 7 labels every seventh day. | "empty: as many as fit" |
-| "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like kcal or %" |
+| "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like orders or %" |
 
 ### Guide lines and zones
 
@@ -361,4 +361,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 2, fingerprint 1e003f86). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 3, fingerprint 1e371e6c). If you edit this file, the plugin stops updating it. -->

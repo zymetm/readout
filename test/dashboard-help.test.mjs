@@ -148,11 +148,11 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [2, '1e003f86'], 'AI-WIDGET-GUIDE.md': [3, '54e082ad'] };
+  const pinned = { 'README.md': [3, '1e371e6c'], 'AI-WIDGET-GUIDE.md': [3, '54e082ad'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 2, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 3, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {

@@ -5340,7 +5340,7 @@ class WidgetFormModal extends Modal {
     const body = this.optionGroup(form, { key: 'axis2', label: 'Right axis', hasValues: has });
     if (!body) return;
     this.renderAxisFieldsFor(body, 'y2');
-    this.textInput(body, { label: 'Unit of the right axis', optional: true, value: s.y2Unit, placeholder: 'like kcal or %', ariaLabel: 'Right axis: unit', onInput: (v) => { s.y2Unit = v; this.touch(); } });
+    this.textInput(body, { label: 'Unit of the right axis', optional: true, value: s.y2Unit, placeholder: 'like orders or %', ariaLabel: 'Right axis: unit', onInput: (v) => { s.y2Unit = v; this.touch(); } });
   }
 
   /* A heatmap: which columns place a cell (row, column) and colour it
@@ -7812,7 +7812,7 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Text after each label" | Up to 6 characters. | "like h or %" |
 | "Write thousands as k (8k)" | 8,000 shows as 8k. | Off |
 | "Label every Nth value along the bottom" | 7 labels every seventh day. | "empty: as many as fit" |
-| "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like kcal or %" |
+| "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like orders or %" |
 
 ### Guide lines and zones
 
@@ -8389,7 +8389,7 @@ the value levels.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 2, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 3, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 3, legacy: [] },
 ];
 
