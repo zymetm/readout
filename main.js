@@ -6008,7 +6008,7 @@ class WidgetFormModal extends Modal {
     this.previewState = 'stale';
     this.previewError = '';
     this.previewSeq = 0;
-    this.debounce = makeDebounce(400, (fn, ms) => setTimeout(fn, ms), (h) => clearTimeout(h));
+    this.debounce = makeDebounce(400, (fn, ms) => window.setTimeout(fn, ms), (h) => window.clearTimeout(h));
   }
 
   onOpen() {
@@ -9994,6 +9994,9 @@ function blockSizeFor(tile) {
 }
 
 /* Where a written-out widget's desktop result is kept. */
+/* How long one read of the dashboards folder serves the widget blocks of a note. */
+const BLOCK_SPEC_PASS_MS = 2000;
+
 /* How long a note-block cache file may sit unused before it is removed. */
 const BLOCK_CACHE_MAX_AGE_DAYS = 60;
 
@@ -10039,7 +10042,7 @@ class WidgetBlockChild extends MarkdownRenderChild {
     let index = 0;
     let dashboardCache = null;
     if (request.kind === 'ref') {
-      const { specs } = await plugin.loadDashboardSpecs();
+      const { specs } = await plugin.blockSpecs();
       spec = specs.find((d) => d.id === request.dashboard);
       if (!spec) { this.say('There is no dashboard "' + request.dashboard + '". Use the id of a dashboard in ' + plugin.settings.dashboardFolder + ', which is its file name without .json.'); return; }
       index = widgetIndexIn(spec, request.widget);
@@ -10459,6 +10462,20 @@ class IcorSqliteViewerPlugin extends Plugin {
     }
   }
 
+  /* The dashboards for the widget blocks of a note: a note with several blocks
+   * draws them together, so they share one read of the folder for a couple of
+   * seconds. A save of a dashboard starts a fresh read. Blocks only read what
+   * they get. */
+  blockSpecs() {
+    const now = Date.now();
+    if (this.blockSpecCache && now - this.blockSpecCache.at < BLOCK_SPEC_PASS_MS) return this.blockSpecCache.promise;
+    const promise = this.loadDashboardSpecs();
+    const entry = { at: now, promise };
+    this.blockSpecCache = entry;
+    promise.catch(() => { if (this.blockSpecCache === entry) this.blockSpecCache = null; });
+    return promise;
+  }
+
   async loadDashboardSpecs() {
     const adapter = this.app.vault.adapter;
     const folder = this.settings.dashboardFolder;
@@ -10501,6 +10518,7 @@ class IcorSqliteViewerPlugin extends Plugin {
     const text = specToJson(spec);
     await adapter.write(spec.path, text);
     DASHBOARD_LOADED_TEXT.set(spec, text);
+    this.blockSpecCache = null;
     return true;
   }
 
