@@ -102,7 +102,9 @@ newest text; it is written again on the next load or on "New dashboard".
 3. **Write the widget.** Add one object to the dashboard's `tiles` list,
    using only the fields in section 4. Leave `layout` out to let the
    plugin place the widget, or give a free spot (`{"x":0,"y":0,"w":2,"h":2}`
-   in grid cells, 6 columns wide). Keep the file valid JSON.
+   in grid cells; the grid is 2 columns wide on a phone and up to 6 on a
+   wide pane, about 5 on a typical one; a widget wider than the columns on screen
+   is narrowed to fit). Keep the file valid JSON.
 4. **Validate.** Open the dashboard, press "Edit", then "Open as text". The line
    under the text says "The dashboard reads fine: N widgets." or "The
    dashboard will not open like this:" with the reason, naming the widget
@@ -641,4 +643,4 @@ column where a heatmap reads a row and a column.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 5, fingerprint 34e196e6). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 6, fingerprint aa64ca3b). If you edit this file, the plugin stops updating it. -->

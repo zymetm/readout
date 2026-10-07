@@ -72,3 +72,13 @@ test('the repository README carries the same field reference', () => {
   };
   assert.equal(block(README), block(GUIDE));
 });
+
+test('the guide does not claim a fixed six-column grid: it is 2 to 6 columns, by pane width', () => {
+  assert.doesNotMatch(flatGuide(), /6 columns wide/);
+  assert.match(flatGuide(), /the grid is 2 columns wide on a phone and up to 6 on a wide pane/);
+  /* And that is what the code does. */
+  assert.equal(lib.colsForWidth(375), 2);
+  assert.equal(lib.colsForWidth(900), 5);
+  assert.equal(lib.colsForWidth(5000), 6);
+});
+const flatGuide = () => GUIDE.replace(/\s+/g, ' ');
