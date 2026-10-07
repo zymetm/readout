@@ -490,10 +490,13 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 
 /* ---------------------------------------------------------- dashboards -- */
 
+/* The bar wraps and its dropdown shrinks, so on a phone no button is cut
+ * off at the edge and the view never scrolls sideways. */
 .icor-sqlv-dash-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sqlv-s3);
+  gap: var(--sqlv-s2) var(--sqlv-s3);
   padding: var(--sqlv-s2) var(--sqlv-s3);
   border-bottom: 1px solid var(--sqlv-hairline);
   flex: 0 0 auto;
@@ -509,6 +512,9 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   font-family: var(--sqlv-font-body);
   font-size: 13px;
 }
+
+.icor-sqlv-dash-bar select.dropdown { flex: 1 1 8em; min-width: 0; max-width: 100%; }
+.icor-sqlv-dash-bar button { flex: 0 0 auto; white-space: nowrap; }
 
 .icor-sqlv-dash-bar select.dropdown:focus-visible,
 .icor-sqlv-range select.dropdown:focus-visible {

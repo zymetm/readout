@@ -90,3 +90,12 @@ test('reload() re-reads the folder, so a dashboard added after the first open ap
   await settle();
   assert.equal(view.specs.length, before + 1, 'the new dashboard must be discovered on reload');
 });
+
+test('the toolbar wraps and its dropdown shrinks, so a phone never clips Refresh or scrolls sideways', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const rule = (sel) => { const at = css.indexOf(sel + ' {'); return at < 0 ? '' : css.slice(at, css.indexOf('}', at)); };
+  assert.match(rule('.icor-sqlv-dash-bar'), /flex-wrap:\s*wrap/, 'the bar wraps');
+  assert.match(rule('.icor-sqlv-dash-bar select.dropdown'), /min-width:\s*0/, 'the dropdown can shrink below its text');
+  assert.match(rule('.icor-sqlv-dash-bar button'), /flex:\s*0 0 auto/, 'a button keeps its own size and moves to the next line instead of being cut');
+});
