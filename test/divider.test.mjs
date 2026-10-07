@@ -40,7 +40,7 @@ test('the spec refuses data, a tall divider and a heading that is not text, in p
   assert.match(parse([{ viz: 'divider', source: { table: 't', agg: 'count' } }]).reason, /takes no "sql" or "source"/);
   assert.match(parse([{ viz: 'divider', layout: { x: 0, y: 0, w: 6, h: 2 } }]).reason, /^Tile 1: a section divider is one thin row, so its "layout" h must be 1\./);
   assert.match(parse([{ viz: 'divider', title: 7 }]).reason, /heading \("title"\) of a section divider must be text/);
-  assert.match(parse([{ viz: 'pie' }]).reason, /line, bar, stat, table or divider/);
+  assert.match(parse([{ viz: 'radar' }]).reason, /line, bar, stat, table or divider/);
 });
 
 /* --------------------------------------------------------- the grid -- */

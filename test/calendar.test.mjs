@@ -198,7 +198,7 @@ test('the spec keeps a calendar and names what is wrong, in plain words', () => 
     [{ title: 'L', viz: 'heatmap', row: 'a', column: 'b', value: 'c', sql: 'SELECT 1', year: 2026 }, /"year" only works on a calendar/],
     [{ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', date: 'd' }, /"date" only works on a calendar/],
     [{ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', value: 'c' }, /"value" only works on a heatmap/],
-    [{ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', ranges: RANGES }, /"ranges" only work on a stat widget \(One big number\), a segments bar, a heatmap, a calendar or a bullet chart/],
+    [{ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', ranges: RANGES }, /"ranges" only work on a stat widget \(One big number\), a segments bar, a pie chart, a heatmap, a calendar or a bullet chart/],
     [{ title: 'Built', viz: 'calendar', source: { table: 't', metric: 'v', agg: 'sum', timeColumn: 'd' } }, /use an SQL tile for a calendar/],
   ];
   for (const [tile, re] of bad) {

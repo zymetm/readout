@@ -65,7 +65,7 @@ test('a line or bar tile without x or y is refused; a stat without either is fin
 });
 
 test('an unknown viz is refused', () => {
-  const bad = goodSpec(); bad.tiles[0].viz = 'pie';
+  const bad = goodSpec(); bad.tiles[0].viz = 'radar';
   assert.match(lib.parseDashboardSpec(JSON.stringify(bad)).reason, /line, bar, stat, table or divider/);
 });
 

@@ -227,6 +227,33 @@ Shared: hint and footnote.
 
 Shared: value levels, hint and footnote.
 
+## Pie or doughnut chart
+
+*Sample: a doughnut chart of orders by channel, with its legend.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-pie-dark.png">
+  <img alt="A pie or doughnut chart, drawn by the plugin with invented numbers" src="docs/images/widget-pie-light.png" width="600">
+</picture>
+
+**What it shows:** a circle split into slices, each as big as its share of the total, starting at twelve o'clock and going clockwise in the order of the rows. A legend names every part with its value and share.
+
+**Good for:**
+- Orders by channel.
+- This month's spending by category.
+- Time by project, when a few big parts matter more than small differences.
+
+**What the query returns:** one row per part, in order: a name column and a number column. Use a part-to-whole bar when there are many small parts; a pie reads best with five or fewer.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Part name column" | The column that names each part. | |
+| "Part size column" | The number column that sizes each part. | |
+| "Cut a hole in the middle (a doughnut)" | Draws a doughnut and writes the total in the hole. | Off: a full pie |
+| "Part colours" | A colour per part, as on the part-to-whole bar. | "Theme colour": the theme's colours in turn |
+
+Shared: value levels, hint and footnote. The theme has five series colours; from the sixth part on, parts share one faint colour, so group small parts in the query.
+
 ## Heatmap
 
 *Sample: a heatmap of orders by weekday and hour, coloured by value levels.*
@@ -391,7 +418,7 @@ Value levels colour a widget by where its number lands, like Good, Watch and Ale
 | Panel label | What it does | Default |
 | --- | --- | --- |
 | "Value levels" | One row per range: "from" and "to" ("lowest value (empty for no limit)", "highest value (empty for no limit)", both ends inside), "level", and "pill text (optional)": "short text shown as a pill (optional)" by the title. "+ Add range" adds one; "+ Anything else" adds a last range that catches every other number. | No ranges |
-| "Judge the ranges on column" | One big number and segments: judge on another column of the first row, like a score. On segments its "None (needed when there are ranges)" must be changed once ranges exist. | "empty: the shown value" |
+| "Judge the ranges on column" | One big number, segments and pie: judge on another column of the first row, like a score. On segments and pie its "None (needed when there are ranges)" must be changed once ranges exist. | "empty: the shown value" |
 | "Colours for this widget" | Changes a level's colour on this widget only: "Settings colour", a theme colour or "Custom colour". A changed level reads "Changed for this widget"; "Reset to settings" undoes it. | "Settings colour" |
 
 ### Change and roll-up
@@ -456,4 +483,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 5, fingerprint bbb9fdf6). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 6, fingerprint 71f4f665). If you edit this file, the plugin stops updating it. -->

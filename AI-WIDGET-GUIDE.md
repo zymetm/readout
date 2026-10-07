@@ -125,7 +125,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes `title` (text), `viz` (one of `line`, `bar`, `stat`,
-`table`, `divider`, `combo`, `scatter`, `bullet`, `segments`, `heatmap`, `calendar`, `text`), `layout`
+`table`, `divider`, `combo`, `scatter`, `bullet`, `segments`, `pie`, `heatmap`, `calendar`, `text`), `layout`
 (`{x, y, w, h}`, whole cells, `w` and `h` 1 to 12), and, all but `divider`,
 `unit` (text), `hint` (text, up to 60 characters) and `footnote` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -146,6 +146,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `scatter` | `sql`, `x` (number column), `y` (one number column) | `colorBy` (column), `trend` (false), `color` (theme; one colour only, so not with `colorBy`), `xMin`, `xMax`, `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact`, `refLines`, `zones`; never `xLabelEvery`, `band`, `headerDelta`, `chartCaption`, built `source` |
 | `bullet` | `sql`, `y` (one number column: the actual value) | `x` (column naming each bar), `target` (column of targets), `scaleMin`, `scaleMax` (default zero up to the largest value, target or range end), `ranges` (the bands behind the bars), `levelColors`; never `color`, `rangeColumn`, built `source` |
 | `segments` | `sql`, `x` (part name), `y` (part size) | `segmentColors` (`{"Part name": colour}`), `ranges` with `rangeColumn` (needed when there are ranges), `levelColors` |
+| `pie` | `sql`, `x` (part name), `y` (part size) | `doughnut` (true: a hole with the total in it), `segmentColors`, `ranges` with `rangeColumn` (needed when there are ranges), `levelColors` |
 | `heatmap` | `sql`, `row`, `column`, `value` | `ranges` (without them every cell is grey), `levelColors`, `marker`, `markerColor`, `markerLabel`, `highlight` (`"hour"`, `"day"`, `"weekday"`), `cells` (`"square"`, `"fill"`; default thin rows), `columnLabelEvery` (whole number) |
 | `calendar` | `sql`, `date` (column of days), `value` (column) | `ranges` (without them every day with data is grey), `levelColors`, `weekStart` (`"sunday"` or `"monday"`; left out, the plugin setting "Week starts on", Sunday unless changed), `year` (a four-digit year; default the last 53 weeks up to the newest day) |
 | `text` | `text` (up to 2,000 characters) or `sql`, never both | `line` (true: one thin strip, no title) |
@@ -191,6 +192,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `combo` | One row per x value, the `x` column and one column per series. An empty cell is a gap, never zero. |
 | `scatter` | One row per point: `x` and `y` are number columns, and `colorBy`, if set, names the group of the point. A row with no number in `x` or `y` is left out, never drawn at zero. Dates and text in `x` are not numbers: turn a date into one in SQL, like `julianday(day) - julianday('2026-01-01')`. |
 | `segments` | One row per part, in order, up to 12: the `x` column names it, the `y` column (a number, 0 or more) sizes it. With ranges, `rangeColumn` is read from the first row. |
+| `pie` | The same rows as `segments`: one per part, in order, up to 12, `x` names it and `y` sizes it. Slices run clockwise from twelve o'clock; a part of 0 has no slice but stays in the legend. |
 | `bullet` | One row per bar, up to 12, in order: the `x` column labels it, the `y` column is its actual value, the `target` column its target. All the bars share one scale, so give them one unit, or write each as a percent of its target. A row with no number in `y` shows "no data". |
 | `calendar` | One row per day: `date` (written `YYYY-MM-DD`, a time after it is ignored) and `value` (a number). A day with no row stays empty; a day twice takes the later row. The view ends at the newest `date`, not at today, so a lagging sync still fills the grid. |
 | `heatmap` | One row per cell: `row`, `column`, `value` (a number), and the `marker` column if used. Rows and columns appear in the order the query returns them. For `highlight`, name columns 0 to 23 (hours), dates as `YYYY-MM-DD`, or weekdays like `Monday` or `Mon`. |
@@ -225,7 +227,7 @@ build widgets the panel can show in full:
 - `y` on a combo (it takes `series`), `color` on a chart with two or more
   series, `band` on a bar or a built widget, `rangeColumn` or `captions` on
   a built widget: the file does not read.
-- A segments bar with ranges and no `rangeColumn`.
+- A segments bar or a pie chart with ranges and no `rangeColumn`.
 - A divider with a `layout` taller than 1, or with `sql`.
 - Dates stored as text in another format (`31/01/2026`): they neither sort
   nor compare. Convert them in SQL or pick another column.
@@ -325,6 +327,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Footnote under the widget" | `footnote` |
 | "Series" | `series` |
 | "Part colours" | `segmentColors` |
+| "Cut a hole in the middle (a doughnut)" | `doughnut` |
 | "Row labels column", "Column labels column", "Cell value column" | `row`, `column`, `value` |
 | "Dot column", "Dot colour", "Dot label in the legend" | `marker`, `markerColor`, `markerLabel` |
 | "Highlight", "Cells", "Label every Nth column" | `highlight`, `cells`, `columnLabelEvery` |
@@ -335,7 +338,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `scatter`, `bullet`, `segments`, `heatmap`, `calendar` or `text`.
+  `divider`, `combo`, `scatter`, `bullet`, `segments`, `pie`, `heatmap`, `calendar` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -451,7 +454,7 @@ first column); a built stat its one value.
   unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
-### Value levels (stat, segments, heatmap, calendar, bullet)
+### Value levels (stat, segments, pie, heatmap, calendar, bullet)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -463,15 +466,15 @@ live in the plugin settings, not in the file. A widget lists its own steps:
 - `levelColors`: a different colour for a level on this widget only,
   like `{"Good": "#2a7fff"}`.
 - `rangeColumn`: judge the ranges on another column of the first row
-  (SQL stat, and needed on a segments bar).
+  (SQL stat, and needed on a segments bar or a pie chart).
 
 A range naming a level the settings do not have draws neutral. A dashboard
 shared with someone else needs its levels in their settings too, or should
 use the three default names.
 
 How a level shows on a widget is a setting too: rail, outline or tint for
-"One big number", and the same choice for a segments bar (by default the
-same look as "One big number").
+"One big number", and the same choice for a segments bar and a pie chart (by
+default the same look as "One big number").
 
 ### Table
 
@@ -580,6 +583,24 @@ share. One row per part, in order, up to 12.
 - `ranges` (with `rangeColumn`) and `levelColors`: a level pill on the
   title row and the level look on the whole bar.
 
+### Pie chart
+
+`"viz": "pie"`: a circle split into the query's rows, each slice as big as its
+share, clockwise from twelve o'clock. The same columns as a segments bar.
+
+```json
+{ "title": "Orders by channel", "viz": "pie", "x": "channel", "y": "orders",
+  "sql": "SELECT channel, SUM(orders) AS orders FROM sales GROUP BY channel ORDER BY orders DESC",
+  "doughnut": true }
+```
+
+- `x`: the column naming each part. `y`: the one column sizing it. Up to 12
+  parts; the theme has five series colours, so from the sixth part on they
+  share one faint colour. Group small parts in the query.
+- `doughnut`: true cuts a hole in the middle and writes the total in it.
+- `segmentColors`, `ranges` (with `rangeColumn`) and `levelColors` work as on
+  a segments bar.
+
 ### Heatmap
 
 `"viz": "heatmap"`: a grid with one cell per row of the query, placed by its
@@ -643,4 +664,4 @@ column where a heatmap reads a row and a column.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 6, fingerprint aa64ca3b). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint 065f70f1). If you edit this file, the plugin stops updating it. -->

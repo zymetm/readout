@@ -129,6 +129,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Footnote under the widget" | `footnote` |
 | "Series" | `series` |
 | "Part colours" | `segmentColors` |
+| "Cut a hole in the middle (a doughnut)" | `doughnut` |
 | "Row labels column", "Column labels column", "Cell value column" | `row`, `column`, `value` |
 | "Dot column", "Dot colour", "Dot label in the legend" | `marker`, `markerColor`, `markerLabel` |
 | "Highlight", "Cells", "Label every Nth column" | `highlight`, `cells`, `columnLabelEvery` |
@@ -139,7 +140,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `scatter`, `bullet`, `segments`, `heatmap`, `calendar` or `text`.
+  `divider`, `combo`, `scatter`, `bullet`, `segments`, `pie`, `heatmap`, `calendar` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -255,7 +256,7 @@ first column); a built stat its one value.
   unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
-### Value levels (stat, segments, heatmap, calendar, bullet)
+### Value levels (stat, segments, pie, heatmap, calendar, bullet)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -267,15 +268,15 @@ live in the plugin settings, not in the file. A widget lists its own steps:
 - `levelColors`: a different colour for a level on this widget only,
   like `{"Good": "#2a7fff"}`.
 - `rangeColumn`: judge the ranges on another column of the first row
-  (SQL stat, and needed on a segments bar).
+  (SQL stat, and needed on a segments bar or a pie chart).
 
 A range naming a level the settings do not have draws neutral. A dashboard
 shared with someone else needs its levels in their settings too, or should
 use the three default names.
 
 How a level shows on a widget is a setting too: rail, outline or tint for
-"One big number", and the same choice for a segments bar (by default the
-same look as "One big number").
+"One big number", and the same choice for a segments bar and a pie chart (by
+default the same look as "One big number").
 
 ### Table
 
@@ -383,6 +384,24 @@ share. One row per part, in order, up to 12.
   theme colours in turn.
 - `ranges` (with `rangeColumn`) and `levelColors`: a level pill on the
   title row and the level look on the whole bar.
+
+### Pie chart
+
+`"viz": "pie"`: a circle split into the query's rows, each slice as big as its
+share, clockwise from twelve o'clock. The same columns as a segments bar.
+
+```json
+{ "title": "Orders by channel", "viz": "pie", "x": "channel", "y": "orders",
+  "sql": "SELECT channel, SUM(orders) AS orders FROM sales GROUP BY channel ORDER BY orders DESC",
+  "doughnut": true }
+```
+
+- `x`: the column naming each part. `y`: the one column sizing it. Up to 12
+  parts; the theme has five series colours, so from the sixth part on they
+  share one faint colour. Group small parts in the query.
+- `doughnut`: true cuts a hole in the middle and writes the total in it.
+- `segmentColors`, `ranges` (with `rangeColumn`) and `levelColors` work as on
+  a segments bar.
 
 ### Heatmap
 

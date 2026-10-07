@@ -23,6 +23,7 @@ export const SINK = [
     zones: [{ from: 1, to: 2, color: '#228833' }], refLines: [{ y: 5, label: 'goal' }] },
   { title: 'Bullet', viz: 'bullet', sql: 'SELECT 1', x: 'who', y: ['walks'], target: 'plan', scaleMin: 0, scaleMax: 100, ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' } },
   { title: 'Segments', viz: 'segments', sql: 'SELECT 1', x: 'status', y: ['n'], segmentColors: { Done: '#228833' }, ranges: [{ level: 'Good' }], rangeColumn: 'v', levelColors: { Good: '#2a7fff' } },
+  { title: 'Pie', viz: 'pie', sql: 'SELECT 1', x: 'status', y: ['n'], doughnut: true, segmentColors: { Done: '#228833' }, ranges: [{ level: 'Good' }], rangeColumn: 'v', levelColors: { Good: '#2a7fff' } },
   { title: 'Heatmap', viz: 'heatmap', sql: 'SELECT 1', row: 'day', column: 'hr', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' },
     marker: 'k', markerColor: '#33bbee', markerLabel: 'k', highlight: 'weekday', columnLabelEvery: 3, cells: 'fill' },
   { title: 'Calendar', viz: 'calendar', sql: 'SELECT 1', date: 'day', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' }, weekStart: 'monday', year: 2026 },

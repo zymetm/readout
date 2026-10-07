@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'bullet', 'segments', 'heatmap', 'calendar', 'text']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'bullet', 'segments', 'pie', 'heatmap', 'calendar', 'text']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -543,7 +543,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, bullet, segments, heatmap, calendar, text.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, bullet, segments, pie, heatmap, calendar, text.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -589,6 +589,7 @@ function parseDashboardSpec(text) {
       /* A built widget. */
       if (t.viz === 'table') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a table.' };
       if (t.viz === 'segments') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a segments bar.' };
+      if (t.viz === 'pie') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a pie chart.' };
       if (t.viz === 'heatmap') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a heatmap.' };
       if (t.viz === 'scatter') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a scatter chart.' };
       if (t.viz === 'calendar') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a calendar.' };
@@ -696,13 +697,15 @@ function parseDashboardSpec(text) {
     if (!sqlBand.ok) return sqlBand;
     const segCheck = checkSegments(t, y, levelCheck, at);
     if (!segCheck.ok) return segCheck;
+    const pieCheck = checkPie(t, at);
+    if (!pieCheck.ok) return pieCheck;
     const sqlMeter = checkMeter(t.meter, t.viz, at);
     if (!sqlMeter.ok) return sqlMeter;
     const heatCheck = checkHeatmap(t, at);
     if (!heatCheck.ok) return heatCheck;
     const calCheck = checkCalendar(t, at);
     if (!calCheck.ok) return calCheck;
-    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withBullet(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withSparklines(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withTileNotes(withPie(withCalendar(withHeatmap(withMeter(withBullet(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withSparklines(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -711,7 +714,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sparkCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), bulletCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
+    }, levelCheck), sqlDelta), captionCheck), sparkCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), bulletCheck), sqlMeter), heatCheck), calCheck), pieCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -1569,13 +1572,13 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'pie', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['bullet', 'Bullet chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['calendar', 'Year calendar'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['bullet', 'Bullet chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['pie', 'Pie or doughnut chart'], ['heatmap', 'Heatmap'], ['calendar', 'Year calendar'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
-const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap', 'calendar', 'bullet']);
+const LEVEL_VIZ = new Set(['stat', 'segments', 'pie', 'heatmap', 'calendar', 'bullet']);
 
 /* The heatmap fields the form keeps, by state key and file key. */
 const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery'], ['heatCells', 'cells']];
@@ -1682,6 +1685,7 @@ function specToJson(spec) {
       if (t.viz === 'scatter') for (const key of SCATTER_KEYS) if (t[key] !== undefined) tile[key] = t[key];
       if (t.viz === 'calendar') for (const key of ['date', 'value', 'weekStart', 'year']) if (t[key] !== undefined) tile[key] = t[key];
       if (t.viz === 'bullet') for (const key of BULLET_KEYS) if (t[key] !== undefined) tile[key] = t[key];
+      if (t.viz === 'pie' && t.doughnut === true) tile.doughnut = true;
     }
     return tile;
   });
@@ -2120,15 +2124,20 @@ function colsForWidth(width) {
 const SEGMENTS_MAX = 12;
 const SEGMENT_LABEL_MIN_SHARE = 8;
 
+/* A segments bar and a pie chart are both a whole divided into parts: the
+ * same columns, the same part colours, the same level on the whole. */
+function isPartsViz(viz) { return viz === 'segments' || viz === 'pie'; }
+
 function checkSegments(t, y, levelCheck, at) {
-  if (t.viz !== 'segments') {
-    if (t.segmentColors !== undefined) return { ok: false, reason: at + ': "segmentColors" only work on a segments bar.' };
+  if (!isPartsViz(t.viz)) {
+    if (t.segmentColors !== undefined) return { ok: false, reason: at + ': "segmentColors" only work on a segments bar or a pie chart.' };
     return { ok: true, colors: undefined };
   }
-  if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for a segments bar: the name of each part.' };
-  if (y.length !== 1) return { ok: false, reason: at + ' needs one "y" column for a segments bar: the size of each part.' };
+  const what = t.viz === 'pie' ? 'a pie chart' : 'a segments bar';
+  if (typeof t.x !== 'string' || !t.x) return { ok: false, reason: at + ' needs an "x" column for ' + what + ': the name of each part.' };
+  if (y.length !== 1) return { ok: false, reason: at + ' needs one "y" column for ' + what + ': the size of each part.' };
   if (levelCheck.ranges && !levelCheck.rangeColumn) {
-    return { ok: false, reason: at + ': a segments bar has no single value, so its "ranges" need a "rangeColumn" to judge.' };
+    return { ok: false, reason: at + ': ' + what + ' has no single value, so its "ranges" need a "rangeColumn" to judge.' };
   }
   const raw = t.segmentColors;
   if (raw === undefined) return { ok: true, colors: undefined };
@@ -2196,8 +2205,103 @@ function renderSegments(parentEl, table, tile, extras) {
   return parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
 }
 
-/* The level a segments bar lands on: its ranges judge the "rangeColumn"
- * of the first row. */
+/* A pie chart: the same parts as a segments bar (one row each, "x" names
+ * it, "y" sizes it, "segmentColors" colours it, "ranges" with a
+ * "rangeColumn" mark the whole widget), drawn as slices of a circle from
+ * twelve o'clock, clockwise, in the order of the rows, with a legend that
+ * names each part, its value and its share. "doughnut": true cuts a hole
+ * in the middle and writes the total in it. Drawn by hand as SVG in a
+ * square box that CSS scales, so it needs no measuring. */
+const PIE_R = 46;
+const PIE_HOLE = 27;
+
+function checkPie(t, at) {
+  if (t.viz !== 'pie') {
+    if (t.doughnut !== undefined) return { ok: false, reason: at + ': "doughnut" only works on a pie chart.' };
+    return { ok: true, pie: undefined };
+  }
+  if (t.doughnut !== undefined && typeof t.doughnut !== 'boolean') return { ok: false, reason: at + ': "doughnut" must be true or false.' };
+  return { ok: true, pie: t.doughnut === true ? { doughnut: true } : undefined };
+}
+
+function withPie(tile, check) {
+  if (check.pie) Object.assign(tile, check.pie);
+  return tile;
+}
+
+/* The outline of one slice from angle a0 to a1 (radians, 0 at twelve
+ * o'clock, clockwise): a wedge from the centre or, with an inner radius, a
+ * ring segment. A slice that is the whole circle is a circle (or, with a
+ * hole, two), because an arc from a point to itself draws nothing. */
+function piePath(cx, cy, rOut, rIn, a0, a1) {
+  const pt = (r, a) => (cx + r * Math.sin(a)).toFixed(2) + ' ' + (cy - r * Math.cos(a)).toFixed(2);
+  if (a1 - a0 >= 2 * Math.PI - 1e-6) {
+    const circle = (r) => 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
+    return rIn > 0 ? circle(rOut) + ' ' + circle(rIn) : circle(rOut);
+  }
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  if (rIn > 0) {
+    return 'M ' + pt(rOut, a0) + ' A ' + rOut + ' ' + rOut + ' 0 ' + large + ' 1 ' + pt(rOut, a1) +
+      ' L ' + pt(rIn, a1) + ' A ' + rIn + ' ' + rIn + ' 0 ' + large + ' 0 ' + pt(rIn, a0) + ' Z';
+  }
+  return 'M ' + cx + ' ' + cy + ' L ' + pt(rOut, a0) + ' A ' + rOut + ' ' + rOut + ' 0 ' + large + ' 1 ' + pt(rOut, a1) + ' Z';
+}
+
+/* The slices of a pie: each part with a positive value, with its start and
+ * end angle and its outline. Pure. */
+function pieOf(table, tile) {
+  const parts = segmentsOf(table, tile);
+  const total = parts.reduce((a, p) => a + p.value, 0);
+  if (!(total > 0)) return { parts, total: 0, slices: [] };
+  const rIn = tile.doughnut === true ? PIE_HOLE : 0;
+  let at = 0;
+  const slices = [];
+  for (const p of parts) {
+    if (!(p.value > 0)) continue;
+    const a0 = at;
+    at += (p.value / total) * 2 * Math.PI;
+    slices.push(Object.assign({}, p, { a0, a1: at, d: piePath(50, 50, PIE_R, rIn, a0, at) }));
+  }
+  return { parts, total, slices };
+}
+
+function renderPie(parentEl, table, tile, extras) {
+  const pie = pieOf(table, tile);
+  if (!pie.slices.length) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return null;
+  }
+  const unit = tile.unit ? (tile.unit === '%' ? '%' : ' ' + tile.unit) : '';
+  const said = pie.parts.map((p) => p.name + ': ' + formatNumber(p.value) + unit + ' (' + Math.round(p.share) + '%)').join('. ');
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-pie' });
+  const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'icor-sqlv-pie-svg', role: 'img', 'aria-label': said });
+  for (const sl of pie.slices) {
+    const path = svgEl('path', { d: sl.d, class: 'icor-sqlv-pie-slice', 'fill-rule': 'evenodd' });
+    path.style.setProperty('fill', sl.color);
+    const tip = svgEl('title', {});
+    tip.textContent = sl.name + ': ' + formatNumber(sl.value) + unit + ' (' + Math.round(sl.share) + '%)';
+    path.appendChild(tip);
+    svg.appendChild(path);
+  }
+  if (tile.doughnut === true) {
+    const total = svgEl('text', { x: 50, y: 50, 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'icor-sqlv-pie-total' });
+    total.textContent = formatNumber(pie.total);
+    svg.appendChild(total);
+  }
+  wrap.appendChild(svg);
+  const legend = wrap.createDiv({ cls: 'icor-sqlv-segments-legend icor-sqlv-pie-legend' });
+  for (const p of pie.parts) {
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip is-round' });
+    chip.style.setProperty('background', p.color);
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name });
+    item.createSpan({ cls: 'icor-sqlv-segments-value', text: formatNumber(p.value) + unit + ' \u00b7 ' + Math.round(p.share) + '%' });
+  }
+  return pie.parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
+}
+
+/* The level a segments bar or a pie chart lands on: its ranges judge the
+ * "rangeColumn" of the first row. */
 function segmentsLevelOf(table, tile, extras) {
   if (!tile.rangeColumn || !table.rows.length) return null;
   const idx = columnIndex(table.columns, tile.rangeColumn);
@@ -3109,7 +3213,7 @@ function normalizeLevelLooks(raw) {
 /* Validate a tile's "ranges". Returns { ok, ranges } or { ok, reason }. */
 function checkRanges(raw, viz, at) {
   if (raw === undefined) return { ok: true, ranges: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar, a heatmap, a calendar or a bullet chart.' };
+  if (viz !== 'stat' && !isPartsViz(viz) && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar, a pie chart, a heatmap, a calendar or a bullet chart.' };
   if (!Array.isArray(raw)) return { ok: false, reason: at + ': "ranges" must be a list like [{"low": 18.5, "high": 24.9, "level": "Good"}].' };
   if (raw.length > RANGES_MAX) return { ok: false, reason: at + ': "ranges" can hold at most ' + RANGES_MAX + ' ranges.' };
   const out = [];
@@ -3156,7 +3260,7 @@ function checkRanges(raw, viz, at) {
  * override keeps the level's name and changes only its colour. */
 function checkLevelColors(raw, viz, at) {
   if (raw === undefined) return { ok: true, colors: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar, a heatmap, a calendar or a bullet chart.' };
+  if (viz !== 'stat' && !isPartsViz(viz) && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar, a pie chart, a heatmap, a calendar or a bullet chart.' };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#cc3311"}.' };
   }
@@ -3191,7 +3295,7 @@ function checkTileLevels(t, at) {
 function checkRangeColumn(raw, viz, ranges, y, at) {
   if (raw === undefined) return { ok: true, rangeColumn: undefined };
   if (typeof raw !== 'string' || !raw.trim()) return { ok: false, reason: at + ': "rangeColumn" must be the name of a column from the query.' };
-  if (viz !== 'stat' && viz !== 'segments') return { ok: false, reason: at + ': "rangeColumn" only works on a stat widget (One big number) or a segments bar.' };
+  if (viz !== 'stat' && !isPartsViz(viz)) return { ok: false, reason: at + ': "rangeColumn" only works on a stat widget (One big number), a segments bar or a pie chart.' };
   if (!ranges) return { ok: false, reason: at + ': "rangeColumn" needs "ranges" to judge it against.' };
   const name = raw.trim();
   if (Array.isArray(y) && y[0] === name) return { ok: false, reason: at + ': "rangeColumn" is the shown value already; leave it out and the ranges judge the value.' };
@@ -3255,7 +3359,7 @@ function canSave(previewState) { return previewState === 'ok'; }
 /* What a widget type is called in the form, for the plain sentences. */
 const VIZ_NAMES = {
   line: 'a line chart', bar: 'a bar chart', scatter: 'a scatter chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
-  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', calendar: 'a year calendar', bullet: 'a bullet chart', text: 'a text widget',
+  combo: 'a combo chart', segments: 'a segments bar', pie: 'a pie chart', heatmap: 'a heatmap', calendar: 'a year calendar', bullet: 'a bullet chart', text: 'a text widget',
 };
 
 /* A form field's text as a number: empty is "not set", anything else must
@@ -4456,7 +4560,7 @@ function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'pie', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -4556,16 +4660,17 @@ function drawTile(tileEl, tileSpec, table, extras) {
     applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'stat', tileSpec, extras);
     return;
   }
-  if (tileSpec.viz === 'segments') {
+  if (isPartsViz(tileSpec.viz)) {
     /* Like a stat: the level marks the whole widget. Its pill sits at the
-     * right of the title row, the title giving way first. */
+     * right of the title row, the title giving way first. A pie chart has
+     * the same parts and the same level as a segments bar. */
     const level = segmentsLevelOf(table, tileSpec, extras);
     const pill = level && level.known && level.label ? level.label : '';
     const row = pill ? tileEl.createDiv({ cls: 'icor-sqlv-tile-titlebar' }) : tileEl;
     if (tileSpec.title) row.createDiv({ cls: 'icor-sqlv-tile-title', text: tileSpec.title }).setAttribute('title', tileSpec.title);
     if (pill) row.createSpan({ cls: 'icor-sqlv-level-pill', text: pill }).setAttribute('title', pill);
     const segBody = tileEl.createDiv({ cls: 'icor-sqlv-tile-body' });
-    const shown = renderSegments(segBody, table, tileSpec, extras);
+    const shown = tileSpec.viz === 'pie' ? renderPie(segBody, table, tileSpec, extras) : renderSegments(segBody, table, tileSpec, extras);
     applyLevel(tileEl, level && shown ? Object.assign({ shown }, level) : null, 'segments', tileSpec, extras);
     return;
   }
@@ -5758,6 +5863,7 @@ class WidgetFormModal extends Modal {
       xMax: existing && existing.xMax !== undefined ? String(existing.xMax) : '',
       scatterColorBy: existing && existing.colorBy ? existing.colorBy : '',
       scatterTrend: !!(existing && existing.trend === true),
+      pieDoughnut: !!(existing && existing.viz === 'pie' && existing.doughnut === true),
       bulletTarget: existing && existing.target ? existing.target : '',
       scaleMin: existing && existing.scaleMin !== undefined ? String(existing.scaleMin) : '',
       scaleMax: existing && existing.scaleMax !== undefined ? String(existing.scaleMax) : '',
@@ -5937,6 +6043,7 @@ class WidgetFormModal extends Modal {
       if (s.scatterColorBy) raw.colorBy = s.scatterColorBy;
       if (s.scatterTrend === true) raw.trend = true;
     }
+    if (viz === 'pie' && s.pieDoughnut === true) raw.doughnut = true;
     if (viz === 'line' || viz === 'bar' || viz === 'combo' || viz === 'scatter') {
       const marks = this.marksFromForm(viz);
       if (!marks.ok) return marks;
@@ -5949,7 +6056,7 @@ class WidgetFormModal extends Modal {
       raw.band = { low: s.bandLow, high: s.bandHigh };
       if (op.value !== undefined) raw.band.opacity = op.value;
     }
-    if (viz === 'segments') {
+    if (isPartsViz(viz)) {
       const colors = {};
       for (const row of s.segmentColors) {
         const name = String(row.name || '').trim();
@@ -6159,6 +6266,23 @@ class WidgetFormModal extends Modal {
     form.createDiv({ cls: 'icor-sqlv-note', text: 'One bar split into the query’s rows, each part as wide as its share of the total, in the order of the rows.' });
     this.columnField(form, { label: 'Part name column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
     this.columnField(form, { label: 'Part size column', value: s.y, onChange: (v) => { s.y = v; this.touch(); } });
+  }
+
+  /* A pie chart: the same two columns as a segments bar, and whether it is
+   * a doughnut. */
+  renderPieFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'A circle split into the query’s rows, each slice as big as its share of the total, from twelve o’clock in the order of the rows. A legend names every part.' });
+    this.columnField(form, { label: 'Part name column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
+    this.columnField(form, { label: 'Part size column', value: s.y, onChange: (v) => { s.y = v; this.touch(); } });
+    const row = form.createDiv({ cls: 'icor-sqlv-wizard-toggle' });
+    const cb = row.createEl('input', { type: 'checkbox' });
+    cb.checked = s.pieDoughnut === true;
+    cb.setAttribute('id', 'icor-sqlv-pie-doughnut');
+    cb.setAttribute('aria-label', 'Cut a hole in the middle (a doughnut)');
+    const lbl = row.createEl('label', { text: 'Cut a hole in the middle (a doughnut)' });
+    lbl.setAttribute('for', 'icor-sqlv-pie-doughnut');
+    cb.addEventListener('change', () => { s.pieDoughnut = cb.checked; this.touch(); });
   }
 
   renderSegmentColors(form) {
@@ -6514,7 +6638,7 @@ class WidgetFormModal extends Modal {
       if (!levels.ok) return levels;
       const sqlDelta = this.headerDeltaFromForm(tile.viz, y.length);
       if (!sqlDelta.ok) return sqlDelta;
-      const score = s.rangeColumn.trim() && (tile.viz === 'stat' || tile.viz === 'segments') && levels.ranges
+      const score = s.rangeColumn.trim() && (tile.viz === 'stat' || isPartsViz(tile.viz)) && levels.ranges
         ? checkRangeColumn(s.rangeColumn, tile.viz, levels.ranges, y, 'This widget')
         : { ok: true };
       if (!score.ok) return score;
@@ -7269,6 +7393,7 @@ class WidgetFormModal extends Modal {
     const names = levels.map((l) => l.name);
     const wrap = this.field(form, { label: 'Value levels', optional: true });
     const what = viz === 'segments' ? 'Mark the whole bar, and show a pill, by where the judged value lands.'
+      : viz === 'pie' ? 'Mark the whole chart, and show a pill, by where the judged value lands.'
       : viz === 'heatmap' ? 'Colour each cell by where its value lands.'
       : viz === 'calendar' ? 'Colour each day by where its value lands.'
       : viz === 'bullet' ? 'Shade the scale behind the bars in bands, by where each range falls.'
@@ -7562,6 +7687,7 @@ class WidgetFormModal extends Modal {
       onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; if (v === 'bullet' && s.x === 'x') s.x = ''; this.renderForm(); this.touch(); },
     });
     if (s.viz === 'segments') this.renderSegmentsFields(form);
+    if (s.viz === 'pie') this.renderPieFields(form);
     if (s.viz === 'heatmap') this.renderHeatmapFields(form);
     if (s.viz === 'calendar') this.renderCalendarFields(form);
     if (s.viz === 'bullet') this.renderBulletFields(form);
@@ -7614,7 +7740,7 @@ class WidgetFormModal extends Modal {
         onInput: (v) => { s.sparklines = v; this.touch(); },
       });
     }
-    if (s.viz === 'segments') {
+    if (isPartsViz(s.viz)) {
       this.columnField(form, { label: 'Judge the ranges on column', optional: true, noneLabel: 'None (needed when there are ranges)', value: s.rangeColumn, onChange: (v) => { s.rangeColumn = v; this.touch(); } });
       this.renderSegmentColors(form);
     }
@@ -7962,8 +8088,8 @@ class SqliteViewerSettingTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName('How a level shows on a segments bar')
-      .setDesc('The coloured mark a segments bar gets when the value its ranges judge lands on a level. "Same" follows the setting above.')
+      .setName('How a level shows on a segments bar or pie chart')
+      .setDesc('The coloured mark a segments bar or a pie chart gets when the value its ranges judge lands on a level. "Same" follows the setting above.')
       .addDropdown((d) => {
         for (const [value, label] of Object.entries(LEVEL_LOOKS.segments)) d.addOption(value, label);
         d.setValue(normalizeLevelLooks(settings.levelLooks).segments);
@@ -8528,6 +8654,32 @@ segments
 
 Shared: value levels, hint and footnote.
 
+## Pie or doughnut chart
+
+*Sample: a doughnut chart of orders by channel, with its legend.*
+
+\`\`\`sqlite-viewer-sample
+pie
+\`\`\`
+
+**What it shows:** a circle split into slices, each as big as its share of the total, starting at twelve o'clock and going clockwise in the order of the rows. A legend names every part with its value and share.
+
+**Good for:**
+- Orders by channel.
+- This month's spending by category.
+- Time by project, when a few big parts matter more than small differences.
+
+**What the query returns:** one row per part, in order: a name column and a number column. Use a part-to-whole bar when there are many small parts; a pie reads best with five or fewer.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Part name column" | The column that names each part. | |
+| "Part size column" | The number column that sizes each part. | |
+| "Cut a hole in the middle (a doughnut)" | Draws a doughnut and writes the total in the hole. | Off: a full pie |
+| "Part colours" | A colour per part, as on the part-to-whole bar. | "Theme colour": the theme's colours in turn |
+
+Shared: value levels, hint and footnote. The theme has five series colours; from the sixth part on, parts share one faint colour, so group small parts in the query.
+
 ## Heatmap
 
 *Sample: a heatmap of orders by weekday and hour, coloured by value levels.*
@@ -8688,7 +8840,7 @@ Value levels colour a widget by where its number lands, like Good, Watch and Ale
 | Panel label | What it does | Default |
 | --- | --- | --- |
 | "Value levels" | One row per range: "from" and "to" ("lowest value (empty for no limit)", "highest value (empty for no limit)", both ends inside), "level", and "pill text (optional)": "short text shown as a pill (optional)" by the title. "+ Add range" adds one; "+ Anything else" adds a last range that catches every other number. | No ranges |
-| "Judge the ranges on column" | One big number and segments: judge on another column of the first row, like a score. On segments its "None (needed when there are ranges)" must be changed once ranges exist. | "empty: the shown value" |
+| "Judge the ranges on column" | One big number, segments and pie: judge on another column of the first row, like a score. On segments and pie its "None (needed when there are ranges)" must be changed once ranges exist. | "empty: the shown value" |
 | "Colours for this widget" | Changes a level's colour on this widget only: "Settings colour", a theme colour or "Custom colour". A changed level reads "Changed for this widget"; "Reset to settings" undoes it. | "Settings colour" |
 
 ### Change and roll-up
@@ -8884,7 +9036,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes \`title\` (text), \`viz\` (one of \`line\`, \`bar\`, \`stat\`,
-\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`heatmap\`, \`calendar\`, \`text\`), \`layout\`
+\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`pie\`, \`heatmap\`, \`calendar\`, \`text\`), \`layout\`
 (\`{x, y, w, h}\`, whole cells, \`w\` and \`h\` 1 to 12), and, all but \`divider\`,
 \`unit\` (text), \`hint\` (text, up to 60 characters) and \`footnote\` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -8905,6 +9057,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`scatter\` | \`sql\`, \`x\` (number column), \`y\` (one number column) | \`colorBy\` (column), \`trend\` (false), \`color\` (theme; one colour only, so not with \`colorBy\`), \`xMin\`, \`xMax\`, \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\`, \`refLines\`, \`zones\`; never \`xLabelEvery\`, \`band\`, \`headerDelta\`, \`chartCaption\`, built \`source\` |
 | \`bullet\` | \`sql\`, \`y\` (one number column: the actual value) | \`x\` (column naming each bar), \`target\` (column of targets), \`scaleMin\`, \`scaleMax\` (default zero up to the largest value, target or range end), \`ranges\` (the bands behind the bars), \`levelColors\`; never \`color\`, \`rangeColumn\`, built \`source\` |
 | \`segments\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`segmentColors\` (\`{"Part name": colour}\`), \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
+| \`pie\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`doughnut\` (true: a hole with the total in it), \`segmentColors\`, \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
 | \`heatmap\` | \`sql\`, \`row\`, \`column\`, \`value\` | \`ranges\` (without them every cell is grey), \`levelColors\`, \`marker\`, \`markerColor\`, \`markerLabel\`, \`highlight\` (\`"hour"\`, \`"day"\`, \`"weekday"\`), \`cells\` (\`"square"\`, \`"fill"\`; default thin rows), \`columnLabelEvery\` (whole number) |
 | \`calendar\` | \`sql\`, \`date\` (column of days), \`value\` (column) | \`ranges\` (without them every day with data is grey), \`levelColors\`, \`weekStart\` (\`"sunday"\` or \`"monday"\`; left out, the plugin setting "Week starts on", Sunday unless changed), \`year\` (a four-digit year; default the last 53 weeks up to the newest day) |
 | \`text\` | \`text\` (up to 2,000 characters) or \`sql\`, never both | \`line\` (true: one thin strip, no title) |
@@ -8950,6 +9103,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`combo\` | One row per x value, the \`x\` column and one column per series. An empty cell is a gap, never zero. |
 | \`scatter\` | One row per point: \`x\` and \`y\` are number columns, and \`colorBy\`, if set, names the group of the point. A row with no number in \`x\` or \`y\` is left out, never drawn at zero. Dates and text in \`x\` are not numbers: turn a date into one in SQL, like \`julianday(day) - julianday('2026-01-01')\`. |
 | \`segments\` | One row per part, in order, up to 12: the \`x\` column names it, the \`y\` column (a number, 0 or more) sizes it. With ranges, \`rangeColumn\` is read from the first row. |
+| \`pie\` | The same rows as \`segments\`: one per part, in order, up to 12, \`x\` names it and \`y\` sizes it. Slices run clockwise from twelve o'clock; a part of 0 has no slice but stays in the legend. |
 | \`bullet\` | One row per bar, up to 12, in order: the \`x\` column labels it, the \`y\` column is its actual value, the \`target\` column its target. All the bars share one scale, so give them one unit, or write each as a percent of its target. A row with no number in \`y\` shows "no data". |
 | \`calendar\` | One row per day: \`date\` (written \`YYYY-MM-DD\`, a time after it is ignored) and \`value\` (a number). A day with no row stays empty; a day twice takes the later row. The view ends at the newest \`date\`, not at today, so a lagging sync still fills the grid. |
 | \`heatmap\` | One row per cell: \`row\`, \`column\`, \`value\` (a number), and the \`marker\` column if used. Rows and columns appear in the order the query returns them. For \`highlight\`, name columns 0 to 23 (hours), dates as \`YYYY-MM-DD\`, or weekdays like \`Monday\` or \`Mon\`. |
@@ -8984,7 +9138,7 @@ build widgets the panel can show in full:
 - \`y\` on a combo (it takes \`series\`), \`color\` on a chart with two or more
   series, \`band\` on a bar or a built widget, \`rangeColumn\` or \`captions\` on
   a built widget: the file does not read.
-- A segments bar with ranges and no \`rangeColumn\`.
+- A segments bar or a pie chart with ranges and no \`rangeColumn\`.
 - A divider with a \`layout\` taller than 1, or with \`sql\`.
 - Dates stored as text in another format (\`31/01/2026\`): they neither sort
   nor compare. Convert them in SQL or pick another column.
@@ -9084,6 +9238,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Footnote under the widget" | \`footnote\` |
 | "Series" | \`series\` |
 | "Part colours" | \`segmentColors\` |
+| "Cut a hole in the middle (a doughnut)" | \`doughnut\` |
 | "Row labels column", "Column labels column", "Cell value column" | \`row\`, \`column\`, \`value\` |
 | "Dot column", "Dot colour", "Dot label in the legend" | \`marker\`, \`markerColor\`, \`markerLabel\` |
 | "Highlight", "Cells", "Label every Nth column" | \`highlight\`, \`cells\`, \`columnLabelEvery\` |
@@ -9094,7 +9249,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - \`viz\`: the type. \`line\`, \`bar\`, \`stat\` (one big number), \`table\`,
-  \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`heatmap\`, \`calendar\` or \`text\`.
+  \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`pie\`, \`heatmap\`, \`calendar\` or \`text\`.
 - \`title\`: the name on top of the widget.
 - \`unit\`: shown with the values, like "orders" or "%".
 - \`layout\`: the widget's place on the grid, \`{"x":0,"y":0,"w":2,"h":2}\` in
@@ -9210,7 +9365,7 @@ first column); a built stat its one value.
   unset, the next column.
 - \`ranges\`, \`levelColors\`, \`rangeColumn\`: value levels, below.
 
-### Value levels (stat, segments, heatmap, calendar, bullet)
+### Value levels (stat, segments, pie, heatmap, calendar, bullet)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -9222,15 +9377,15 @@ live in the plugin settings, not in the file. A widget lists its own steps:
 - \`levelColors\`: a different colour for a level on this widget only,
   like \`{"Good": "#2a7fff"}\`.
 - \`rangeColumn\`: judge the ranges on another column of the first row
-  (SQL stat, and needed on a segments bar).
+  (SQL stat, and needed on a segments bar or a pie chart).
 
 A range naming a level the settings do not have draws neutral. A dashboard
 shared with someone else needs its levels in their settings too, or should
 use the three default names.
 
 How a level shows on a widget is a setting too: rail, outline or tint for
-"One big number", and the same choice for a segments bar (by default the
-same look as "One big number").
+"One big number", and the same choice for a segments bar and a pie chart (by
+default the same look as "One big number").
 
 ### Table
 
@@ -9339,6 +9494,24 @@ share. One row per part, in order, up to 12.
 - \`ranges\` (with \`rangeColumn\`) and \`levelColors\`: a level pill on the
   title row and the level look on the whole bar.
 
+### Pie chart
+
+\`"viz": "pie"\`: a circle split into the query's rows, each slice as big as its
+share, clockwise from twelve o'clock. The same columns as a segments bar.
+
+\`\`\`json
+{ "title": "Orders by channel", "viz": "pie", "x": "channel", "y": "orders",
+  "sql": "SELECT channel, SUM(orders) AS orders FROM sales GROUP BY channel ORDER BY orders DESC",
+  "doughnut": true }
+\`\`\`
+
+- \`x\`: the column naming each part. \`y\`: the one column sizing it. Up to 12
+  parts; the theme has five series colours, so from the sixth part on they
+  share one faint colour. Group small parts in the query.
+- \`doughnut\`: true cuts a hole in the middle and writes the total in it.
+- \`segmentColors\`, \`ranges\` (with \`rangeColumn\`) and \`levelColors\` work as on
+  a segments bar.
+
 ### Heatmap
 
 \`"viz": "heatmap"\`: a grid with one cell per row of the query, placed by its
@@ -9409,8 +9582,8 @@ column where a heatmap reads a row and a column.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 5, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 6, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 6, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 7, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -9497,6 +9670,11 @@ const WIDGET_SAMPLES = {
     size: 'short',
     spec: { title: 'Tasks by status', viz: 'segments', x: 'status', y: ['tasks'], unit: 'tasks' },
     table: { columns: ['status', 'tasks'], rows: [['To do', 8], ['Doing', 5], ['Done', 12]] },
+  },
+  pie: {
+    size: 'chart',
+    spec: { title: 'Orders by channel', viz: 'pie', x: 'channel', y: ['orders'], unit: 'orders', doughnut: true },
+    table: { columns: ['channel', 'orders'], rows: [['Web', 1240], ['Shop', 612], ['Phone', 238], ['Email', 96]] },
   },
   heatmap: {
     size: 'chart',
@@ -10147,7 +10325,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 
 /* The pure library, exposed for the gates. */
 IcorSqliteViewerPlugin.lib = {
-  checkSegments, segmentsOf,
+  checkSegments, segmentsOf, checkPie, pieOf, piePath, isPartsViz,
   checkMeter, meterFill,
   checkHeatmap, heatmapHighlight, heatmapGrid,
   checkTextTile, isThinTile, drawsNoData, textOf, FORM_VIZ,

@@ -58,7 +58,7 @@ test('every sample is a widget the plugin would accept in a dashboard file', () 
 test('every sample draws with the real renderer, no error, in the plugin\'s token scope', () => {
   const expect = {
     line: 'icor-sqlv-chart-box', bar: 'icor-sqlv-chart-box', combo: 'icor-sqlv-chart-box', scatter: 'icor-sqlv-chart-box', bullet: 'icor-sqlv-bullet-track',
-    stat: 'icor-sqlv-meter', table: 'icor-sqlv-table', segments: 'icor-sqlv-segments-bar',
+    stat: 'icor-sqlv-meter', table: 'icor-sqlv-table', segments: 'icor-sqlv-segments-bar', pie: 'icor-sqlv-pie',
     heatmap: 'icor-sqlv-heatmap-cell', calendar: 'icor-sqlv-calendar-cell', text: 'icor-sqlv-text-para', divider: 'icor-sqlv-divider-heading',
   };
   for (const word of lib.VIZ_KINDS) {
@@ -91,7 +91,7 @@ test('every sample draws with the real renderer, no error, in the plugin\'s toke
 });
 
 test('a block with an unknown word, or none, shows a short line instead of failing', () => {
-  for (const word of ['pie', '', '  ', 'toString', 'constructor']) {
+  for (const word of ['doughnut', '', '  ', 'toString', 'constructor']) {
     const el = new obsidian.Modal({}).contentEl;
     assert.equal(lib.renderWidgetSample(el, word, []), false, JSON.stringify(word));
     const line = byClass(el, 'icor-sqlv-sample-missing')[0];
