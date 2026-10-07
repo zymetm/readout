@@ -13,6 +13,7 @@ export const RESULTS = {
   grid: { columns: ['day', 'hr', 'minutes', 'meeting'], rows: [['Mon', '09', 30, 1], ['Mon', '10', 50, 0], ['Tue', '09', 10, 0]] },
   words: { columns: ['line'], rows: [['Data through Jan 2']] },
   one: { columns: ['n', 'basis'], rows: [[42, 'of 50']] },
+  goals: { columns: ['who', 'walks', 'plan'], rows: [['Ana', 50, 60], ['Ben', 100, 80]] },
   plot: { columns: ['spend', 'orders', 'channel'], rows: [[10, 12, 'Web'], [20, 25, 'Shop'], [30, 31, 'Web']] },
 };
 

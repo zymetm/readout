@@ -97,8 +97,8 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Unit" | `unit` |
 | "Size", "Width" | `layout` |
 | "SQL" | `sql` |
-| "X column", "Part name column" | `x` |
-| "Y columns (comma-separated)", "Y column", "Value column", "Part size column" | `y` |
+| "X column", "Part name column", "Label column" | `x` |
+| "Y columns (comma-separated)", "Y column", "Actual value column", "Value column", "Part size column" | `y` |
 | "Stack the series on top of each other", "Stack the bars on top of each other" | `stack` |
 | "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | `source`: `database`, `table`, `metric`, `agg`, `timeColumn`, `series`, `groupBy`, `filters`, `timeframe` |
 | "Compare with" | `compare` |
@@ -115,6 +115,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Colour the points by column" | `colorBy` |
 | "Draw a trend line through the points" | `trend` |
 | "Lowest x value", "Highest x value" | `xMin`, `xMax` |
+| "Target column", "Lowest value on the scale", "Highest value on the scale" | `target`, `scaleMin`, `scaleMax` |
 | "Scrub line colour" | `guideColor` |
 | "Meter under the number" | `meter` |
 | "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact` (on the right axis `y2Min` ... `y2TickCompact`) |
@@ -137,7 +138,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `scatter`, `segments`, `heatmap`, `calendar` or `text`.
+  `divider`, `combo`, `scatter`, `bullet`, `segments`, `heatmap`, `calendar` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -253,7 +254,7 @@ first column); a built stat its one value.
   unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
-### Value levels (stat, segments, heatmap, calendar)
+### Value levels (stat, segments, heatmap, calendar, bullet)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -329,6 +330,29 @@ or the right axis. One row per x value; an empty cell is a gap, never zero.
   named in the legend; hovering it reads its slope and r squared.
 - `xMin`, `xMax`, and the y axis fields, `refLines` and `zones`: as above.
   Hovering a point reads its numbers.
+
+### Bullet chart
+
+`"viz": "bullet"`: for each row, a bar for the actual value against a mark
+for its target, on one scale shaded in bands by the value levels.
+
+```json
+{ "title": "Sales against target", "viz": "bullet", "x": "channel", "y": "sales", "target": "goal",
+  "sql": "SELECT channel, SUM(revenue) AS sales, 1000 AS goal FROM sales GROUP BY channel ORDER BY channel",
+  "ranges": [{ "low": 1000, "level": "Good" }, { "low": 600, "level": "Watch" }, { "level": "Alert" }],
+  "scaleMax": 1500 }
+```
+
+- `y`: the actual value, one number column. `x`: the column that labels each
+  bar; left out, the bars have no labels. `target`: the column of targets,
+  drawn as a mark; left out, no marks.
+- `ranges`, `levelColors`: the bands, each range in its level's colour behind
+  the bars. A gap between ranges stays plain; two ranges written for whole
+  numbers (79 and 80) read as one band.
+- `scaleMin`, `scaleMax`: the ends of the one scale all the bars share. Left
+  out, the scale runs from zero (or the lowest value, below zero) up to the
+  largest value, target or range end, on a round number. A value past the end
+  is drawn at the end.
 
 ### Segments bar
 

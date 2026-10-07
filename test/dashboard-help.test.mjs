@@ -111,7 +111,7 @@ test('the help file is the widget reference: no file format, and a pointer to th
 });
 
 test('every widget type has its own section, and the shared settings theirs', () => {
-  for (const heading of ['## Line chart and bar chart', '## Bars and lines (combo)', '## Scatter chart', '## One big number', '## Table', '## Part-to-whole bar (segments)', '## Heatmap', '## Year calendar', '## Text', '## Section divider', '## Settings shared by several widgets']) {
+  for (const heading of ['## Line chart and bar chart', '## Bars and lines (combo)', '## Scatter chart', '## Bullet chart', '## One big number', '## Table', '## Part-to-whole bar (segments)', '## Heatmap', '## Year calendar', '## Text', '## Section divider', '## Settings shared by several widgets']) {
     assert.ok(HELP.includes('\n' + heading + '\n'), heading);
   }
   for (const family of ['### Colours and scrub line', '### Number size', '### Value levels', '### Change and roll-up', '### Meter under the number', '### Axis', '### Guide lines and zones', '### Band', '### Hint and footnote']) {
@@ -148,7 +148,7 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [4, '29e1eb39'], 'AI-WIDGET-GUIDE.md': [4, 'ae3434f1'] };
+  const pinned = { 'README.md': [4, '7751d7e1'], 'AI-WIDGET-GUIDE.md': [4, '9b3ec7fa'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }

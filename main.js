@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'segments', 'heatmap', 'calendar', 'text']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'bullet', 'segments', 'heatmap', 'calendar', 'text']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -540,7 +540,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, segments, heatmap, calendar, text.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, bullet, segments, heatmap, calendar, text.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -589,6 +589,7 @@ function parseDashboardSpec(text) {
       if (t.viz === 'heatmap') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a heatmap.' };
       if (t.viz === 'scatter') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a scatter chart.' };
       if (t.viz === 'calendar') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a calendar.' };
+      if (t.viz === 'bullet') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a bullet chart.' };
       const check = checkWidgetSource(t.source, t.viz, at);
       if (!check.ok) return check;
       if (!t.source.database && !database) return { ok: false, reason: at + ' needs a database, on the widget or on the dashboard.' };
@@ -678,6 +679,8 @@ function parseDashboardSpec(text) {
     if (!sqlSize.ok) return sqlSize;
     const scatterCheck = checkScatter(t, y, at);
     if (!scatterCheck.ok) return scatterCheck;
+    const bulletCheck = checkBullet(t, y, at);
+    if (!bulletCheck.ok) return bulletCheck;
     const sqlColors = checkChartColors(t, t.viz, t.viz === 'combo' || (t.viz === 'scatter' && t.colorBy !== undefined) ? 2 : y.length, at);
     if (!sqlColors.ok) return sqlColors;
     const sqlAxis = checkChartAxis(t, t.viz, at);
@@ -694,7 +697,7 @@ function parseDashboardSpec(text) {
     if (!heatCheck.ok) return heatCheck;
     const calCheck = checkCalendar(t, at);
     if (!calCheck.ok) return calCheck;
-    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withBullet(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -703,7 +706,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), bulletCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -1540,13 +1543,13 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['calendar', 'Year calendar'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['bullet', 'Bullet chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['calendar', 'Year calendar'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
-const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap', 'calendar']);
+const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap', 'calendar', 'bullet']);
 
 /* The heatmap fields the form keeps, by state key and file key. */
 const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery'], ['heatCells', 'cells']];
@@ -1651,6 +1654,7 @@ function specToJson(spec) {
       if (t.viz === 'heatmap') for (const key of HEAT_KEYS) if (t[key] !== undefined) tile[key] = t[key];
       if (t.viz === 'scatter') for (const key of SCATTER_KEYS) if (t[key] !== undefined) tile[key] = t[key];
       if (t.viz === 'calendar') for (const key of ['date', 'value', 'weekStart', 'year']) if (t[key] !== undefined) tile[key] = t[key];
+      if (t.viz === 'bullet') for (const key of BULLET_KEYS) if (t[key] !== undefined) tile[key] = t[key];
     }
     return tile;
   });
@@ -2286,9 +2290,9 @@ function heatmapGrid(table, tile) {
   return { rows, cols, cell: (rk, ck) => cells.get(rk + '\u0000' + ck) || null };
 }
 
-/* The legend of a coloured grid: a chip for each range, in its level's
- * colour, and one for a day or cell with no data. */
-function renderRangeLegend(legend, tile, levels) {
+/* The legend of a coloured widget: a chip for each range, in its level's
+ * colour, and (unless `withEmpty` is false) one for a cell with no data. */
+function renderRangeLegend(legend, tile, levels, withEmpty) {
   for (const range of tile.ranges || []) {
     const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
     const own = tile.levelColors && Object.prototype.hasOwnProperty.call(tile.levelColors, range.level) ? tile.levelColors[range.level] : undefined;
@@ -2298,6 +2302,7 @@ function renderRangeLegend(legend, tile, levels) {
     if (isLevelColor(color)) chip.style.setProperty('background', color);
     item.createSpan({ cls: 'icor-sqlv-legend-name', text: range.label || range.level });
   }
+  if (withEmpty === false) return;
   const none = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
   none.createSpan({ cls: 'icor-sqlv-legend-chip is-empty' });
   none.createSpan({ cls: 'icor-sqlv-legend-name', text: 'no data' });
@@ -2518,6 +2523,157 @@ function renderCalendar(parentEl, table, tile, extras) {
   renderRangeLegend(wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-calendar-legend' }), tile, levels);
 }
 
+/* A bullet chart: for each row of the query, a bar for the actual value
+ * against a mark for its target, on a scale shaded in bands, as in a
+ * goal tracker: sleep against eight hours, spend against a budget, with
+ * "poor, fair, good" behind. "y" is the actual value, "x" (optional) the
+ * label of each bar, "target" (optional) the column of targets; the bands
+ * are the value levels of "ranges", drawn behind the bars in their level's
+ * colour, so what is "good" is written once, as in a stat. All the bars of
+ * one widget share one scale: "scaleMin" and "scaleMax" fix its ends,
+ * otherwise it runs from zero to the largest value, target or range end on
+ * a round number. Returns { ok, bullet } or { ok, reason }. */
+const BULLET_KEYS = ['target', 'scaleMin', 'scaleMax'];
+const BULLET_MAX = 12;
+
+function checkBullet(t, y, at) {
+  if (t.viz !== 'bullet') {
+    for (const key of BULLET_KEYS) {
+      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a bullet chart.' };
+    }
+    return { ok: true, bullet: undefined };
+  }
+  if (y.length !== 1) return { ok: false, reason: at + ': a bullet chart needs one "y" column: the actual value of each bar.' };
+  if (t.x !== undefined && typeof t.x !== 'string') return { ok: false, reason: at + ': "x" must be the name of the column that labels each bar, or left out.' };
+  const bullet = {};
+  if (t.target !== undefined) {
+    if (typeof t.target !== 'string' || !t.target.trim()) return { ok: false, reason: at + ': "target" must be the name of the column that holds each bar\'s target.' };
+    if (t.target.trim() === y[0]) return { ok: false, reason: at + ': "target" must be a different column from "y".' };
+    bullet.target = t.target.trim();
+  }
+  for (const key of ['scaleMin', 'scaleMax']) {
+    if (t[key] === undefined) continue;
+    if (typeof t[key] !== 'number' || !Number.isFinite(t[key])) return { ok: false, reason: at + ': "' + key + '" must be a number.' };
+    bullet[key] = t[key];
+  }
+  if (bullet.scaleMin !== undefined && bullet.scaleMax !== undefined && bullet.scaleMin >= bullet.scaleMax) {
+    return { ok: false, reason: at + ': "scaleMin" (' + bullet.scaleMin + ') must be below "scaleMax" (' + bullet.scaleMax + ').' };
+  }
+  return { ok: true, bullet };
+}
+
+function withBullet(tile, check) {
+  if (check.bullet) Object.assign(tile, check.bullet);
+  return tile;
+}
+
+/* The bars of a bullet chart, in the query's order, up to the cap:
+ * [{ label, actual, target }]. An actual or a target that is not a number
+ * is NaN, never zero. Pure. */
+function bulletRowsOf(table, tile) {
+  const yi = columnIndex(table.columns, (tile.y || [])[0]);
+  if (yi < 0) return [];
+  const xi = tile.x ? columnIndex(table.columns, tile.x) : -1;
+  const ti = tile.target ? columnIndex(table.columns, tile.target) : -1;
+  return table.rows.slice(0, BULLET_MAX).map((row) => ({
+    label: xi < 0 || row[xi] === null || row[xi] === undefined ? '' : String(row[xi]),
+    actual: cellNumber(row[yi]),
+    target: ti < 0 ? NaN : cellNumber(row[ti]),
+  }));
+}
+
+/* The one scale of a bullet chart: the tile's own ends, or zero (or the
+ * lowest value, when something is below zero) up to the largest actual,
+ * target or range end on a round number. Pure. */
+function bulletScaleOf(rows, tile) {
+  const nums = [];
+  for (const r of rows) for (const v of [r.actual, r.target]) if (Number.isFinite(v)) nums.push(v);
+  for (const r of tile.ranges || []) for (const v of [r.low, r.high]) if (typeof v === 'number' && Number.isFinite(v)) nums.push(v);
+  const min = typeof tile.scaleMin === 'number' ? tile.scaleMin : Math.min(0, ...nums);
+  let max = typeof tile.scaleMax === 'number' ? tile.scaleMax : (nums.length ? niceScale(min, Math.max(...nums), 4).max : min + 1);
+  if (max <= min) max = min + 1;
+  return { min, max };
+}
+
+/* The bands behind the bars: the scale cut at every range edge inside it,
+ * each piece shaded by the range that holds its middle (the first range
+ * wins, as everywhere), or left plain where none does. Ranges for whole
+ * numbers are written 79 and 80, which leaves a piece one unit wide
+ * between them on a scale that is not whole numbers; a piece no wider than
+ * a fiftieth of the scale is too thin to see as a band and joins the one
+ * before it (or after it, at the start), so it does not read as a stripe
+ * of the wrong colour. Pure. */
+const BULLET_SLIVER = 0.02;
+
+function bulletBands(tile, min, max) {
+  const cuts = new Set([min, max]);
+  for (const r of tile.ranges || []) {
+    for (const v of [r.low, r.high]) if (typeof v === 'number' && v > min && v < max) cuts.add(v);
+  }
+  const edges = [...cuts].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const piece = { from: edges[i], to: edges[i + 1], range: levelOf((edges[i] + edges[i + 1]) / 2, tile.ranges) };
+    const last = out[out.length - 1];
+    if (last && piece.to - piece.from <= (max - min) * BULLET_SLIVER) last.to = piece.to;
+    else out.push(piece);
+  }
+  if (out.length > 1 && out[0].to - out[0].from <= (max - min) * BULLET_SLIVER) {
+    out[1].from = out[0].from;
+    out.shift();
+  }
+  return out;
+}
+
+function renderBullet(parentEl, table, tile, extras) {
+  const rows = bulletRowsOf(table, tile);
+  if (!rows.length) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return;
+  }
+  const levels = extras && extras.levels;
+  const unit = tile.unit ? (tile.unit === '%' ? '%' : ' ' + tile.unit) : '';
+  const { min, max } = bulletScaleOf(rows, tile);
+  const pct = (v) => (Math.max(0, Math.min(1, (v - min) / (max - min))) * 100).toFixed(3) + '%';
+  const bands = bulletBands(tile, min, max);
+  const labelled = rows.some((r) => r.label);
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-bullet' });
+  /* One grid for every bar, so the tracks line up on the shared scale. */
+  const list = wrap.createDiv({ cls: 'icor-sqlv-bullet-rows' + (labelled ? '' : ' is-unlabelled') });
+  for (const r of rows) {
+    const row = list.createDiv({ cls: 'icor-sqlv-bullet-row' });
+    if (labelled) row.createSpan({ cls: 'icor-sqlv-bullet-label', text: r.label }).setAttribute('title', r.label);
+    const track = row.createDiv({ cls: 'icor-sqlv-bullet-track' });
+    for (const b of bands) {
+      if (!b.range) continue;
+      const band = track.createDiv({ cls: 'icor-sqlv-bullet-band' });
+      band.style.setProperty('left', pct(b.from));
+      band.style.setProperty('width', (((b.to - b.from) / (max - min)) * 100).toFixed(3) + '%');
+      const level = resolveLevel((b.from + b.to) / 2, tile, levels);
+      if (level && level.known && level.color) band.style.setProperty('background', level.color);
+      else band.addClass('is-neutral');
+    }
+    const has = Number.isFinite(r.actual);
+    if (has) track.createDiv({ cls: 'icor-sqlv-bullet-actual' }).style.setProperty('width', pct(r.actual));
+    const hasTarget = Number.isFinite(r.target);
+    if (hasTarget) track.createDiv({ cls: 'icor-sqlv-bullet-target' }).style.setProperty('left', pct(r.target));
+    const level = has ? resolveLevel(r.actual, tile, levels) : null;
+    const said = !has ? 'no data' : formatNumber(r.actual) + unit + (hasTarget ? ' of ' + formatNumber(r.target) + unit : '');
+    const detail = (r.label ? r.label + ': ' : '') + said + (level && (level.label || level.name) ? ' · ' + (level.label || level.name) : '');
+    track.setAttribute('role', 'img');
+    track.setAttribute('aria-label', detail);
+    track.setAttribute('title', detail);
+    row.createSpan({ cls: 'icor-sqlv-bullet-value', text: !has ? 'no data' : formatNumber(r.actual) + (hasTarget ? ' / ' + formatNumber(r.target) : '') + unit });
+  }
+  const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-bullet-legend' });
+  renderRangeLegend(legend, tile, levels, false);
+  if (rows.some((r) => Number.isFinite(r.target))) {
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    item.createSpan({ cls: 'icor-sqlv-legend-chip is-target' });
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: 'target' });
+  }
+}
+
 /* The span a widget gets when its spec carries none (a 0.2.x file):
  * a stat is a small square, a chart a 2x2 block, a table a wide 3x2. */
 function defaultSpanFor(tile) {
@@ -2528,6 +2684,7 @@ function defaultSpanFor(tile) {
   if (tile.viz === 'segments') return { w: 3, h: 1 };
   if (tile.viz === 'heatmap') return { w: 4, h: 2 };
   if (tile.viz === 'calendar') return { w: 4, h: 2 };
+  if (tile.viz === 'bullet') return { w: 3, h: 1 };
   return { w: 2, h: 2 };
 }
 
@@ -2902,7 +3059,7 @@ function normalizeLevelLooks(raw) {
 /* Validate a tile's "ranges". Returns { ok, ranges } or { ok, reason }. */
 function checkRanges(raw, viz, at) {
   if (raw === undefined) return { ok: true, ranges: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar, a heatmap or a calendar.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar, a heatmap, a calendar or a bullet chart.' };
   if (!Array.isArray(raw)) return { ok: false, reason: at + ': "ranges" must be a list like [{"low": 18.5, "high": 24.9, "level": "Good"}].' };
   if (raw.length > RANGES_MAX) return { ok: false, reason: at + ': "ranges" can hold at most ' + RANGES_MAX + ' ranges.' };
   const out = [];
@@ -2949,7 +3106,7 @@ function checkRanges(raw, viz, at) {
  * override keeps the level's name and changes only its colour. */
 function checkLevelColors(raw, viz, at) {
   if (raw === undefined) return { ok: true, colors: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar, a heatmap or a calendar.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar' && viz !== 'bullet') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar, a heatmap, a calendar or a bullet chart.' };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#cc3311"}.' };
   }
@@ -3048,7 +3205,7 @@ function canSave(previewState) { return previewState === 'ok'; }
 /* What a widget type is called in the form, for the plain sentences. */
 const VIZ_NAMES = {
   line: 'a line chart', bar: 'a bar chart', scatter: 'a scatter chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
-  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', calendar: 'a year calendar', text: 'a text widget',
+  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', calendar: 'a year calendar', bullet: 'a bullet chart', text: 'a text widget',
 };
 
 /* A form field's text as a number: empty is "not set", anything else must
@@ -4202,7 +4359,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter', 'bullet']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -4350,6 +4507,7 @@ function drawTile(tileEl, tileSpec, table, extras) {
   else if (tileSpec.viz === 'scatter') renderScatterChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'heatmap') renderHeatmap(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'calendar') renderCalendar(body, table, tileSpec, extras);
+  else if (tileSpec.viz === 'bullet') renderBullet(body, table, tileSpec, extras);
   else renderResultTable(body, table, { maxRows: 50 });
 }
 
@@ -5502,6 +5660,9 @@ class WidgetFormModal extends Modal {
       xMax: existing && existing.xMax !== undefined ? String(existing.xMax) : '',
       scatterColorBy: existing && existing.colorBy ? existing.colorBy : '',
       scatterTrend: !!(existing && existing.trend === true),
+      bulletTarget: existing && existing.target ? existing.target : '',
+      scaleMin: existing && existing.scaleMin !== undefined ? String(existing.scaleMin) : '',
+      scaleMax: existing && existing.scaleMax !== undefined ? String(existing.scaleMax) : '',
       bandLow: existing && existing.band ? existing.band.low : '',
       bandHigh: existing && existing.band ? existing.band.high : '',
       bandOpacity: existing && existing.band && existing.band.opacity !== undefined ? String(existing.band.opacity) : '',
@@ -5708,6 +5869,14 @@ class WidgetFormModal extends Modal {
         }
       }
     }
+    if (viz === 'bullet') {
+      for (const [key, label] of [['scaleMin', 'Scale: the lowest value'], ['scaleMax', 'Scale: the highest value']]) {
+        const n = formNumber(s[key], label);
+        if (!n.ok) return n;
+        if (n.value !== undefined) raw[key] = n.value;
+      }
+      if (s.bulletTarget) raw.target = s.bulletTarget;
+    }
     if (viz === 'calendar') {
       for (const [key, file] of FORM_CAL_FIELDS) {
         const v = String(s[key] || '').trim();
@@ -5812,6 +5981,20 @@ class WidgetFormModal extends Modal {
     const lbl = row.createEl('label', { text: 'Draw a trend line through the points' });
     lbl.setAttribute('for', 'icor-sqlv-scatter-trend');
     cb.addEventListener('change', () => { s.scatterTrend = cb.checked; this.touch(); });
+  }
+
+  /* A bullet chart: a label column, the actual value, a target, and the
+   * ends of the shared scale. The bands are the value levels below. */
+  renderBulletFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'One bar for each row of the query: the actual value against a target mark, on one scale shaded in bands by the value levels below.' });
+    this.columnField(form, { label: 'Label column', optional: true, noneLabel: 'No labels', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
+    this.columnField(form, { label: 'Actual value column', value: s.y.split(',')[0].trim(), onChange: (v) => { s.y = v; this.touch(); } });
+    this.columnField(form, { label: 'Target column', optional: true, noneLabel: 'No target', value: s.bulletTarget, onChange: (v) => { s.bulletTarget = v; this.touch(); } });
+    for (const [key, label] of [['scaleMin', 'Lowest value on the scale'], ['scaleMax', 'Highest value on the scale']]) {
+      const input = this.textInput(form, { label, optional: true, value: s[key], placeholder: 'automatic', onInput: (v) => { s[key] = v; this.touch(); } });
+      input.setAttribute('inputmode', 'decimal');
+    }
   }
 
   /* A year calendar: the column of days, the column that colours each day,
@@ -6221,6 +6404,9 @@ class WidgetFormModal extends Modal {
       }
       if (tile.viz === 'scatter' && (!tile.x || y.length !== 1)) {
         return { ok: false, reason: 'A scatter chart needs the x column and one y column.' };
+      }
+      if (tile.viz === 'bullet' && y.length !== 1) {
+        return { ok: false, reason: 'A bullet chart needs one actual value column.' };
       }
       const levels = this.levelsFromForm(tile.viz);
       if (!levels.ok) return levels;
@@ -6983,6 +7169,7 @@ class WidgetFormModal extends Modal {
     const what = viz === 'segments' ? 'Mark the whole bar, and show a pill, by where the judged value lands.'
       : viz === 'heatmap' ? 'Colour each cell by where its value lands.'
       : viz === 'calendar' ? 'Colour each day by where its value lands.'
+      : viz === 'bullet' ? 'Shade the scale behind the bars in bands, by where each range falls.'
       : 'Colour the number by where it lands.';
     wrap.createDiv({ cls: 'icor-sqlv-note', text: what + ' The first range that holds it wins; leave low or high empty for no limit. The levels and their colours live in the plugin settings.' });
     const rows = wrap.createDiv({ cls: 'icor-sqlv-filter-rows icor-sqlv-range-rows' });
@@ -7270,11 +7457,12 @@ class WidgetFormModal extends Modal {
       label: 'Chart type',
       options: SQL_FORM_VIZ,
       value: s.viz,
-      onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; this.renderForm(); this.touch(); },
+      onChange: (v) => { if (v === 'divider') { this.toDivider(); return; } if (v === 'text') { this.toText(); return; } s.viz = v; if (v === 'bullet' && s.x === 'x') s.x = ''; this.renderForm(); this.touch(); },
     });
     if (s.viz === 'segments') this.renderSegmentsFields(form);
     if (s.viz === 'heatmap') this.renderHeatmapFields(form);
     if (s.viz === 'calendar') this.renderCalendarFields(form);
+    if (s.viz === 'bullet') this.renderBulletFields(form);
     if (s.viz === 'combo') this.renderComboFields(form);
     if (s.viz === 'scatter') this.renderScatterFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
@@ -8107,6 +8295,36 @@ scatter
 
 Shared: point colour, axis (with "Lowest x value" and "Highest x value"), guide lines and zones, hint and footnote.
 
+## Bullet chart
+
+*Sample: a bullet chart of sales against target by region, shaded by value levels.*
+
+\`\`\`sqlite-viewer-sample
+bullet
+\`\`\`
+
+**What it shows:** for each row, a bar for the actual value against a mark for its target, on one scale shaded in bands like poor, fair and good.
+
+**Good for:**
+- Sales per region against target.
+- Hours slept per night against a goal of eight.
+- Spend per category against budget.
+- Pages read per book against its length.
+
+**What the query returns:** one row per bar, up to 12: a label, the actual number and, for a target mark, the target number. All the bars share one scale, so give them one unit, or write each as a percent of its target.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Label column" | Names each bar. "No labels" draws the bars alone. | "No labels" |
+| "Actual value column" | The number each bar is as long as. | |
+| "Target column" | The number each target mark sits at. "No target" draws no marks. | "No target" |
+| "Lowest value on the scale" | Where the scale starts. Automatic: zero, or the lowest value when something is below zero. | "automatic" |
+| "Highest value on the scale" | Where the scale ends; a bigger value is drawn at the end. Automatic: the largest value, target or band end, on a round number. | "automatic" |
+
+The bands behind the bars are the value levels: each range is drawn as a band, in its level's colour.
+
+Shared: value levels, hint and footnote.
+
 ## One big number
 
 *Sample: one big number, orders this month, with a caption line, a meter and a level.*
@@ -8300,17 +8518,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Calendar | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | |
-| Number size | | | | | Yes | | | | | |
-| Value levels | | | | | Yes | | Yes | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | | |
-| Meter | | | | | Yes | | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | |
-| Band | SQL only | | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | |
+| Number size | | | | | | Yes | | | | | |
+| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | | |
+| Meter | | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
+| Band | SQL only | | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -8531,7 +8749,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes \`title\` (text), \`viz\` (one of \`line\`, \`bar\`, \`stat\`,
-\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`calendar\`, \`text\`), \`layout\`
+\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`heatmap\`, \`calendar\`, \`text\`), \`layout\`
 (\`{x, y, w, h}\`, whole cells, \`w\` and \`h\` 1 to 12), and, all but \`divider\`,
 \`unit\` (text), \`hint\` (text, up to 60 characters) and \`footnote\` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -8550,6 +8768,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`table\` | \`sql\` | none beyond the common fields |
 | \`combo\` | \`sql\`, \`x\`, \`series\` (1 to 8) | \`stack\` (false), right axis \`y2Min\`, \`y2Max\`, \`y2MaxLimit\`, \`y2Ticks\`, \`y2TickSuffix\`, \`y2TickCompact\`, \`y2Unit\`, left axis fields, \`refLines\`, \`zones\` (each with \`axis\`), \`guideColor\`; never \`y\`, \`color\`, \`band\`, \`headerDelta\`, \`chartCaption\` |
 | \`scatter\` | \`sql\`, \`x\` (number column), \`y\` (one number column) | \`colorBy\` (column), \`trend\` (false), \`color\` (theme; one colour only, so not with \`colorBy\`), \`xMin\`, \`xMax\`, \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\`, \`refLines\`, \`zones\`; never \`xLabelEvery\`, \`band\`, \`headerDelta\`, \`chartCaption\`, built \`source\` |
+| \`bullet\` | \`sql\`, \`y\` (one number column: the actual value) | \`x\` (column naming each bar), \`target\` (column of targets), \`scaleMin\`, \`scaleMax\` (default zero up to the largest value, target or range end), \`ranges\` (the bands behind the bars), \`levelColors\`; never \`color\`, \`rangeColumn\`, built \`source\` |
 | \`segments\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`segmentColors\` (\`{"Part name": colour}\`), \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
 | \`heatmap\` | \`sql\`, \`row\`, \`column\`, \`value\` | \`ranges\` (without them every cell is grey), \`levelColors\`, \`marker\`, \`markerColor\`, \`markerLabel\`, \`highlight\` (\`"hour"\`, \`"day"\`, \`"weekday"\`), \`cells\` (\`"square"\`, \`"fill"\`; default thin rows), \`columnLabelEvery\` (whole number) |
 | \`calendar\` | \`sql\`, \`date\` (column of days), \`value\` (column) | \`ranges\` (without them every day with data is grey), \`levelColors\`, \`weekStart\` (\`"sunday"\` default, \`"monday"\`), \`year\` (a four-digit year; default the last 53 weeks up to the newest day) |
@@ -8596,6 +8815,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`combo\` | One row per x value, the \`x\` column and one column per series. An empty cell is a gap, never zero. |
 | \`scatter\` | One row per point: \`x\` and \`y\` are number columns, and \`colorBy\`, if set, names the group of the point. A row with no number in \`x\` or \`y\` is left out, never drawn at zero. Dates and text in \`x\` are not numbers: turn a date into one in SQL, like \`julianday(day) - julianday('2026-01-01')\`. |
 | \`segments\` | One row per part, in order, up to 12: the \`x\` column names it, the \`y\` column (a number, 0 or more) sizes it. With ranges, \`rangeColumn\` is read from the first row. |
+| \`bullet\` | One row per bar, up to 12, in order: the \`x\` column labels it, the \`y\` column is its actual value, the \`target\` column its target. All the bars share one scale, so give them one unit, or write each as a percent of its target. A row with no number in \`y\` shows "no data". |
 | \`calendar\` | One row per day: \`date\` (written \`YYYY-MM-DD\`, a time after it is ignored) and \`value\` (a number). A day with no row stays empty; a day twice takes the later row. The view ends at the newest \`date\`, not at today, so a lagging sync still fills the grid. |
 | \`heatmap\` | One row per cell: \`row\`, \`column\`, \`value\` (a number), and the \`marker\` column if used. Rows and columns appear in the order the query returns them. For \`highlight\`, name columns 0 to 23 (hours), dates as \`YYYY-MM-DD\`, or weekdays like \`Monday\` or \`Mon\`. |
 | \`text\` (from SQL) | The first column of the first row, as plain text (not Markdown). |
@@ -8641,6 +8861,9 @@ build widgets the panel can show in full:
 - A scatter chart with a date or text in \`x\`: those rows are left out and the
   chart says "No numeric x and y values to draw." when none is left. Make \`x\`
   a number in the query.
+- Bars of different units in one bullet chart: they share one scale, so the
+  small ones vanish. Use one widget per unit, or write each bar as a percent
+  of its target.
 - A calendar whose \`date\` is not \`YYYY-MM-DD\` (\`31/01/2026\`, a name): those
   rows are skipped. Convert the date in SQL.
 - Writing a whole new file when one widget was asked for: other widgets'
@@ -8694,8 +8917,8 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Unit" | \`unit\` |
 | "Size", "Width" | \`layout\` |
 | "SQL" | \`sql\` |
-| "X column", "Part name column" | \`x\` |
-| "Y columns (comma-separated)", "Y column", "Value column", "Part size column" | \`y\` |
+| "X column", "Part name column", "Label column" | \`x\` |
+| "Y columns (comma-separated)", "Y column", "Actual value column", "Value column", "Part size column" | \`y\` |
 | "Stack the series on top of each other", "Stack the bars on top of each other" | \`stack\` |
 | "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | \`source\`: \`database\`, \`table\`, \`metric\`, \`agg\`, \`timeColumn\`, \`series\`, \`groupBy\`, \`filters\`, \`timeframe\` |
 | "Compare with" | \`compare\` |
@@ -8712,6 +8935,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Colour the points by column" | \`colorBy\` |
 | "Draw a trend line through the points" | \`trend\` |
 | "Lowest x value", "Highest x value" | \`xMin\`, \`xMax\` |
+| "Target column", "Lowest value on the scale", "Highest value on the scale" | \`target\`, \`scaleMin\`, \`scaleMax\` |
 | "Scrub line colour" | \`guideColor\` |
 | "Meter under the number" | \`meter\` |
 | "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\` (on the right axis \`y2Min\` ... \`y2TickCompact\`) |
@@ -8734,7 +8958,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - \`viz\`: the type. \`line\`, \`bar\`, \`stat\` (one big number), \`table\`,
-  \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`calendar\` or \`text\`.
+  \`divider\`, \`combo\`, \`scatter\`, \`bullet\`, \`segments\`, \`heatmap\`, \`calendar\` or \`text\`.
 - \`title\`: the name on top of the widget.
 - \`unit\`: shown with the values, like "orders" or "%".
 - \`layout\`: the widget's place on the grid, \`{"x":0,"y":0,"w":2,"h":2}\` in
@@ -8850,7 +9074,7 @@ first column); a built stat its one value.
   unset, the next column.
 - \`ranges\`, \`levelColors\`, \`rangeColumn\`: value levels, below.
 
-### Value levels (stat, segments, heatmap, calendar)
+### Value levels (stat, segments, heatmap, calendar, bullet)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -8926,6 +9150,29 @@ or the right axis. One row per x value; an empty cell is a gap, never zero.
   named in the legend; hovering it reads its slope and r squared.
 - \`xMin\`, \`xMax\`, and the y axis fields, \`refLines\` and \`zones\`: as above.
   Hovering a point reads its numbers.
+
+### Bullet chart
+
+\`"viz": "bullet"\`: for each row, a bar for the actual value against a mark
+for its target, on one scale shaded in bands by the value levels.
+
+\`\`\`json
+{ "title": "Sales against target", "viz": "bullet", "x": "channel", "y": "sales", "target": "goal",
+  "sql": "SELECT channel, SUM(revenue) AS sales, 1000 AS goal FROM sales GROUP BY channel ORDER BY channel",
+  "ranges": [{ "low": 1000, "level": "Good" }, { "low": 600, "level": "Watch" }, { "level": "Alert" }],
+  "scaleMax": 1500 }
+\`\`\`
+
+- \`y\`: the actual value, one number column. \`x\`: the column that labels each
+  bar; left out, the bars have no labels. \`target\`: the column of targets,
+  drawn as a mark; left out, no marks.
+- \`ranges\`, \`levelColors\`: the bands, each range in its level's colour behind
+  the bars. A gap between ranges stays plain; two ranges written for whole
+  numbers (79 and 80) read as one band.
+- \`scaleMin\`, \`scaleMax\`: the ends of the one scale all the bars share. Left
+  out, the scale runs from zero (or the lowest value, below zero) up to the
+  largest value, target or range end, on a round number. A value past the end
+  is drawn at the end.
 
 ### Segments bar
 
@@ -9101,6 +9348,12 @@ const WIDGET_SAMPLES = {
     spec: { title: 'Orders by weekday and hour', viz: 'heatmap', row: 'day', column: 'hour', value: 'orders', unit: 'orders', cells: 'fill',
       ranges: [{ low: 8, level: 'Good' }, { low: 4, level: 'Watch' }, { level: 'Alert' }] },
     table: { columns: ['day', 'hour', 'orders'], rows: SAMPLE_HEAT_ROWS },
+  },
+  bullet: {
+    size: 'short',
+    spec: { title: 'Sales against target, by region', viz: 'bullet', x: 'region', y: ['sales'], target: 'goal', unit: 'k', scaleMax: 350,
+      ranges: [{ low: 250, level: 'Good', label: 'on target' }, { low: 150, level: 'Watch', label: 'close' }, { level: 'Alert', label: 'behind' }] },
+    table: { columns: ['region', 'sales', 'goal'], rows: [['North', 275, 250], ['South', 190, 220], ['West', 140, 200]] },
   },
   calendar: {
     size: 'short',
@@ -9774,6 +10027,7 @@ IcorSqliteViewerPlugin.lib = {
   checkCombo,
   checkScatter, scatterOf, leastSquares, scatterXScale, renderScatterChart,
   checkCalendar, calendarOf, calendarDayOf, renderCalendar,
+  checkBullet, bulletRowsOf, bulletScaleOf, bulletBands, renderBullet,
   SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
 };
 

@@ -1893,6 +1893,72 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-calendar-cell.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline-subtle); }
 
+/* A bullet chart: a label, a track shaded in bands, the actual value as a
+ * bar across it and the target as a mark through it, and the numbers at the
+ * right. The bands are the value levels, a little see-through so the bar
+ * stays the darkest thing in the track. */
+.icor-sqlv-bullet { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
+
+.icor-sqlv-bullet-rows {
+  display: grid;
+  grid-template-columns: fit-content(30%) minmax(0, 1fr) max-content;
+  align-content: start;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.icor-sqlv-bullet-rows.is-unlabelled { grid-template-columns: minmax(0, 1fr) max-content; }
+
+/* A row is only a group: its label, track and numbers are cells of the one grid. */
+.icor-sqlv-bullet-row { display: contents; }
+
+.icor-sqlv-bullet-label,
+.icor-sqlv-bullet-value {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+}
+
+.icor-sqlv-bullet-label { overflow: hidden; text-overflow: ellipsis; }
+
+.icor-sqlv-bullet-value { font-variant-numeric: tabular-nums; }
+
+.icor-sqlv-bullet-track {
+  position: relative;
+  height: 18px;
+  overflow: hidden;
+  border-radius: var(--sqlv-r-micro);
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-bullet-band { position: absolute; top: 0; bottom: 0; opacity: 0.4; }
+
+.icor-sqlv-bullet-band.is-neutral { background: var(--sqlv-hairline); opacity: 1; }
+
+.icor-sqlv-bullet-actual {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 6px;
+  background: var(--sqlv-series-1);
+  border-radius: 0 var(--sqlv-r-micro) var(--sqlv-r-micro) 0;
+}
+
+.icor-sqlv-bullet-target {
+  position: absolute;
+  top: 2px;
+  height: 14px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--sqlv-fg);
+}
+
+.icor-sqlv-legend-chip.is-target { width: 2px; height: 12px; border-radius: 0; background: var(--sqlv-fg); margin: 0 4px; }
+
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at

@@ -21,6 +21,7 @@ export const SINK = [
     refLines: [{ y: 1, axis: 'right' }], zones: [{ from: 0, to: 1, color: '#228833', axis: 'right' }] },
   { title: 'Scatter', viz: 'scatter', sql: 'SELECT 1', x: 'spend', y: ['orders'], colorBy: 'channel', trend: true, xMin: 0, xMax: 100, yMin: 0, yMax: 10, yMaxLimit: 20, yTicks: [0, 5, 10], yTickSuffix: 'u', yTickCompact: true,
     zones: [{ from: 1, to: 2, color: '#228833' }], refLines: [{ y: 5, label: 'goal' }] },
+  { title: 'Bullet', viz: 'bullet', sql: 'SELECT 1', x: 'who', y: ['walks'], target: 'plan', scaleMin: 0, scaleMax: 100, ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' } },
   { title: 'Segments', viz: 'segments', sql: 'SELECT 1', x: 'status', y: ['n'], segmentColors: { Done: '#228833' }, ranges: [{ level: 'Good' }], rangeColumn: 'v', levelColors: { Good: '#2a7fff' } },
   { title: 'Heatmap', viz: 'heatmap', sql: 'SELECT 1', row: 'day', column: 'hr', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' },
     marker: 'k', markerColor: '#33bbee', markerLabel: 'k', highlight: 'weekday', columnLabelEvery: 3, cells: 'fill' },

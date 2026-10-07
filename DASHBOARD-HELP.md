@@ -118,6 +118,37 @@ Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines a
 
 Shared: point colour, axis (with "Lowest x value" and "Highest x value"), guide lines and zones, hint and footnote.
 
+## Bullet chart
+
+*Sample: a bullet chart of sales against target by region, shaded by value levels.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-bullet-dark.png">
+  <img alt="A bullet chart, drawn by the plugin with invented numbers" src="docs/images/widget-bullet-light.png" width="600">
+</picture>
+
+**What it shows:** for each row, a bar for the actual value against a mark for its target, on one scale shaded in bands like poor, fair and good.
+
+**Good for:**
+- Sales per region against target.
+- Hours slept per night against a goal of eight.
+- Spend per category against budget.
+- Pages read per book against its length.
+
+**What the query returns:** one row per bar, up to 12: a label, the actual number and, for a target mark, the target number. All the bars share one scale, so give them one unit, or write each as a percent of its target.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Label column" | Names each bar. "No labels" draws the bars alone. | "No labels" |
+| "Actual value column" | The number each bar is as long as. | |
+| "Target column" | The number each target mark sits at. "No target" draws no marks. | "No target" |
+| "Lowest value on the scale" | Where the scale starts. Automatic: zero, or the lowest value when something is below zero. | "automatic" |
+| "Highest value on the scale" | Where the scale ends; a bigger value is drawn at the end. Automatic: the largest value, target or band end, on a round number. | "automatic" |
+
+The bands behind the bars are the value levels: each range is drawn as a band, in its level's colour.
+
+Shared: value levels, hint and footnote.
+
 ## One big number
 
 *Sample: one big number, orders this month, with a caption line, a meter and a level.*
@@ -318,17 +349,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Calendar | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | |
-| Number size | | | | | Yes | | | | | |
-| Value levels | | | | | Yes | | Yes | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | | |
-| Meter | | | | | Yes | | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | |
-| Band | SQL only | | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | |
+| Number size | | | | | | Yes | | | | | |
+| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | | |
+| Meter | | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
+| Band | SQL only | | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -420,4 +451,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 29e1eb39). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 7751d7e1). If you edit this file, the plugin stops updating it. -->
