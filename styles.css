@@ -1021,6 +1021,12 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   cursor: grabbing;
 }
 
+/* A tile being moved follows the pointer; the offset arrives as two custom
+ * properties set while the pointer moves. */
+.icor-sqlv-tile.is-dragging.is-moving {
+  transform: translate(var(--sqlv-drag-x, 0px), var(--sqlv-drag-y, 0px));
+}
+
 .icor-sqlv-drag-surface {
   position: absolute;
   inset: 0;
@@ -1899,13 +1905,15 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   white-space: nowrap;
 }
 
-.icor-sqlv-calendar-month { line-height: 12px; }
+.icor-sqlv-calendar-month { line-height: 12px; grid-row: 1; grid-column: var(--sqlv-col) / span 3; }
 
 /* A weekday name is no taller than a square, so a row that carries one is
  * no taller than the rows without. */
-.icor-sqlv-calendar-day { line-height: 8px; text-align: right; padding-right: var(--sqlv-s2); align-self: center; }
+.icor-sqlv-calendar-day { grid-row: var(--sqlv-row); grid-column: 1; line-height: 8px; text-align: right; padding-right: var(--sqlv-s2); align-self: center; }
 
 .icor-sqlv-calendar-cell {
+  grid-row: var(--sqlv-row);
+  grid-column: var(--sqlv-col);
   box-sizing: border-box;
   min-width: 0;
   aspect-ratio: 1 / 1;

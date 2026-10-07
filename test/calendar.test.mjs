@@ -17,6 +17,9 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 
 import { loadPlugin, unwrap } from './harness.mjs';
 import { byLabel, makeForm, asFileTile } from './form-kit.mjs';
@@ -131,7 +134,7 @@ test('each day is a square placed by its week and its weekday, coloured by its l
   assert.equal(cells(el).length, 52 * 7 + 1);
   assert.equal(byClass(el, 'icor-sqlv-calendar-grid')[0].style['grid-template-columns'], 'max-content repeat(53, minmax(8px, 1fr))');
   const day = cellFor(el, '2026-01-17');
-  assert.deepEqual([day.style['grid-column'], day.style['grid-row']], ['53', '8'], 'column 2 + 51, row 2 + 6');
+  assert.deepEqual([day.style['--sqlv-col'], day.style['--sqlv-row']], ['53', '8'], 'column 2 + 51, row 2 + 6');
   assert.equal(day.style.background, '#88aa44');
   assert.equal(cellFor(el, '2026-01-18').style.background, '#cc5533');
   assert.equal(cellFor(el, '2026-01-13').style.background, '#88aa44', 'the later row of that day');
@@ -155,12 +158,12 @@ test('month names run along the top and Mon, Wed and Fri down the side, on the r
   const el = draw(calTile());
   const months = byClass(el, 'icor-sqlv-calendar-month');
   assert.equal(months[0].textContent, 'Feb');
-  assert.equal(months[0].style['grid-column'], '3 / span 3');
-  assert.equal(months[0].style['grid-row'], '1');
+  assert.equal(months[0].style['--sqlv-col'], '3', 'the column is a custom property; the span and row 1 are in styles.css');
+  assert.equal(months[0].style['grid-row'], undefined, 'no inline grid-row on a month label');
   const days = byClass(el, 'icor-sqlv-calendar-day');
-  assert.deepEqual(days.map((d) => [d.textContent, d.style['grid-row']]), [['Mon', '3'], ['Wed', '5'], ['Fri', '7']]);
+  assert.deepEqual(days.map((d) => [d.textContent, d.style['--sqlv-row']]), [['Mon', '3'], ['Wed', '5'], ['Fri', '7']]);
   const monday = byClass(draw(calTile({ weekStart: 'monday' })), 'icor-sqlv-calendar-day');
-  assert.deepEqual(monday.map((d) => [d.textContent, d.style['grid-row']]), [['Mon', '2'], ['Wed', '4'], ['Fri', '6']]);
+  assert.deepEqual(monday.map((d) => [d.textContent, d.style['--sqlv-row']]), [['Mon', '2'], ['Wed', '4'], ['Fri', '6']]);
 });
 
 test('the legend names every range and an empty day', () => {
@@ -320,4 +323,13 @@ test('the first paint already sits at the newest week, before any measuring', ()
   lib.renderTile(el, { viz: 'calendar', date: 'day', value: 'walks' }, TABLE, {});
   const scroll = byClass(el, 'icor-sqlv-calendar-scroll')[0];
   assert.ok('scrollLeft' in scroll, 'the box was asked to scroll');
+});
+
+test('the static placement lives in styles.css, not in inline styles', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'styles.css'), 'utf8');
+  assert.ok(css.includes("grid-row: 1; grid-column: var(--sqlv-col) / span 3;"), "month label placement");
+  assert.ok(css.includes(".icor-sqlv-calendar-day { grid-row: var(--sqlv-row); grid-column: 1;"), "weekday label placement");
+  assert.ok(css.includes(".icor-sqlv-tile.is-dragging.is-moving {") && css.includes("translate(var(--sqlv-drag-x"), "drag offset");
+  const main = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'main.js'), 'utf8');
+  assert.ok(!main.includes("style.transform"), "no inline transform in main.js");
 });

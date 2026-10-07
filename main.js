@@ -2685,21 +2685,19 @@ function renderCalendar(parentEl, table, tile, extras) {
   el.setAttribute('aria-label', 'Calendar, ' + cal.cells.length + ' days from ' + cal.cells[0].iso + ' to ' + cal.cells[cal.cells.length - 1].iso + '. Hover a day for its value.');
   for (const m of cal.months) {
     const label = el.createDiv({ cls: 'icor-sqlv-calendar-month', text: m.name });
-    label.style.setProperty('grid-row', '1');
-    label.style.setProperty('grid-column', (m.col + 2) + ' / span 3');
+    label.style.setProperty('--sqlv-col', String(m.col + 2));
   }
   /* The rows the weekday names sit on: Monday, Wednesday and Friday. */
   for (let row = 0; row < 7; row++) {
     const weekday = (cal.startDay + row) % 7;
     if (![1, 3, 5].includes(weekday)) continue;
     const label = el.createDiv({ cls: 'icor-sqlv-calendar-day', text: WEEKDAYS[weekday].slice(0, 3).replace(/^./, (c) => c.toUpperCase()) });
-    label.style.setProperty('grid-row', String(row + 2));
-    label.style.setProperty('grid-column', '1');
+    label.style.setProperty('--sqlv-row', String(row + 2));
   }
   for (const c of cal.cells) {
     const box = el.createDiv({ cls: 'icor-sqlv-calendar-cell' });
-    box.style.setProperty('grid-row', String(c.row + 2));
-    box.style.setProperty('grid-column', String(c.col + 2));
+    box.style.setProperty('--sqlv-row', String(c.row + 2));
+    box.style.setProperty('--sqlv-col', String(c.col + 2));
     const empty = c.value === null || c.value === undefined || c.value === '';
     const level = empty ? null : resolveLevel(c.value, tile, levels);
     if (empty) box.addClass('is-empty');
@@ -5620,7 +5618,9 @@ class SqliteDashboardsView extends ItemView {
         placeholder.style.gridRow = (p.y + 1) + ' / span ' + p.h;
         tileEl.style.gridColumn = (origin.x + 1) + ' / span ' + origin.w;
         tileEl.style.gridRow = (origin.y + 1) + ' / span ' + origin.h;
-        tileEl.style.transform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        tileEl.classList.add('is-moving');
+        tileEl.style.setProperty('--sqlv-drag-x', dx + 'px');
+        tileEl.style.setProperty('--sqlv-drag-y', dy + 'px');
       }
     };
 
@@ -5629,7 +5629,9 @@ class SqliteDashboardsView extends ItemView {
       surface.removeEventListener('pointerup', commit);
       surface.removeEventListener('pointercancel', cancel);
       tileEl.classList.remove('is-dragging');
-      tileEl.style.transform = '';
+      tileEl.classList.remove('is-moving');
+      tileEl.style.removeProperty('--sqlv-drag-x');
+      tileEl.style.removeProperty('--sqlv-drag-y');
       if (placeholder && placeholder.parentElement) placeholder.parentElement.removeChild(placeholder);
       if (hole && hole.parentElement) hole.parentElement.removeChild(hole);
       this.dragging = false;

@@ -38,7 +38,7 @@ test('a drawn calendar follows the setting: the weekday names move down with the
     const el = new obsidian.Modal({}).contentEl;
     lib.renderTile(el, Object.assign({}, TILE, tile), TABLE, extras);
     const mon = byClass(el, 'icor-sqlv-calendar-day').find((d) => d.textContent === 'Mon');
-    return mon.style['grid-row'];
+    return mon.style['--sqlv-row'];
   };
   assert.equal(rowOfMon({}), '3', 'Sunday first: Monday is the second row (grid row 3 under the month labels)');
   assert.equal(rowOfMon({ weekStart: 'monday' }), '2', 'Monday first: Monday is the top row');
