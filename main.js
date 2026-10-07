@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'segments', 'heatmap', 'text']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'segments', 'heatmap', 'text']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -540,7 +540,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, segments, heatmap, text.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, segments, heatmap, text.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -587,6 +587,7 @@ function parseDashboardSpec(text) {
       if (t.viz === 'table') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a table.' };
       if (t.viz === 'segments') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a segments bar.' };
       if (t.viz === 'heatmap') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a heatmap.' };
+      if (t.viz === 'scatter') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a scatter chart.' };
       const check = checkWidgetSource(t.source, t.viz, at);
       if (!check.ok) return check;
       if (!t.source.database && !database) return { ok: false, reason: at + ' needs a database, on the widget or on the dashboard.' };
@@ -674,7 +675,9 @@ function parseDashboardSpec(text) {
     if (!sqlDelta.ok) return sqlDelta;
     const sqlSize = checkValueSize(t.valueSize, t.viz, at);
     if (!sqlSize.ok) return sqlSize;
-    const sqlColors = checkChartColors(t, t.viz, t.viz === 'combo' ? 2 : y.length, at);
+    const scatterCheck = checkScatter(t, y, at);
+    if (!scatterCheck.ok) return scatterCheck;
+    const sqlColors = checkChartColors(t, t.viz, t.viz === 'combo' || (t.viz === 'scatter' && t.colorBy !== undefined) ? 2 : y.length, at);
     if (!sqlColors.ok) return sqlColors;
     const sqlAxis = checkChartAxis(t, t.viz, at);
     if (!sqlAxis.ok) return sqlAxis;
@@ -688,7 +691,7 @@ function parseDashboardSpec(text) {
     if (!sqlMeter.ok) return sqlMeter;
     const heatCheck = checkHeatmap(t, at);
     if (!heatCheck.ok) return heatCheck;
-    tiles.push(withTileNotes(withHeatmap(withMeter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withTileNotes(withHeatmap(withMeter(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -697,7 +700,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), sqlMeter), heatCheck), sqlNotes));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), sqlMeter), heatCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -910,7 +913,7 @@ function withValueSize(tile, check) {
 function checkChartColors(t, viz, seriesCount, at) {
   const { color, guideColor } = t;
   if (color !== undefined) {
-    if (viz !== 'line' && viz !== 'bar') return { ok: false, reason: at + ': "color" only works on a line or bar chart.' };
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'scatter') return { ok: false, reason: at + ': "color" only works on a line, bar or scatter chart.' };
     if (seriesCount !== 1) return { ok: false, reason: at + ': "color" only works on a chart with one series; a chart with several takes the theme\'s series colours.' };
     if (!isLevelColor(color)) return { ok: false, reason: at + ': "color" must be a theme colour like "var(--color-orange)" or a hex colour like "#ee7733".' };
   }
@@ -941,7 +944,7 @@ function withChartColors(tile, check) {
  * writes thousands as "k" (8,000 as 8k). Absent means the snug automatic
  * axis with bare numbers, as before. Returns { ok, axis } or
  * { ok, reason }. */
-const CHART_AXIS_KEYS = ['yMin', 'yMax', 'yMaxLimit', 'yTicks', 'xLabelEvery', 'yTickSuffix', 'yTickCompact'];
+const CHART_AXIS_KEYS = ['yMin', 'yMax', 'yMaxLimit', 'yTicks', 'xLabelEvery', 'yTickSuffix', 'yTickCompact', 'xMin', 'xMax'];
 const Y_TICKS_MAX = 12;
 const X_LABEL_EVERY_MAX = 1000;
 const TICK_SUFFIX_MAX = 6;
@@ -951,14 +954,25 @@ function checkChartAxis(t, viz, at) {
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   for (const key of CHART_AXIS_KEYS) {
     if (t[key] === undefined) continue;
-    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return { ok: false, reason: at + ': "' + key + '" only works on a line, bar or combo chart.' };
+    /* A scatter chart's x is a number scale, so it takes "xMin" and "xMax"
+     * and no label spacing; the y fields serve all four chart types. */
+    if (key === 'xMin' || key === 'xMax') {
+      if (viz !== 'scatter') return { ok: false, reason: at + ': "' + key + '" only works on a scatter chart.' };
+    } else if (key === 'xLabelEvery') {
+      if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return { ok: false, reason: at + ': "' + key + '" only works on a line, bar or combo chart.' };
+    } else if (viz !== 'line' && viz !== 'bar' && viz !== 'combo' && viz !== 'scatter') {
+      return { ok: false, reason: at + ': "' + key + '" only works on a line, bar, combo or scatter chart.' };
+    }
     axis[key] = t[key];
   }
-  for (const key of ['yMin', 'yMax', 'yMaxLimit']) {
+  for (const key of ['yMin', 'yMax', 'yMaxLimit', 'xMin', 'xMax']) {
     if (axis[key] !== undefined && !finite(axis[key])) return { ok: false, reason: at + ': "' + key + '" must be a number.' };
   }
   if (axis.yMin !== undefined && axis.yMax !== undefined && axis.yMin >= axis.yMax) {
     return { ok: false, reason: at + ': "yMin" (' + axis.yMin + ') must be below "yMax" (' + axis.yMax + ').' };
+  }
+  if (axis.xMin !== undefined && axis.xMax !== undefined && axis.xMin >= axis.xMax) {
+    return { ok: false, reason: at + ': "xMin" (' + axis.xMin + ') must be below "xMax" (' + axis.xMax + ').' };
   }
   if (axis.yMaxLimit !== undefined) {
     if (axis.yMax === undefined) return { ok: false, reason: at + ': "yMaxLimit" needs "yMax": the top starts at "yMax" and grows to fit the data up to "yMaxLimit".' };
@@ -1029,7 +1043,7 @@ function checkChartMarks(t, viz, at) {
   const finite = (v) => typeof v === 'number' && Number.isFinite(v);
   for (const key of CHART_MARK_KEYS) {
     if (t[key] === undefined) continue;
-    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return { ok: false, reason: at + ': "' + key + '" only work on a line, bar or combo chart.' };
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo' && viz !== 'scatter') return { ok: false, reason: at + ': "' + key + '" only work on a line, bar, combo or scatter chart.' };
     if (!Array.isArray(t[key]) || !t[key].length || t[key].length > CHART_MARKS_MAX) {
       return { ok: false, reason: at + ': "' + key + '" must be a list of 1 to ' + CHART_MARKS_MAX + ' entries.' };
     }
@@ -1523,10 +1537,10 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'combo']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'combo', 'scatter']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
 const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap']);
@@ -1629,6 +1643,7 @@ function specToJson(spec) {
       }
       if (t.band) tile.band = Object.assign({}, t.band);
       if (t.viz === 'heatmap') for (const key of HEAT_KEYS) if (t[key] !== undefined) tile[key] = t[key];
+      if (t.viz === 'scatter') for (const key of SCATTER_KEYS) if (t[key] !== undefined) tile[key] = t[key];
     }
     return tile;
   });
@@ -2860,7 +2875,7 @@ function canSave(previewState) { return previewState === 'ok'; }
 
 /* What a widget type is called in the form, for the plain sentences. */
 const VIZ_NAMES = {
-  line: 'a line chart', bar: 'a bar chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
+  line: 'a line chart', bar: 'a bar chart', scatter: 'a scatter chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
   combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', text: 'a text widget',
 };
 
@@ -3628,6 +3643,187 @@ function renderBarChart(parentEl, table, tile, extras) {
   applyChartColors(chart.box, tile);
 }
 
+/* A scatter chart: one point per row of the query, placed by a number in
+ * the "x" column along the bottom and a number in the "y" column up the
+ * side, to see whether two measures move together. "colorBy" names a
+ * column whose values colour the points, one colour per value (the most
+ * common four, the rest together as Other); "trend": true adds the
+ * least-squares line through all the points. The y axis, "refLines" and
+ * "zones" work as on a line chart; "xMin" and "xMax" fix the ends of the
+ * x scale, which is a number scale and takes no label spacing. A row with
+ * no number in either column is left out, never drawn at zero. Returns
+ * { ok, scatter } or { ok, reason }. */
+const SCATTER_KEYS = ['colorBy', 'trend'];
+
+function checkScatter(t, y, at) {
+  if (t.viz !== 'scatter') {
+    for (const key of SCATTER_KEYS) {
+      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a scatter chart.' };
+    }
+    return { ok: true, scatter: undefined };
+  }
+  if (typeof t.x !== 'string' || !t.x.trim()) return { ok: false, reason: at + ': a scatter chart needs an "x" column: the number along the bottom.' };
+  if (y.length !== 1) return { ok: false, reason: at + ': a scatter chart needs one "y" column: the number up the side.' };
+  const scatter = {};
+  if (t.colorBy !== undefined) {
+    if (typeof t.colorBy !== 'string' || !t.colorBy.trim()) return { ok: false, reason: at + ': "colorBy" must be the name of a column whose values colour the points.' };
+    if (t.colorBy.trim() === t.x.trim() || t.colorBy.trim() === y[0]) return { ok: false, reason: at + ': "colorBy" must be a different column from "x" and "y".' };
+    scatter.colorBy = t.colorBy.trim();
+  }
+  if (t.trend !== undefined) {
+    if (typeof t.trend !== 'boolean') return { ok: false, reason: at + ': "trend" must be true or false (true draws the least-squares line through the points).' };
+    if (t.trend) scatter.trend = true;
+  }
+  return { ok: true, scatter };
+}
+
+function withScatter(tile, check) {
+  if (check.scatter) Object.assign(tile, check.scatter);
+  return tile;
+}
+
+/* The points of a scatter chart, and the colour groups when "colorBy"
+ * names a column: [{ x, y, group, label }], where `group` indexes
+ * `groups` (the names, most points first, the rest folded into Other past
+ * the series ceiling) and `label` is the row's own value. Pure. */
+function scatterOf(table, tile) {
+  const xi = columnIndex(table.columns, tile.x);
+  const yi = columnIndex(table.columns, (tile.y || [])[0]);
+  const gi = tile.colorBy ? columnIndex(table.columns, tile.colorBy) : -1;
+  if (xi < 0 || yi < 0) return null;
+  const raw = [];
+  for (const row of table.rows) {
+    const x = cellNumber(row[xi]);
+    const y = cellNumber(row[yi]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    const label = gi < 0 ? '' : (row[gi] === null || row[gi] === undefined || row[gi] === '' ? 'no value' : String(row[gi]));
+    raw.push({ x, y, label });
+  }
+  if (gi < 0) return { points: raw.map((p) => Object.assign(p, { group: 0 })), groups: [] };
+  const counts = new Map();
+  for (const p of raw) counts.set(p.label, (counts.get(p.label) || 0) + 1);
+  const ranked = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a));
+  const degrade = ranked.length > SERIES_CEILING;
+  const names = degrade ? ranked.slice(0, SERIES_CEILING - 1) : ranked;
+  const index = new Map(names.map((n, i) => [n, i]));
+  const groups = degrade ? names.concat(['Other']) : names;
+  for (const p of raw) p.group = index.has(p.label) ? index.get(p.label) : names.length;
+  return { points: raw, groups };
+}
+
+/* The least-squares line through points [{x, y}]: slope, intercept and r
+ * squared (how much of the spread in y the line explains, 0 to 1). Null
+ * for fewer than two points or when every x is the same, where no line
+ * stands. All y equal is a flat line that fits exactly. Pure. */
+function leastSquares(points) {
+  const n = points.length;
+  if (n < 2) return null;
+  let mx = 0;
+  let my = 0;
+  for (const p of points) { mx += p.x; my += p.y; }
+  mx /= n;
+  my /= n;
+  let sxx = 0;
+  let sxy = 0;
+  let syy = 0;
+  for (const p of points) {
+    sxx += (p.x - mx) * (p.x - mx);
+    sxy += (p.x - mx) * (p.y - my);
+    syy += (p.y - my) * (p.y - my);
+  }
+  if (sxx === 0) return null;
+  const slope = sxy / sxx;
+  return { slope, intercept: my - slope * mx, r2: syy === 0 ? 1 : (sxy * sxy) / (sxx * syy) };
+}
+
+/* The x scale of a scatter chart: the data's range on a round scale, or
+ * the tile's own "xMin" and "xMax", with the labels that fall inside. */
+function scatterXScale(lo, hi, axis, plotW) {
+  const fixedMin = !!axis && typeof axis.xMin === 'number';
+  const fixedMax = !!axis && typeof axis.xMax === 'number';
+  const count = Math.max(2, Math.min(8, Math.floor(plotW / 70)));
+  const nice = niceScale(fixedMin ? axis.xMin : lo, fixedMax ? axis.xMax : hi, count);
+  const min = fixedMin ? axis.xMin : nice.min;
+  let max = fixedMax ? axis.xMax : nice.max;
+  if (max <= min) max = min + 1;
+  const slack = nice.step / 1e6;
+  return { min, max, ticks: nice.ticks.filter((v) => v >= min - slack && v <= max + slack) };
+}
+
+let scatterClipCount = 0;
+
+function renderScatterChart(parentEl, table, tile, extras) {
+  const data = scatterOf(table, tile);
+  if (!data || table.rows.length === 0) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return;
+  }
+  if (!data.points.length) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No numeric x and y values to draw.' });
+    return;
+  }
+  const { points, groups } = data;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y).concat(chartMarkValues(tile));
+  const lo = Math.min(...xs);
+  const hi = Math.max(...xs);
+  const palette = groups.length > 1 ? seriesPaletteFor(groups.length) : chartPaletteFor(tile, 1);
+  const fit = tile.trend === true ? leastSquares(points) : null;
+  const guides = guideEntries(tile).concat(fit ? [{ name: 'Trend', color: '' }] : []);
+  const unit = tile.unit ? ' ' + tile.unit : '';
+  const radius = points.length > 1500 ? 2 : 3;
+  const chart = chartBox(parentEl, groups, palette, (svg, W, H) => {
+    const L = chartLayout(W, H, Math.min(...ys), Math.max(...ys), true, tile);
+    const X = scatterXScale(lo, hi, tile, L.plotW);
+    const xOf = (v) => Math.max(L.left, Math.min(L.left + L.plotW, L.left + ((v - X.min) / (X.max - X.min)) * L.plotW));
+    drawZones(svg, L, tile);
+    drawAxes(svg, L, [], xOf);
+    drawRefLines(svg, L, tile);
+    if (L.showX) {
+      let lastRight = -Infinity;
+      for (const v of X.ticks) {
+        const text = formatNumber(v);
+        const half = (text.length * TICK_CHAR_W) / 2;
+        const x = Math.min(Math.max(xOf(v), half + 1), L.W - half - 1);
+        if (x - half < lastRight + 6) continue;
+        const label = svgEl('text', { x: x.toFixed(1), y: L.H - L.bottom + 14, 'text-anchor': 'middle', class: 'icor-sqlv-tick' });
+        label.textContent = text;
+        svg.appendChild(label);
+        lastRight = x + half;
+      }
+    }
+    if (fit) {
+      /* The line runs the data's own x range and is cut at the plot edge,
+       * never bent to it, so a steep line leaves the frame at its true slope. */
+      const clipId = 'icor-sqlv-scatter-clip-' + (++scatterClipCount);
+      const defs = svgEl('defs');
+      const clip = svgEl('clipPath', { id: clipId });
+      clip.appendChild(svgEl('rect', { x: L.left, y: L.top, width: L.plotW, height: L.plotH }));
+      defs.appendChild(clip);
+      svg.appendChild(defs);
+      const yRaw = (v) => L.top + L.plotH - ((v - L.scale.min) / (L.scale.max - L.scale.min)) * L.plotH;
+      const line = svgEl('line', {
+        x1: xOf(lo).toFixed(1), y1: yRaw(fit.slope * lo + fit.intercept).toFixed(1),
+        x2: xOf(hi).toFixed(1), y2: yRaw(fit.slope * hi + fit.intercept).toFixed(1),
+        class: 'icor-sqlv-trend', 'clip-path': 'url(#' + clipId + ')',
+      });
+      const tip = svgEl('title', {});
+      tip.textContent = 'Trend: ' + tile.y[0] + ' changes by ' + formatNumber(Math.round(fit.slope * 1000) / 1000) + ' for each 1 of ' + tile.x + ' (r² ' + (Math.round(fit.r2 * 100) / 100) + ', ' + points.length + ' points)';
+      line.appendChild(tip);
+      svg.appendChild(line);
+    }
+    for (const p of points) {
+      const dot = svgEl('circle', { cx: xOf(p.x).toFixed(1), cy: L.yOf(p.y).toFixed(1), r: radius, class: 'icor-sqlv-point' });
+      dot.setAttribute('fill', palette[Math.min(p.group, palette.length - 1)]);
+      const tip = svgEl('title', {});
+      tip.textContent = tile.x + ' ' + formatNumber(p.x) + ' · ' + tile.y[0] + ' ' + formatNumber(p.y) + unit + (groups.length ? ' · ' + p.label : '');
+      dot.appendChild(tip);
+      svg.appendChild(dot);
+    }
+  }, extras && extras.observers, guides);
+  applyChartColors(chart.box, tile);
+}
+
 function renderStatTile(parentEl, table, tile, extras) {
   const { value, captions } = statOf(table, tile);
   const wrap = parentEl.createDiv({ cls: 'icor-sqlv-stat' });
@@ -3834,7 +4030,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'combo']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'combo', 'scatter']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -3979,6 +4175,7 @@ function drawTile(tileEl, tileSpec, table, extras) {
   if (tileSpec.viz === 'line') renderLineChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'bar') renderBarChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'combo') renderComboChart(body, table, tileSpec, extras);
+  else if (tileSpec.viz === 'scatter') renderScatterChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'heatmap') renderHeatmap(body, table, tileSpec, extras);
   else renderResultTable(body, table, { maxRows: 50 });
 }
@@ -5128,6 +5325,10 @@ class WidgetFormModal extends Modal {
       footnote: existing && existing.footnote ? existing.footnote : '',
       meterMin: existing && existing.meter ? String(existing.meter.min) : '',
       xLabelEvery: existing && existing.xLabelEvery !== undefined ? String(existing.xLabelEvery) : '',
+      xMin: existing && existing.xMin !== undefined ? String(existing.xMin) : '',
+      xMax: existing && existing.xMax !== undefined ? String(existing.xMax) : '',
+      scatterColorBy: existing && existing.colorBy ? existing.colorBy : '',
+      scatterTrend: !!(existing && existing.trend === true),
       bandLow: existing && existing.band ? existing.band.low : '',
       bandHigh: existing && existing.band ? existing.band.high : '',
       bandOpacity: existing && existing.band && existing.band.opacity !== undefined ? String(existing.band.opacity) : '',
@@ -5279,18 +5480,27 @@ class WidgetFormModal extends Modal {
       raw.meter = { min: min.value, max: max.value };
       if (target.value !== undefined) raw.meter.target = target.value;
     }
-    if (viz === 'line' || viz === 'bar' || viz === 'combo') {
+    if (viz === 'line' || viz === 'bar' || viz === 'combo' || viz === 'scatter') {
       const axis = this.axisFromForm('y', 'Axis');
       if (!axis.ok) return axis;
       Object.assign(raw, axis.raw);
       const every = String(s.xLabelEvery || '').trim();
-      if (every) {
+      if (every && viz !== 'scatter') {
         const n = Number(every);
         if (!Number.isInteger(n)) return { ok: false, reason: 'Axis: label every Nth value must be a whole number.' };
         raw.xLabelEvery = n;
       }
     }
-    if (viz === 'line' || viz === 'bar' || viz === 'combo') {
+    if (viz === 'scatter') {
+      for (const [key, label] of [['xMin', 'Axis: the lowest x value'], ['xMax', 'Axis: the highest x value']]) {
+        const n = formNumber(s[key], label);
+        if (!n.ok) return n;
+        if (n.value !== undefined) raw[key] = n.value;
+      }
+      if (s.scatterColorBy) raw.colorBy = s.scatterColorBy;
+      if (s.scatterTrend === true) raw.trend = true;
+    }
+    if (viz === 'line' || viz === 'bar' || viz === 'combo' || viz === 'scatter') {
       const marks = this.marksFromForm(viz);
       if (!marks.ok) return marks;
       Object.assign(raw, marks.raw);
@@ -5393,6 +5603,28 @@ class WidgetFormModal extends Modal {
     if (!body) return;
     this.renderAxisFieldsFor(body, 'y2');
     this.textInput(body, { label: 'Unit of the right axis', optional: true, value: s.y2Unit, placeholder: 'like orders or %', ariaLabel: 'Right axis: unit', onInput: (v) => { s.y2Unit = v; this.touch(); } });
+  }
+
+  /* A scatter chart: the two number columns that place a point, an optional
+   * column that colours the points, and the trend line. */
+  renderScatterFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'One point per row of the query, placed by a number along the bottom and a number up the side. A row with no number in either column is left out.' });
+    this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
+    this.columnField(form, { label: 'Y column', value: s.y.split(',')[0].trim(), onChange: (v) => { s.y = v; this.touch(); } });
+    this.columnField(form, {
+      label: 'Colour the points by column', optional: true, noneLabel: 'No colouring', value: s.scatterColorBy,
+      onChange: (v) => { s.scatterColorBy = v; this.renderForm(); this.touch(); },
+    });
+    if (s.scatterColorBy) form.createDiv({ cls: 'icor-sqlv-note', text: 'One colour for each value of the column: the four most common, the rest together as Other.' });
+    const row = form.createDiv({ cls: 'icor-sqlv-wizard-toggle' });
+    const cb = row.createEl('input', { type: 'checkbox' });
+    cb.checked = s.scatterTrend === true;
+    cb.setAttribute('id', 'icor-sqlv-scatter-trend');
+    cb.setAttribute('aria-label', 'Draw a trend line through the points');
+    const lbl = row.createEl('label', { text: 'Draw a trend line through the points' });
+    lbl.setAttribute('for', 'icor-sqlv-scatter-trend');
+    cb.addEventListener('change', () => { s.scatterTrend = cb.checked; this.touch(); });
   }
 
   /* A heatmap: which columns place a cell (row, column) and colour it
@@ -5624,7 +5856,7 @@ class WidgetFormModal extends Modal {
   /* Horizontal guide lines (a goal, a limit) and shaded zones (a target
    * band) on a line, bar or combo chart. */
   renderMarkFields(form, viz) {
-    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return;
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo' && viz !== 'scatter') return;
     const s = this.state;
     const body = this.optionGroup(form, { key: 'marks', label: 'Guide lines and zones', hasValues: s.refLines.length > 0 || s.zones.length > 0 });
     if (!body) return;
@@ -5695,13 +5927,21 @@ class WidgetFormModal extends Modal {
 
   /* The y range, its labels and the spacing of the x labels. */
   renderAxisFields(form, viz) {
-    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo') return;
+    if (viz !== 'line' && viz !== 'bar' && viz !== 'combo' && viz !== 'scatter') return;
     const s = this.state;
     const has = FORM_AXIS_FIELDS.some(([name, , kind]) => (kind === 'bool' ? s['y' + name] === true : String(s['y' + name]).trim()))
-      || !!String(s.xLabelEvery).trim();
+      || !!String(s.xLabelEvery).trim() || !!String(s.xMin).trim() || !!String(s.xMax).trim();
     const body = this.optionGroup(form, { key: 'axis', label: viz === 'combo' ? 'Left axis' : 'Axis', hasValues: has });
     if (!body) return;
+    if (viz === 'scatter') body.createDiv({ cls: 'icor-sqlv-note', text: 'These fields set the scale up the side; the two x fields below set the scale along the bottom.' });
     this.renderAxisFieldsFor(body, 'y');
+    if (viz === 'scatter') {
+      for (const [key, label] of [['xMin', 'Lowest x value'], ['xMax', 'Highest x value']]) {
+        const input = this.textInput(body, { label, optional: true, value: s[key], placeholder: 'automatic', onInput: (v) => { s[key] = v; this.touch(); } });
+        input.setAttribute('inputmode', 'decimal');
+      }
+      return;
+    }
     const every = this.textInput(body, {
       label: 'Label every Nth value along the bottom', optional: true, value: s.xLabelEvery, placeholder: 'empty: as many as fit',
       onInput: (v) => { s.xLabelEvery = v; this.touch(); },
@@ -5775,6 +6015,9 @@ class WidgetFormModal extends Modal {
       if ((tile.viz === 'line' || tile.viz === 'bar') && (!tile.x || !y.length)) {
         return { ok: false, reason: 'A ' + tile.viz + ' chart needs the x column and at least one y column.' };
       }
+      if (tile.viz === 'scatter' && (!tile.x || y.length !== 1)) {
+        return { ok: false, reason: 'A scatter chart needs the x column and one y column.' };
+      }
       const levels = this.levelsFromForm(tile.viz);
       if (!levels.ok) return levels;
       const sqlDelta = this.headerDeltaFromForm(tile.viz, y.length);
@@ -5789,7 +6032,7 @@ class WidgetFormModal extends Modal {
       if (!captions.ok) return captions;
       const sqlSize = this.valueSizeFromForm(tile.viz);
       if (!sqlSize.ok) return sqlSize;
-      const colors = this.chartColorsFromForm(tile.viz, y.length);
+      const colors = this.chartColorsFromForm(tile.viz, tile.viz === 'scatter' && s.scatterColorBy ? 2 : y.length);
       if (!colors.ok) return colors;
       return { ok: true, tile: withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels(tile, levels), sqlDelta), captions), sqlSize), colors) };
     }
@@ -5938,7 +6181,7 @@ class WidgetFormModal extends Modal {
   chartColorsFromForm(viz, seriesCount) {
     const s = this.state;
     const raw = {};
-    if (s.color && (viz === 'line' || viz === 'bar') && seriesCount === 1) raw.color = s.color;
+    if (s.color && (viz === 'line' || viz === 'bar' || viz === 'scatter') && seriesCount === 1) raw.color = s.color;
     if (s.guideColor && (viz === 'line' || viz === 'combo')) raw.guideColor = s.guideColor;
     return checkChartColors(raw, viz, seriesCount, 'This widget');
   }
@@ -5984,10 +6227,10 @@ class WidgetFormModal extends Modal {
       this.colorField(form, { label: 'Scrub line colour', key: 'guideColor', ariaLabel: 'Colour of the line that follows the pointer' });
       return;
     }
-    if ((viz !== 'line' && viz !== 'bar') || seriesCount !== 1) return;
+    if ((viz !== 'line' && viz !== 'bar' && viz !== 'scatter') || seriesCount !== 1) return;
     this.colorField(form, {
-      label: viz === 'line' ? 'Line colour' : 'Bar colour', key: 'color',
-      ariaLabel: viz === 'line' ? 'Colour of the line' : 'Colour of the bars',
+      label: viz === 'line' ? 'Line colour' : (viz === 'scatter' ? 'Point colour' : 'Bar colour'), key: 'color',
+      ariaLabel: viz === 'line' ? 'Colour of the line' : (viz === 'scatter' ? 'Colour of the points' : 'Colour of the bars'),
     });
     if (viz === 'line') {
       this.colorField(form, {
@@ -6827,6 +7070,7 @@ class WidgetFormModal extends Modal {
     if (s.viz === 'segments') this.renderSegmentsFields(form);
     if (s.viz === 'heatmap') this.renderHeatmapFields(form);
     if (s.viz === 'combo') this.renderComboFields(form);
+    if (s.viz === 'scatter') this.renderScatterFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
       this.columnField(form, { label: 'X column', value: s.x, onChange: (v) => { s.x = v; this.touch(); } });
       const yInput = this.textInput(form, { label: 'Y columns (comma-separated)', value: s.y, onInput: (v) => { s.y = v; this.touch(); } });
@@ -6849,7 +7093,7 @@ class WidgetFormModal extends Modal {
     });
     this.renderRanges(form, s.viz);
     this.renderHeaderDeltaFields(form, s.viz, s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
-    this.renderChartColorFields(form, s.viz, s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
+    this.renderChartColorFields(form, s.viz, s.viz === 'scatter' && s.scatterColorBy ? 2 : s.y.split(',').map((v) => v.trim()).filter(Boolean).length);
     if (s.viz === 'stat') {
       this.columnField(form, {
         label: 'Value column', optional: true, noneLabel: 'The first column', value: s.y.split(',')[0].trim(),
@@ -7630,6 +7874,33 @@ Each series row has:
 
 Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines and zones, hint and footnote.
 
+## Scatter chart
+
+*Sample: a scatter chart of orders against ad spend, coloured by channel, with a trend line.*
+
+\`\`\`sqlite-viewer-sample
+scatter
+\`\`\`
+
+**What it shows:** how two numbers move together, one point for each row.
+
+**Good for:**
+- Orders against ad spend, one point per day.
+- Sleep hours against the next day's mood.
+- Pages read against minutes read, coloured by book.
+- Price against rating, with a trend line.
+
+**What the query returns:** one row per point: a number for along the bottom, a number for up the side, and optionally a column to colour by. A row with no number in either column is left out.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "X column" | The number along the bottom. | |
+| "Y column" | The number up the side. | |
+| "Colour the points by column" | One colour for each value of the column: the four most common, the rest together as Other. "No colouring" keeps one colour. | "No colouring" |
+| "Draw a trend line through the points" | The straight line that fits all the points best (least squares). | Off |
+
+Shared: point colour, axis (with "Lowest x value" and "Highest x value"), guide lines and zones, hint and footnote.
+
 ## One big number
 
 *Sample: one big number, orders this month, with a caption line, a meter and a level.*
@@ -7796,17 +8067,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | One big number | Table | Segments | Heatmap | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | | | | | |
-| Number size | | | | Yes | | | | |
-| Value levels | | | | Yes | | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | |
-| Meter | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | | | | | |
-| Band | SQL only | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | |
+| Number size | | | | | Yes | | | | |
+| Value levels | | | | | Yes | | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | |
+| Meter | | | | | Yes | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | |
+| Band | SQL only | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -7814,6 +8085,7 @@ No shared settings.
 | --- | --- | --- |
 | "Line colour" | A one-series line chart's line. | "Theme default" |
 | "Bar colour" | A one-series bar chart's bars. | "Theme default" |
+| "Point colour" | A scatter chart's points, when they are not coloured by a column. | "Theme default" |
 | "Scrub line colour" | Line chart or combo: the thin line that follows your pointer. | "Theme default" |
 
 Every colour list offers "Theme default"; the theme's "Green (theme)", "Amber (theme)", "Red (theme)", "Yellow (theme)", "Cyan (theme)", "Blue (theme)", "Purple (theme)", "Pink (theme)" (in a row of fields just "Green", "Amber", "Red", "Yellow", "Cyan", "Blue", "Purple", "Pink"), which follow light and dark mode; and "Custom colour", which opens a colour picker. A zone's list starts at "Pick a colour".
@@ -7853,7 +8125,7 @@ Value levels colour a widget by where its number lands, like Good, Watch and Ale
 
 ### Axis
 
-On a combo, "Left axis" and "Right axis" each have these.
+On a combo, "Left axis" and "Right axis" each have these. On a scatter chart the fields up to "Write thousands as k (8k)" set the scale up the side, and "Lowest x value" and "Highest x value" set the scale along the bottom.
 
 | Panel label | What it does | Default |
 | --- | --- | --- |
@@ -7863,7 +8135,9 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Labels at" | Where the labels sit, 1 to 12 numbers. | "automatic, or like 0, 50, 100" |
 | "Text after each label" | Up to 6 characters. | "like h or %" |
 | "Write thousands as k (8k)" | 8,000 shows as 8k. | Off |
-| "Label every Nth value along the bottom" | 7 labels every seventh day. | "empty: as many as fit" |
+| "Label every Nth value along the bottom" | 7 labels every seventh day. Not on a scatter chart, whose bottom is a number scale. | "empty: as many as fit" |
+| "Lowest x value" | Scatter chart only: the left end of the scale along the bottom. | "automatic" |
+| "Highest x value" | Scatter chart only: the right end of the scale along the bottom. | "automatic" |
 | "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like orders or %" |
 
 ### Guide lines and zones
@@ -7873,7 +8147,7 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Guide lines" | A line across the chart at one value, up to 8, added with "+ Add guide line". Each row: "value" ("at"), "label" ("label (optional)", names it in the legend), "colour", "dash" ("solid, or like 4 3"). | None |
 | "Zones" | A shaded band from one value to another, up to 8, added with "+ Add zone". Each row: "from", "to", "colour", "opacity". | "opacity 0.15" |
 
-On a combo each row also has "axis". A guide line or zone stays in view on an automatic scale.
+On a combo each row also has "axis". On a scatter chart they follow the scale up the side. A guide line or zone stays in view on an automatic scale.
 
 ### Band
 
@@ -8024,7 +8298,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes \`title\` (text), \`viz\` (one of \`line\`, \`bar\`, \`stat\`,
-\`table\`, \`divider\`, \`combo\`, \`segments\`, \`heatmap\`, \`text\`), \`layout\`
+\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`text\`), \`layout\`
 (\`{x, y, w, h}\`, whole cells, \`w\` and \`h\` 1 to 12), and, all but \`divider\`,
 \`unit\` (text), \`hint\` (text, up to 60 characters) and \`footnote\` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -8042,15 +8316,18 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`stat\` | \`sql\` | \`y\` (the column shown, default the first), \`captions\` (up to 4 columns, default the next column), \`valueSize\` (12 to 120 or \`"fit"\`, theme default), \`meter\` (\`{min, max, target}\`), \`ranges\`, \`levelColors\`, \`rangeColumn\` |
 | \`table\` | \`sql\` | none beyond the common fields |
 | \`combo\` | \`sql\`, \`x\`, \`series\` (1 to 8) | \`stack\` (false), right axis \`y2Min\`, \`y2Max\`, \`y2MaxLimit\`, \`y2Ticks\`, \`y2TickSuffix\`, \`y2TickCompact\`, \`y2Unit\`, left axis fields, \`refLines\`, \`zones\` (each with \`axis\`), \`guideColor\`; never \`y\`, \`color\`, \`band\`, \`headerDelta\`, \`chartCaption\` |
+| \`scatter\` | \`sql\`, \`x\` (number column), \`y\` (one number column) | \`colorBy\` (column), \`trend\` (false), \`color\` (theme; one colour only, so not with \`colorBy\`), \`xMin\`, \`xMax\`, \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\`, \`refLines\`, \`zones\`; never \`xLabelEvery\`, \`band\`, \`headerDelta\`, \`chartCaption\`, built \`source\` |
 | \`segments\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`segmentColors\` (\`{"Part name": colour}\`), \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
 | \`heatmap\` | \`sql\`, \`row\`, \`column\`, \`value\` | \`ranges\` (without them every cell is grey), \`levelColors\`, \`marker\`, \`markerColor\`, \`markerLabel\`, \`highlight\` (\`"hour"\`, \`"day"\`, \`"weekday"\`), \`cells\` (\`"square"\`, \`"fill"\`; default thin rows), \`columnLabelEvery\` (whole number) |
 | \`text\` | \`text\` (up to 2,000 characters) or \`sql\`, never both | \`line\` (true: one thin strip, no title) |
 | \`divider\` | nothing | \`title\` (the heading); \`layout.h\` must be 1; no \`sql\` or \`source\` |
 
-- Axis fields (\`line\`, \`bar\`, \`combo\`): \`yMin\`, \`yMax\`, \`yMaxLimit\` (needs
-  \`yMax\`), \`yTicks\` (1 to 12 rising numbers), \`yTickSuffix\` (up to 6
+- Axis fields (\`line\`, \`bar\`, \`combo\`, \`scatter\`): \`yMin\`, \`yMax\`, \`yMaxLimit\`
+  (needs \`yMax\`), \`yTicks\` (1 to 12 rising numbers), \`yTickSuffix\` (up to 6
   characters), \`yTickCompact\` (true writes 8,000 as 8k), \`xLabelEvery\`
-  (whole number). All unset means automatic.
+  (whole number; not on a scatter chart). A scatter chart's x is a number
+  scale, so it takes \`xMin\` and \`xMax\` instead (scatter only, \`xMin\` below
+  \`xMax\`). All unset means automatic.
 - \`refLines\`: up to 8 \`{y, label, color, dash, axis}\`; \`y\` is required,
   \`dash\` a pattern like \`"4 3"\`.
 - \`zones\`: up to 8 \`{from, to, color, opacity, axis}\`; \`from\`, \`to\` and
@@ -8083,6 +8360,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`stat\` | The first row only. The \`y\` column (or the first column) is the number; the next columns (or \`captions\`) are lines under it; \`rangeColumn\`, if set, is the number the ranges judge. Return one row (ORDER BY ... LIMIT 1 for "the latest"). |
 | \`table\` | Any columns; the rows as returned, up to the row cap. Name the columns well (\`AS\`), they are the headings. |
 | \`combo\` | One row per x value, the \`x\` column and one column per series. An empty cell is a gap, never zero. |
+| \`scatter\` | One row per point: \`x\` and \`y\` are number columns, and \`colorBy\`, if set, names the group of the point. A row with no number in \`x\` or \`y\` is left out, never drawn at zero. Dates and text in \`x\` are not numbers: turn a date into one in SQL, like \`julianday(day) - julianday('2026-01-01')\`. |
 | \`segments\` | One row per part, in order, up to 12: the \`x\` column names it, the \`y\` column (a number, 0 or more) sizes it. With ranges, \`rangeColumn\` is read from the first row. |
 | \`heatmap\` | One row per cell: \`row\`, \`column\`, \`value\` (a number), and the \`marker\` column if used. Rows and columns appear in the order the query returns them. For \`highlight\`, name columns 0 to 23 (hours), dates as \`YYYY-MM-DD\`, or weekdays like \`Monday\` or \`Mon\`. |
 | \`text\` (from SQL) | The first column of the first row, as plain text (not Markdown). |
@@ -8125,6 +8403,9 @@ build widgets the panel can show in full:
 - Inventing a setting (a key not in the field reference): it is dropped on
   the next save from the panel, and some unknown values make the file
   unreadable.
+- A scatter chart with a date or text in \`x\`: those rows are left out and the
+  chart says "No numeric x and y values to draw." when none is left. Make \`x\`
+  a number in the query.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in \`tiles\`.
 - Pointing \`database\` at a file that is not SQLite (a renamed text file, a
@@ -8177,7 +8458,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Size", "Width" | \`layout\` |
 | "SQL" | \`sql\` |
 | "X column", "Part name column" | \`x\` |
-| "Y columns (comma-separated)", "Value column", "Part size column" | \`y\` |
+| "Y columns (comma-separated)", "Y column", "Value column", "Part size column" | \`y\` |
 | "Stack the series on top of each other", "Stack the bars on top of each other" | \`stack\` |
 | "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | \`source\`: \`database\`, \`table\`, \`metric\`, \`agg\`, \`timeColumn\`, \`series\`, \`groupBy\`, \`filters\`, \`timeframe\` |
 | "Compare with" | \`compare\` |
@@ -8190,7 +8471,10 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Show change over the period" | \`headerDelta\` |
 | "Roll-up at the right of the title" | \`chartCaption\` |
 | "Average the ends over N days" | \`headerDeltaAverageDays\` |
-| "Line colour", "Bar colour" | \`color\` |
+| "Line colour", "Bar colour", "Point colour" | \`color\` |
+| "Colour the points by column" | \`colorBy\` |
+| "Draw a trend line through the points" | \`trend\` |
+| "Lowest x value", "Highest x value" | \`xMin\`, \`xMax\` |
 | "Scrub line colour" | \`guideColor\` |
 | "Meter under the number" | \`meter\` |
 | "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\` (on the right axis \`y2Min\` ... \`y2TickCompact\`) |
@@ -8212,7 +8496,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - \`viz\`: the type. \`line\`, \`bar\`, \`stat\` (one big number), \`table\`,
-  \`divider\`, \`combo\`, \`segments\`, \`heatmap\` or \`text\`.
+  \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\` or \`text\`.
 - \`title\`: the name on top of the widget.
 - \`unit\`: shown with the values, like "orders" or "%".
 - \`layout\`: the widget's place on the grid, \`{"x":0,"y":0,"w":2,"h":2}\` in
@@ -8269,25 +8553,29 @@ series.
   the same place. \`headerDeltaAverageDays\` (1 to 365) averages each end.
   One-series line or bar only.
 
-#### Axis (line, bar, combo)
+#### Axis (line, bar, combo, scatter)
 
 - \`yMin\`, \`yMax\`: a fixed range. \`yMaxLimit\`: the top starts at \`yMax\` and
   grows to fit the data, never past this (needs \`yMax\`).
 - \`yTicks\`: the labels' positions, 1 to 12 rising numbers like \`[0, 50, 100]\`.
 - \`yTickSuffix\`: up to 6 characters after each label, like "h" or "%".
   \`yTickCompact: true\` writes 8,000 as 8k.
-- \`xLabelEvery\`: label every Nth value along the bottom.
+- \`xLabelEvery\`: label every Nth value along the bottom (not on a scatter
+  chart).
+- \`xMin\`, \`xMax\`: scatter chart only: the ends of the number scale along the
+  bottom.
 
 A value outside a fixed range is drawn at the edge.
 
-#### Guide lines and zones (line, bar, combo)
+#### Guide lines and zones (line, bar, combo, scatter)
 
 - \`refLines\`: up to 8 \`{"y", "color", "dash", "label", "axis"}\`: a line
   across the chart. \`dash\` is a pattern like "4 3"; a \`label\` names the
   line in the legend.
 - \`zones\`: up to 8 \`{"from", "to", "color", "opacity", "axis"}\`: a shaded
   band behind the chart; \`opacity\` defaults to 0.15.
-- \`axis\` (\`"left"\` or \`"right"\`) is a combo chart's only.
+- \`axis\` (\`"left"\` or \`"right"\`) is a combo chart's only. On a scatter chart
+  they follow the scale up the side.
 
 On an automatic axis, lines and zones count as data, so a goal above every
 value stays in view.
@@ -8380,6 +8668,27 @@ or the right axis. One row per x value; an empty cell is a gap, never zero.
   \`hint\` and \`footnote\` work as on a line chart.
 - A combo takes no \`y\`, \`color\`, \`band\`, \`headerDelta\` or \`chartCaption\`.
 
+### Scatter chart
+
+\`"viz": "scatter"\`: one point per row of the query, placed by a number in \`x\`
+(along the bottom) and a number in \`y\` (up the side). One \`y\` column.
+
+\`\`\`json
+{ "title": "Orders against ad spend", "viz": "scatter", "x": "spend", "y": "orders",
+  "sql": "SELECT ad_spend AS spend, orders, channel FROM sales ORDER BY day",
+  "colorBy": "channel", "trend": true, "xMin": 0, "yMin": 0 }
+\`\`\`
+
+- \`x\`, \`y\`: number columns. A row with no number in either is left out,
+  never drawn at zero.
+- \`colorBy\`: a column whose values colour the points, one colour each: the
+  four most common, the rest together as Other, named in the legend.
+  Without it the points take \`color\`, or the theme ink.
+- \`trend: true\`: the least-squares line through all the points, dashed,
+  named in the legend; hovering it reads its slope and r squared.
+- \`xMin\`, \`xMax\`, and the y axis fields, \`refLines\` and \`zones\`: as above.
+  Hovering a point reads its numbers.
+
 ### Segments bar
 
 \`"viz": "segments"\`: one bar split into the query's rows, each as wide as its
@@ -8444,7 +8753,7 @@ the value levels.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 3, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 4, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 4, legacy: [] },
 ];
 
@@ -8471,6 +8780,13 @@ for (let d = 0; d < SAMPLE_HEAT_DAYS.length; d++) {
   }
 }
 
+/* A made-up fortnight and a half of orders against ad spend, two channels. */
+const SAMPLE_SCATTER_ROWS = [];
+for (let i = 0; i < 26; i++) {
+  const spend = 20 + i * 5 + ((i * 7) % 9);
+  SAMPLE_SCATTER_ROWS.push([spend, Math.round(0.9 * spend + 12 + ((i * 13) % 11) - 5), i % 3 === 0 ? 'Shop' : 'Web']);
+}
+
 const WIDGET_SAMPLES = {
   line: {
     size: 'chart',
@@ -8487,6 +8803,11 @@ const WIDGET_SAMPLES = {
     spec: { title: 'Orders and return rate', viz: 'combo', x: 'month', unit: 'orders', y2Unit: '%', y2TickSuffix: '%', y2Min: 0,
       series: [{ column: 'orders', kind: 'bar' }, { column: 'returns', kind: 'line', axis: 'right', dash: '4 3', label: 'return rate' }] },
     table: { columns: ['month', 'orders', 'returns'], rows: [['Jan', 820, 6.1], ['Feb', 760, 5.4], ['Mar', 910, 4.8], ['Apr', 980, 5.2], ['May', 1040, 4.1], ['Jun', 1120, 3.7]] },
+  },
+  scatter: {
+    size: 'chart',
+    spec: { title: 'Orders against ad spend', viz: 'scatter', x: 'spend', y: ['orders'], unit: 'orders', colorBy: 'channel', trend: true },
+    table: { columns: ['spend', 'orders', 'channel'], rows: SAMPLE_SCATTER_ROWS },
   },
   stat: {
     size: 'short',
@@ -9174,6 +9495,7 @@ IcorSqliteViewerPlugin.lib = {
   checkChartMarks, chartMarkValues,
   checkBand, bandPaths, cellNumber,
   checkCombo,
+  checkScatter, scatterOf, leastSquares, scatterXScale, renderScatterChart,
   SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
 };
 

@@ -57,7 +57,7 @@ test('every sample is a widget the plugin would accept in a dashboard file', () 
 
 test('every sample draws with the real renderer, no error, in the plugin\'s token scope', () => {
   const expect = {
-    line: 'icor-sqlv-chart-box', bar: 'icor-sqlv-chart-box', combo: 'icor-sqlv-chart-box',
+    line: 'icor-sqlv-chart-box', bar: 'icor-sqlv-chart-box', combo: 'icor-sqlv-chart-box', scatter: 'icor-sqlv-chart-box',
     stat: 'icor-sqlv-meter', table: 'icor-sqlv-table', segments: 'icor-sqlv-segments-bar',
     heatmap: 'icor-sqlv-heatmap-cell', text: 'icor-sqlv-text-para', divider: 'icor-sqlv-divider-heading',
   };

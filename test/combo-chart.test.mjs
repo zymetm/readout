@@ -133,7 +133,7 @@ test('the spec keeps a combo and names what is wrong, in plain words', () => {
     [comboTile({ stack: true, series: [{ column: 'a', kind: 'bar' }, { column: 'b', kind: 'bar', axis: 'right' }] }), /every bar series must be on the same axis/],
     [comboTile({ y: 'walks' }), /lists its columns in "series", not "y"/],
     [comboTile({ x: undefined }), /needs an "x" column for a combo chart/],
-    [comboTile({ color: '#112233' }), /"color" only works on a line or bar chart/],
+    [comboTile({ color: '#112233' }), /"color" only works on a line, bar or scatter chart/],
     [{ title: 'L', viz: 'line', x: 'd', y: 'v', sql: 'SELECT 1', y2Max: 3 }, /"y2Max" only works on a combo chart/],
     [{ title: 'L', viz: 'line', x: 'd', y: 'v', sql: 'SELECT 1', refLines: [{ y: 1, axis: 'right' }] }, /"axis" only works on a combo chart/],
     [{ title: 'Built', viz: 'combo', source: { table: 't', metric: 'v', agg: 'sum', timeColumn: 'd' } }, /a combo chart is an SQL widget/],

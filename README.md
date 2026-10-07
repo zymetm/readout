@@ -98,7 +98,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Size", "Width" | `layout` |
 | "SQL" | `sql` |
 | "X column", "Part name column" | `x` |
-| "Y columns (comma-separated)", "Value column", "Part size column" | `y` |
+| "Y columns (comma-separated)", "Y column", "Value column", "Part size column" | `y` |
 | "Stack the series on top of each other", "Stack the bars on top of each other" | `stack` |
 | "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | `source`: `database`, `table`, `metric`, `agg`, `timeColumn`, `series`, `groupBy`, `filters`, `timeframe` |
 | "Compare with" | `compare` |
@@ -111,7 +111,10 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Show change over the period" | `headerDelta` |
 | "Roll-up at the right of the title" | `chartCaption` |
 | "Average the ends over N days" | `headerDeltaAverageDays` |
-| "Line colour", "Bar colour" | `color` |
+| "Line colour", "Bar colour", "Point colour" | `color` |
+| "Colour the points by column" | `colorBy` |
+| "Draw a trend line through the points" | `trend` |
+| "Lowest x value", "Highest x value" | `xMin`, `xMax` |
 | "Scrub line colour" | `guideColor` |
 | "Meter under the number" | `meter` |
 | "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact` (on the right axis `y2Min` ... `y2TickCompact`) |
@@ -133,7 +136,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `segments`, `heatmap` or `text`.
+  `divider`, `combo`, `scatter`, `segments`, `heatmap` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -190,25 +193,29 @@ series.
   the same place. `headerDeltaAverageDays` (1 to 365) averages each end.
   One-series line or bar only.
 
-#### Axis (line, bar, combo)
+#### Axis (line, bar, combo, scatter)
 
 - `yMin`, `yMax`: a fixed range. `yMaxLimit`: the top starts at `yMax` and
   grows to fit the data, never past this (needs `yMax`).
 - `yTicks`: the labels' positions, 1 to 12 rising numbers like `[0, 50, 100]`.
 - `yTickSuffix`: up to 6 characters after each label, like "h" or "%".
   `yTickCompact: true` writes 8,000 as 8k.
-- `xLabelEvery`: label every Nth value along the bottom.
+- `xLabelEvery`: label every Nth value along the bottom (not on a scatter
+  chart).
+- `xMin`, `xMax`: scatter chart only: the ends of the number scale along the
+  bottom.
 
 A value outside a fixed range is drawn at the edge.
 
-#### Guide lines and zones (line, bar, combo)
+#### Guide lines and zones (line, bar, combo, scatter)
 
 - `refLines`: up to 8 `{"y", "color", "dash", "label", "axis"}`: a line
   across the chart. `dash` is a pattern like "4 3"; a `label` names the
   line in the legend.
 - `zones`: up to 8 `{"from", "to", "color", "opacity", "axis"}`: a shaded
   band behind the chart; `opacity` defaults to 0.15.
-- `axis` (`"left"` or `"right"`) is a combo chart's only.
+- `axis` (`"left"` or `"right"`) is a combo chart's only. On a scatter chart
+  they follow the scale up the side.
 
 On an automatic axis, lines and zones count as data, so a goal above every
 value stays in view.
@@ -300,6 +307,27 @@ or the right axis. One row per x value; an empty cell is a gap, never zero.
   for the readout. The left axis, guide lines, zones, `guideColor`,
   `hint` and `footnote` work as on a line chart.
 - A combo takes no `y`, `color`, `band`, `headerDelta` or `chartCaption`.
+
+### Scatter chart
+
+`"viz": "scatter"`: one point per row of the query, placed by a number in `x`
+(along the bottom) and a number in `y` (up the side). One `y` column.
+
+```json
+{ "title": "Orders against ad spend", "viz": "scatter", "x": "spend", "y": "orders",
+  "sql": "SELECT ad_spend AS spend, orders, channel FROM sales ORDER BY day",
+  "colorBy": "channel", "trend": true, "xMin": 0, "yMin": 0 }
+```
+
+- `x`, `y`: number columns. A row with no number in either is left out,
+  never drawn at zero.
+- `colorBy`: a column whose values colour the points, one colour each: the
+  four most common, the rest together as Other, named in the legend.
+  Without it the points take `color`, or the theme ink.
+- `trend: true`: the least-squares line through all the points, dashed,
+  named in the legend; hovering it reads its slope and r squared.
+- `xMin`, `xMax`, and the y axis fields, `refLines` and `zones`: as above.
+  Hovering a point reads its numbers.
 
 ### Segments bar
 

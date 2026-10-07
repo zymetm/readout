@@ -102,7 +102,7 @@ test('the spec keeps the fields and names what is wrong, in plain words', () => 
     [lineTile({ refLines: [{ y: 50, dash: 'dotted' }] }), /"dash" must be a dash pattern like "4 3"/],
     [lineTile({ refLines: [{ y: 50, color: 'red; x' }] }), /reference line 1: "color" must be a theme colour/],
     [lineTile({ refLines: [{ y: 50, label: 'x'.repeat(30) }] }), /"label" must be short text/],
-    [{ title: 'S', viz: 'stat', y: 'v', sql: 'SELECT 2 AS v', refLines: [{ y: 1 }] }, /"refLines" only work on a line, bar or combo chart/],
+    [{ title: 'S', viz: 'stat', y: 'v', sql: 'SELECT 2 AS v', refLines: [{ y: 1 }] }, /"refLines" only work on a line, bar, combo or scatter chart/],
   ];
   for (const [tile, re] of bad) {
     const r = parse(tile);

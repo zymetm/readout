@@ -733,6 +733,12 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 
 .icor-sqlv-hover-dot { fill: var(--sqlv-tile-series, var(--sqlv-marker)); }
 
+/* A scatter chart: the points are a little see-through so where they pile
+ * up shows; the trend line is dashed, in the dim ink. */
+.icor-sqlv-point { fill-opacity: 0.75; }
+
+.icor-sqlv-trend { stroke: var(--sqlv-fg-dim); stroke-width: 1.5; stroke-dasharray: 5 3; }
+
 .icor-sqlv-readout-chip {
   fill: var(--sqlv-overlay);
   stroke: var(--sqlv-hairline);

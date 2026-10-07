@@ -6,7 +6,7 @@
  * the mirror: DASHBOARD-HELP.md === helpMirrorOf(guideTextFor(README)). */
 
 const NAMES = {
-  line: 'A line chart', bar: 'A bar chart', combo: 'A bars and lines (combo) chart', stat: 'One big number',
+  line: 'A line chart', bar: 'A bar chart', combo: 'A bars and lines (combo) chart', scatter: 'A scatter chart', stat: 'One big number',
   table: 'A table', segments: 'A part-to-whole bar', heatmap: 'A heatmap', text: 'A text widget', divider: 'A section divider',
 };
 

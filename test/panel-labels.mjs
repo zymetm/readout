@@ -66,6 +66,8 @@ const SHAPES = [
     state: { headerDelta: true, chartCaption: 'change' } },
   { tile: { title: 'One bar', viz: 'bar', sql: 'SELECT * FROM daily', x: 'day', y: ['web'] } },
   { tile: { title: 'Two', viz: 'bar', sql: 'SELECT * FROM daily', x: 'day', y: ['web', 'shop'] } },
+  { tile: { title: 'Plot', viz: 'scatter', sql: 'SELECT * FROM plot', x: 'spend', y: ['orders'], colorBy: 'channel', trend: true, xMin: 0, xMax: 100, refLines: [{ y: 1 }], zones: [{ from: 0, to: 1, color: 'var(--color-green)' }] } },
+  { tile: { title: 'One colour', viz: 'scatter', sql: 'SELECT * FROM plot', x: 'spend', y: ['orders'] } },
   { tile: { title: 'Combo', viz: 'combo', sql: 'SELECT * FROM daily', x: 'day', series: [{ column: 'web', kind: 'bar' }, { column: 'shop', kind: 'bar' }, { column: 'rate', kind: 'line', axis: 'right' }], refLines: [{ y: 1 }], zones: [{ from: 0, to: 1, color: 'var(--color-green)' }] } },
   { tile: { title: 'Count', viz: 'stat', sql: 'SELECT * FROM one', y: ['n'], ranges: [{ high: 10, level: 'Good' }, { level: 'Alert' }], levelColors: { Good: '#2a7fff' }, meter: { min: 0, max: 50 } },
     state: { valueSizeCustom: true, valueSize: '40' }, levels: true },

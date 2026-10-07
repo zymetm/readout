@@ -19,6 +19,8 @@ export const SINK = [
     series: [{ column: 'a', kind: 'bar', axis: 'left', color: '#2a7fff', opacity: 0.5, label: 'A' }, { column: 'b', kind: 'line', axis: 'right', dash: '4 3', connect: true }],
     y2Min: 0, y2Max: 10, y2MaxLimit: 20, y2Ticks: [0, 10], y2TickSuffix: '%', y2TickCompact: true, y2Unit: '%',
     refLines: [{ y: 1, axis: 'right' }], zones: [{ from: 0, to: 1, color: '#228833', axis: 'right' }] },
+  { title: 'Scatter', viz: 'scatter', sql: 'SELECT 1', x: 'spend', y: ['orders'], colorBy: 'channel', trend: true, xMin: 0, xMax: 100, yMin: 0, yMax: 10, yMaxLimit: 20, yTicks: [0, 5, 10], yTickSuffix: 'u', yTickCompact: true,
+    zones: [{ from: 1, to: 2, color: '#228833' }], refLines: [{ y: 5, label: 'goal' }] },
   { title: 'Segments', viz: 'segments', sql: 'SELECT 1', x: 'status', y: ['n'], segmentColors: { Done: '#228833' }, ranges: [{ level: 'Good' }], rangeColumn: 'v', levelColors: { Good: '#2a7fff' } },
   { title: 'Heatmap', viz: 'heatmap', sql: 'SELECT 1', row: 'day', column: 'hr', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' },
     marker: 'k', markerColor: '#33bbee', markerLabel: 'k', highlight: 'weekday', columnLabelEvery: 3, cells: 'fill' },

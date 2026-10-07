@@ -102,7 +102,7 @@ test('the spec keeps the fields and names what is wrong, in plain words', () => 
     [lineTile({ yTicks: [] }), /"yTicks" must be a list/],
     [lineTile({ xLabelEvery: 0 }), /"xLabelEvery" must be a whole number from 1/],
     [lineTile({ xLabelEvery: 2.5 }), /"xLabelEvery" must be a whole number/],
-    [{ title: 'S', viz: 'stat', y: 'v', sql: 'SELECT 2 AS v', yMin: 0 }, /"yMin" only works on a line, bar or combo chart/],
+    [{ title: 'S', viz: 'stat', y: 'v', sql: 'SELECT 2 AS v', yMin: 0 }, /"yMin" only works on a line, bar, combo or scatter chart/],
     [{ title: 'T', viz: 'table', sql: 'SELECT 2 AS v', xLabelEvery: 2 }, /"xLabelEvery" only works on a line, bar or combo chart/],
   ];
   for (const [tile, re] of bad) {

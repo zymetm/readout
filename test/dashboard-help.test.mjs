@@ -111,7 +111,7 @@ test('the help file is the widget reference: no file format, and a pointer to th
 });
 
 test('every widget type has its own section, and the shared settings theirs', () => {
-  for (const heading of ['## Line chart and bar chart', '## Bars and lines (combo)', '## One big number', '## Table', '## Part-to-whole bar (segments)', '## Heatmap', '## Text', '## Section divider', '## Settings shared by several widgets']) {
+  for (const heading of ['## Line chart and bar chart', '## Bars and lines (combo)', '## Scatter chart', '## One big number', '## Table', '## Part-to-whole bar (segments)', '## Heatmap', '## Text', '## Section divider', '## Settings shared by several widgets']) {
     assert.ok(HELP.includes('\n' + heading + '\n'), heading);
   }
   for (const family of ['### Colours and scrub line', '### Number size', '### Value levels', '### Change and roll-up', '### Meter under the number', '### Axis', '### Guide lines and zones', '### Band', '### Hint and footnote']) {
@@ -148,11 +148,11 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [3, '1e371e6c'], 'AI-WIDGET-GUIDE.md': [4, '1258eeb0'] };
+  const pinned = { 'README.md': [4, '557b900a'], 'AI-WIDGET-GUIDE.md': [4, 'e33df188'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 3, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 4, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {

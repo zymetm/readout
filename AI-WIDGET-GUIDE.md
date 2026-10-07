@@ -123,7 +123,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes `title` (text), `viz` (one of `line`, `bar`, `stat`,
-`table`, `divider`, `combo`, `segments`, `heatmap`, `text`), `layout`
+`table`, `divider`, `combo`, `scatter`, `segments`, `heatmap`, `text`), `layout`
 (`{x, y, w, h}`, whole cells, `w` and `h` 1 to 12), and, all but `divider`,
 `unit` (text), `hint` (text, up to 60 characters) and `footnote` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -141,15 +141,18 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `stat` | `sql` | `y` (the column shown, default the first), `captions` (up to 4 columns, default the next column), `valueSize` (12 to 120 or `"fit"`, theme default), `meter` (`{min, max, target}`), `ranges`, `levelColors`, `rangeColumn` |
 | `table` | `sql` | none beyond the common fields |
 | `combo` | `sql`, `x`, `series` (1 to 8) | `stack` (false), right axis `y2Min`, `y2Max`, `y2MaxLimit`, `y2Ticks`, `y2TickSuffix`, `y2TickCompact`, `y2Unit`, left axis fields, `refLines`, `zones` (each with `axis`), `guideColor`; never `y`, `color`, `band`, `headerDelta`, `chartCaption` |
+| `scatter` | `sql`, `x` (number column), `y` (one number column) | `colorBy` (column), `trend` (false), `color` (theme; one colour only, so not with `colorBy`), `xMin`, `xMax`, `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact`, `refLines`, `zones`; never `xLabelEvery`, `band`, `headerDelta`, `chartCaption`, built `source` |
 | `segments` | `sql`, `x` (part name), `y` (part size) | `segmentColors` (`{"Part name": colour}`), `ranges` with `rangeColumn` (needed when there are ranges), `levelColors` |
 | `heatmap` | `sql`, `row`, `column`, `value` | `ranges` (without them every cell is grey), `levelColors`, `marker`, `markerColor`, `markerLabel`, `highlight` (`"hour"`, `"day"`, `"weekday"`), `cells` (`"square"`, `"fill"`; default thin rows), `columnLabelEvery` (whole number) |
 | `text` | `text` (up to 2,000 characters) or `sql`, never both | `line` (true: one thin strip, no title) |
 | `divider` | nothing | `title` (the heading); `layout.h` must be 1; no `sql` or `source` |
 
-- Axis fields (`line`, `bar`, `combo`): `yMin`, `yMax`, `yMaxLimit` (needs
-  `yMax`), `yTicks` (1 to 12 rising numbers), `yTickSuffix` (up to 6
+- Axis fields (`line`, `bar`, `combo`, `scatter`): `yMin`, `yMax`, `yMaxLimit`
+  (needs `yMax`), `yTicks` (1 to 12 rising numbers), `yTickSuffix` (up to 6
   characters), `yTickCompact` (true writes 8,000 as 8k), `xLabelEvery`
-  (whole number). All unset means automatic.
+  (whole number; not on a scatter chart). A scatter chart's x is a number
+  scale, so it takes `xMin` and `xMax` instead (scatter only, `xMin` below
+  `xMax`). All unset means automatic.
 - `refLines`: up to 8 `{y, label, color, dash, axis}`; `y` is required,
   `dash` a pattern like `"4 3"`.
 - `zones`: up to 8 `{from, to, color, opacity, axis}`; `from`, `to` and
@@ -182,6 +185,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `stat` | The first row only. The `y` column (or the first column) is the number; the next columns (or `captions`) are lines under it; `rangeColumn`, if set, is the number the ranges judge. Return one row (ORDER BY ... LIMIT 1 for "the latest"). |
 | `table` | Any columns; the rows as returned, up to the row cap. Name the columns well (`AS`), they are the headings. |
 | `combo` | One row per x value, the `x` column and one column per series. An empty cell is a gap, never zero. |
+| `scatter` | One row per point: `x` and `y` are number columns, and `colorBy`, if set, names the group of the point. A row with no number in `x` or `y` is left out, never drawn at zero. Dates and text in `x` are not numbers: turn a date into one in SQL, like `julianday(day) - julianday('2026-01-01')`. |
 | `segments` | One row per part, in order, up to 12: the `x` column names it, the `y` column (a number, 0 or more) sizes it. With ranges, `rangeColumn` is read from the first row. |
 | `heatmap` | One row per cell: `row`, `column`, `value` (a number), and the `marker` column if used. Rows and columns appear in the order the query returns them. For `highlight`, name columns 0 to 23 (hours), dates as `YYYY-MM-DD`, or weekdays like `Monday` or `Mon`. |
 | `text` (from SQL) | The first column of the first row, as plain text (not Markdown). |
@@ -224,6 +228,9 @@ build widgets the panel can show in full:
 - Inventing a setting (a key not in the field reference): it is dropped on
   the next save from the panel, and some unknown values make the file
   unreadable.
+- A scatter chart with a date or text in `x`: those rows are left out and the
+  chart says "No numeric x and y values to draw." when none is left. Make `x`
+  a number in the query.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in `tiles`.
 - Pointing `database` at a file that is not SQLite (a renamed text file, a
@@ -276,7 +283,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Size", "Width" | `layout` |
 | "SQL" | `sql` |
 | "X column", "Part name column" | `x` |
-| "Y columns (comma-separated)", "Value column", "Part size column" | `y` |
+| "Y columns (comma-separated)", "Y column", "Value column", "Part size column" | `y` |
 | "Stack the series on top of each other", "Stack the bars on top of each other" | `stack` |
 | "Database", "Table", "Value", "Add it up", "Date", "Dimension", "Group by", "Filter data", "Time frame" | `source`: `database`, `table`, `metric`, `agg`, `timeColumn`, `series`, `groupBy`, `filters`, `timeframe` |
 | "Compare with" | `compare` |
@@ -289,7 +296,10 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Show change over the period" | `headerDelta` |
 | "Roll-up at the right of the title" | `chartCaption` |
 | "Average the ends over N days" | `headerDeltaAverageDays` |
-| "Line colour", "Bar colour" | `color` |
+| "Line colour", "Bar colour", "Point colour" | `color` |
+| "Colour the points by column" | `colorBy` |
+| "Draw a trend line through the points" | `trend` |
+| "Lowest x value", "Highest x value" | `xMin`, `xMax` |
 | "Scrub line colour" | `guideColor` |
 | "Meter under the number" | `meter` |
 | "Lowest value", "Highest value", "Let the top grow up to", "Labels at", "Text after each label", "Write thousands as k (8k)" | `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact` (on the right axis `y2Min` ... `y2TickCompact`) |
@@ -311,7 +321,7 @@ plugin does not know is dropped the next time the panel saves the file.
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `segments`, `heatmap` or `text`.
+  `divider`, `combo`, `scatter`, `segments`, `heatmap` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -368,25 +378,29 @@ series.
   the same place. `headerDeltaAverageDays` (1 to 365) averages each end.
   One-series line or bar only.
 
-#### Axis (line, bar, combo)
+#### Axis (line, bar, combo, scatter)
 
 - `yMin`, `yMax`: a fixed range. `yMaxLimit`: the top starts at `yMax` and
   grows to fit the data, never past this (needs `yMax`).
 - `yTicks`: the labels' positions, 1 to 12 rising numbers like `[0, 50, 100]`.
 - `yTickSuffix`: up to 6 characters after each label, like "h" or "%".
   `yTickCompact: true` writes 8,000 as 8k.
-- `xLabelEvery`: label every Nth value along the bottom.
+- `xLabelEvery`: label every Nth value along the bottom (not on a scatter
+  chart).
+- `xMin`, `xMax`: scatter chart only: the ends of the number scale along the
+  bottom.
 
 A value outside a fixed range is drawn at the edge.
 
-#### Guide lines and zones (line, bar, combo)
+#### Guide lines and zones (line, bar, combo, scatter)
 
 - `refLines`: up to 8 `{"y", "color", "dash", "label", "axis"}`: a line
   across the chart. `dash` is a pattern like "4 3"; a `label` names the
   line in the legend.
 - `zones`: up to 8 `{"from", "to", "color", "opacity", "axis"}`: a shaded
   band behind the chart; `opacity` defaults to 0.15.
-- `axis` (`"left"` or `"right"`) is a combo chart's only.
+- `axis` (`"left"` or `"right"`) is a combo chart's only. On a scatter chart
+  they follow the scale up the side.
 
 On an automatic axis, lines and zones count as data, so a goal above every
 value stays in view.
@@ -479,6 +493,27 @@ or the right axis. One row per x value; an empty cell is a gap, never zero.
   `hint` and `footnote` work as on a line chart.
 - A combo takes no `y`, `color`, `band`, `headerDelta` or `chartCaption`.
 
+### Scatter chart
+
+`"viz": "scatter"`: one point per row of the query, placed by a number in `x`
+(along the bottom) and a number in `y` (up the side). One `y` column.
+
+```json
+{ "title": "Orders against ad spend", "viz": "scatter", "x": "spend", "y": "orders",
+  "sql": "SELECT ad_spend AS spend, orders, channel FROM sales ORDER BY day",
+  "colorBy": "channel", "trend": true, "xMin": 0, "yMin": 0 }
+```
+
+- `x`, `y`: number columns. A row with no number in either is left out,
+  never drawn at zero.
+- `colorBy`: a column whose values colour the points, one colour each: the
+  four most common, the rest together as Other, named in the legend.
+  Without it the points take `color`, or the theme ink.
+- `trend: true`: the least-squares line through all the points, dashed,
+  named in the legend; hovering it reads its slope and r squared.
+- `xMin`, `xMax`, and the y axis fields, `refLines` and `zones`: as above.
+  Hovering a point reads its numbers.
+
 ### Segments bar
 
 `"viz": "segments"`: one bar split into the query's rows, each as wide as its
@@ -536,4 +571,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 1258eeb0). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint e33df188). If you edit this file, the plugin stops updating it. -->

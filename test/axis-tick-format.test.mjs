@@ -70,7 +70,7 @@ test('the spec names what is wrong, in plain words', () => {
     [{ viz: 'bar', y: 'hours', yTickSuffix: 'hours!!' }, /"yTickSuffix" must be short text/],
     [{ viz: 'bar', y: 'hours', yTickCompact: 'yes' }, /"yTickCompact" must be true or false/],
     [{ viz: 'combo', series: [{ column: 'hours', kind: 'bar' }], y2TickSuffix: 3 }, /"y2TickSuffix" must be short text/],
-    [{ viz: 'table', yTickSuffix: 'h' }, /only works on a line, bar or combo chart/],
+    [{ viz: 'table', yTickSuffix: 'h' }, /only works on a line, bar, combo or scatter chart/],
   ]) {
     const r = parse(Object.assign({ title: 'T', sql: 'SELECT 1', x: 'day' }, extra));
     assert.equal(r.ok, false, JSON.stringify(extra));

@@ -90,6 +90,34 @@ Each series row has:
 
 Shared: scrub line colour, axis (as "Left axis" and "Right axis"), guide lines and zones, hint and footnote.
 
+## Scatter chart
+
+*Sample: a scatter chart of orders against ad spend, coloured by channel, with a trend line.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-scatter-dark.png">
+  <img alt="A scatter chart, drawn by the plugin with invented numbers" src="docs/images/widget-scatter-light.png" width="600">
+</picture>
+
+**What it shows:** how two numbers move together, one point for each row.
+
+**Good for:**
+- Orders against ad spend, one point per day.
+- Sleep hours against the next day's mood.
+- Pages read against minutes read, coloured by book.
+- Price against rating, with a trend line.
+
+**What the query returns:** one row per point: a number for along the bottom, a number for up the side, and optionally a column to colour by. A row with no number in either column is left out.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "X column" | The number along the bottom. | |
+| "Y column" | The number up the side. | |
+| "Colour the points by column" | One colour for each value of the column: the four most common, the rest together as Other. "No colouring" keeps one colour. | "No colouring" |
+| "Draw a trend line through the points" | The straight line that fits all the points best (least squares). | Off |
+
+Shared: point colour, axis (with "Lowest x value" and "Highest x value"), guide lines and zones, hint and footnote.
+
 ## One big number
 
 *Sample: one big number, orders this month, with a caption line, a meter and a level.*
@@ -262,17 +290,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | One big number | Table | Segments | Heatmap | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | | | | | |
-| Number size | | | | Yes | | | | |
-| Value levels | | | | Yes | | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | |
-| Meter | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | | | | | |
-| Band | SQL only | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | |
+| Number size | | | | | Yes | | | | |
+| Value levels | | | | | Yes | | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | |
+| Meter | | | | | Yes | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | |
+| Band | SQL only | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -280,6 +308,7 @@ No shared settings.
 | --- | --- | --- |
 | "Line colour" | A one-series line chart's line. | "Theme default" |
 | "Bar colour" | A one-series bar chart's bars. | "Theme default" |
+| "Point colour" | A scatter chart's points, when they are not coloured by a column. | "Theme default" |
 | "Scrub line colour" | Line chart or combo: the thin line that follows your pointer. | "Theme default" |
 
 Every colour list offers "Theme default"; the theme's "Green (theme)", "Amber (theme)", "Red (theme)", "Yellow (theme)", "Cyan (theme)", "Blue (theme)", "Purple (theme)", "Pink (theme)" (in a row of fields just "Green", "Amber", "Red", "Yellow", "Cyan", "Blue", "Purple", "Pink"), which follow light and dark mode; and "Custom colour", which opens a colour picker. A zone's list starts at "Pick a colour".
@@ -319,7 +348,7 @@ Value levels colour a widget by where its number lands, like Good, Watch and Ale
 
 ### Axis
 
-On a combo, "Left axis" and "Right axis" each have these.
+On a combo, "Left axis" and "Right axis" each have these. On a scatter chart the fields up to "Write thousands as k (8k)" set the scale up the side, and "Lowest x value" and "Highest x value" set the scale along the bottom.
 
 | Panel label | What it does | Default |
 | --- | --- | --- |
@@ -329,7 +358,9 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Labels at" | Where the labels sit, 1 to 12 numbers. | "automatic, or like 0, 50, 100" |
 | "Text after each label" | Up to 6 characters. | "like h or %" |
 | "Write thousands as k (8k)" | 8,000 shows as 8k. | Off |
-| "Label every Nth value along the bottom" | 7 labels every seventh day. | "empty: as many as fit" |
+| "Label every Nth value along the bottom" | 7 labels every seventh day. Not on a scatter chart, whose bottom is a number scale. | "empty: as many as fit" |
+| "Lowest x value" | Scatter chart only: the left end of the scale along the bottom. | "automatic" |
+| "Highest x value" | Scatter chart only: the right end of the scale along the bottom. | "automatic" |
 | "Unit of the right axis" | Combo, right axis only: the unit in the readout. | "like orders or %" |
 
 ### Guide lines and zones
@@ -339,7 +370,7 @@ On a combo, "Left axis" and "Right axis" each have these.
 | "Guide lines" | A line across the chart at one value, up to 8, added with "+ Add guide line". Each row: "value" ("at"), "label" ("label (optional)", names it in the legend), "colour", "dash" ("solid, or like 4 3"). | None |
 | "Zones" | A shaded band from one value to another, up to 8, added with "+ Add zone". Each row: "from", "to", "colour", "opacity". | "opacity 0.15" |
 
-On a combo each row also has "axis". A guide line or zone stays in view on an automatic scale.
+On a combo each row also has "axis". On a scatter chart they follow the scale up the side. A guide line or zone stays in view on an automatic scale.
 
 ### Band
 
@@ -361,4 +392,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 3, fingerprint 1e371e6c). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 557b900a). If you edit this file, the plugin stops updating it. -->
