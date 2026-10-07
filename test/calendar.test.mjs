@@ -267,3 +267,12 @@ test('a calendar reads back into the form; the year must be a whole number', asy
   form.state.calDate = '';
   assert.match(form.buildTile().reason, /a calendar needs "date" and "value"/);
 });
+
+test('"value" is named for what it is: a heatmap or a calendar setting, never "only a heatmap"', () => {
+  const r = parse({ title: 'L', viz: 'line', x: 'a', y: 'b', sql: 'SELECT 1', value: 'c' });
+  assert.equal(r.ok, false);
+  assert.match(r.reason, /"value" only works on a heatmap or a calendar\./);
+  /* The other heatmap keys are still heatmap-only, and a calendar may use "value". */
+  assert.match(parse(calTile({ row: 'a' })).reason, /"row" only works on a heatmap\./);
+  assert.equal(parse(calTile()).ok, true);
+});

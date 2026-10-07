@@ -2245,7 +2245,9 @@ function checkHeatmap(t, at) {
   if (t.viz !== 'heatmap') {
     for (const key of HEAT_KEYS) {
       /* A calendar colours its days by a "value" column too. */
-      if (t[key] !== undefined && !(key === 'value' && t.viz === 'calendar')) return { ok: false, reason: at + ': "' + key + '" only works on a heatmap.' };
+      if (t[key] !== undefined && !(key === 'value' && t.viz === 'calendar')) {
+        return { ok: false, reason: at + ': "' + key + '" only works on a heatmap' + (key === 'value' ? ' or a calendar' : '') + '.' };
+      }
     }
     return { ok: true, heat: undefined };
   }
