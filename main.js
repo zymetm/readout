@@ -334,6 +334,62 @@ function stripSqlNoise(sql) {
   return out;
 }
 
+/* Functions the sqlite3 program adds to the SQL language that touch the
+ * computer outside the database: files, folders, zip archives, shell-style
+ * editing and loading code. A query here is data (a note block, a dashboard
+ * file, a console line), so none of these may ever be named. `-safe` shuts
+ * most, not fsdir, lsdir or zipfile, so the gate refuses every one. */
+const FORBIDDEN_FUNCTIONS = ['readfile', 'writefile', 'edit', 'load_extension', 'fsdir', 'lsdir', 'zipfile', 'fts3_tokenizer'];
+/* `edit` is also a plain word (a column, a value), so it is refused only when
+ * it is called, i.e. followed by an open bracket. The others are refused as
+ * whole words anywhere, even inside a string or a quoted name. */
+const FORBIDDEN_WORD_RE = new RegExp('(^|[^A-Za-z0-9_$\\u0080-\\uffff])(' + FORBIDDEN_FUNCTIONS.filter((n) => n !== 'edit').join('|') + ')(?![A-Za-z0-9_$\\u0080-\\uffff])', 'i');
+const FORBIDDEN_EDIT_CALL_RE = /(^|[^A-Za-z0-9_$\u0080-\uffff])edit["'`\]]?\s*\(/i;
+
+/* The statement with its comments blanked but every quote kept as written,
+ * so a name hidden in "quotes", [brackets] or `ticks` is still seen. */
+function blankComments(sql) {
+  const src = String(sql);
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const c = src[i];
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1;
+      while (j < n) {
+        if (src[j] === c) { if (src[j + 1] === c) { j += 2; continue; } break; }
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '[') {
+      const j = src.indexOf(']', i + 1);
+      const e = j < 0 ? n : j + 1;
+      out += src.slice(i, e);
+      i = e;
+    } else if (c === '-' && src[i + 1] === '-') {
+      let j = src.indexOf('\n', i);
+      if (j < 0) j = n;
+      out += ' ';
+      i = j;
+    } else if (c === '/' && src[i + 1] === '*') {
+      const j = src.indexOf('*/', i + 2);
+      out += ' ';
+      i = j < 0 ? n : j + 2;
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+function usesForbiddenFunction(sql) {
+  const text = blankComments(sql);
+  return FORBIDDEN_WORD_RE.test(text) || FORBIDDEN_EDIT_CALL_RE.test(text);
+}
+
 function firstKeywordOf(stripped) {
   const m = /^\s*([a-zA-Z_]+)/.exec(stripped);
   return m ? m[1].toLowerCase() : '';
@@ -356,6 +412,9 @@ function gateStatement(sql) {
   const semi = stripped.indexOf(';');
   if (semi >= 0 && stripped.slice(semi + 1).trim() !== '') {
     return { ok: false, reason: 'One statement at a time. Remove everything after the first semicolon.' };
+  }
+  if (usesForbiddenFunction(sql)) {
+    return { ok: false, reason: 'That statement names a function that reads or writes files or loads code (readfile, writefile, edit, load_extension, fsdir, lsdir, zipfile, fts3_tokenizer). Those never run here.' };
   }
   const kw = firstKeywordOf(stripped);
   if (!ALLOWED_KEYWORDS.has(kw)) {

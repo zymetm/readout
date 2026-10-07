@@ -258,3 +258,55 @@ test('write verbs inside names and strings do not trip the hardened gate', () =>
     assert.equal(lib.gateStatement(sql).ok, true, sql + ' must pass');
   }
 });
+
+/* ---------------------------------------------- file and code functions -- */
+
+/* The desktop engine is the sqlite3 program, whose shell adds functions that
+ * read and write files and load code. A query is data (a note block, a
+ * dashboard file) and must never reach them. `-safe` closes most; fsdir,
+ * lsdir and zipfile it does not, so the gate refuses every name. */
+test('file and code functions are refused by name, in every disguise', () => {
+  const names = ['readfile', 'writefile', 'edit', 'load_extension', 'fsdir', 'lsdir', 'zipfile', 'fts3_tokenizer'];
+  const forms = [
+    (n) => `SELECT ${n}('a')`,
+    (n) => `SELECT ${n.toUpperCase()}('a')`,
+    (n) => `SELECT ${n[0].toUpperCase()}${n.slice(1)} ('a')`,
+    (n) => `SELECT ${n}\n\t (\n'a')`,
+    (n) => `SELECT ${n}/* c */('a')`,
+    (n) => `SELECT ${n}-- c\n('a')`,
+    (n) => `SELECT "${n}"('a')`,
+    (n) => `SELECT [${n}]('a')`,
+    (n) => `SELECT \`${n}\`('a')`,
+    (n) => `SELECT 1 WHERE EXISTS (SELECT ${n}('a'))`,
+    (n) => `WITH x AS (SELECT ${n}('a')) SELECT * FROM x`,
+    (n) => `SELECT * FROM ${n}('.')`,
+    (n) => `SELECT 1 FROM t WHERE a IN (${n}('x'))`,
+    (n) => `EXPLAIN SELECT ${n}('a')`,
+    (n) => `SELECT 1,${n}('a')`,
+    (n) => `SELECT(${n}('a'))`,
+  ];
+  for (const n of names) {
+    for (const f of forms) {
+      const sql = f(n);
+      const r = lib.gateStatement(sql);
+      assert.equal(r.ok, false, sql + ' must be refused');
+      assert.match(r.reason, /function/i, sql);
+    }
+  }
+});
+
+test('the function names are refused inside a string too (strict on purpose), but ordinary words that merely contain them pass', () => {
+  assert.equal(lib.gateStatement("SELECT 'readfile'").ok, false);
+  assert.equal(lib.gateStatement('SELECT 1 -- writefile').ok, true, 'a comment is not executed, so it does not trip the gate');
+  for (const ok of [
+    'SELECT edit_count, edited, credit, editor FROM t',
+    'SELECT * FROM edits',
+    "SELECT * FROM t WHERE action = 'edit'",
+    "SELECT * FROM t WHERE action IN ('edit', 'add')",
+    'SELECT readfiles, my_writefile2, xfsdir FROM t',
+    'SELECT "edit" FROM t',
+    'SELECT edit FROM t',
+  ]) {
+    assert.equal(lib.gateStatement(ok).ok, true, ok + ' must pass');
+  }
+});
