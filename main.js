@@ -343,7 +343,9 @@ function stripSqlNoise(sql) {
  * computer outside the database: files, folders, zip archives, shell-style
  * editing and loading code. A query here is data (a note block, a dashboard
  * file, a console line), so none of these may ever be named. `-safe` shuts
- * most, not fsdir, lsdir or zipfile, so the gate refuses every one. */
+ * of them: on sqlite3 3.53.4 it also blocks zipfile, lsdir is not compiled
+ * in, and only fsdir survives it. An older or differently built program may
+ * differ, so the gate keeps every name on the list. */
 const FORBIDDEN_FUNCTIONS = ['readfile', 'writefile', 'edit', 'load_extension', 'fsdir', 'lsdir', 'zipfile', 'fts3_tokenizer'];
 /* `edit` is also a plain word (a column, a value), so it is refused only when
  * it is called, i.e. followed by an open bracket. The others are refused as
