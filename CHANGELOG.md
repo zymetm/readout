@@ -4,6 +4,46 @@ All notable changes to ICOR for Life - SQLite Viewer.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-10-06
+
+### Added
+- **A file that is not SQLite says so.** The plugin opens every `.db`,
+  `.sqlite` and `.sqlite3` file, and some are not databases (a Windows
+  `Thumbs.db`, a text file renamed by hand). The first 16 bytes are now
+  checked before an engine is asked, and the browser, the schema picker and
+  every dashboard widget show "This file isn't a SQLite database" instead of
+  an engine error. The desktop engine reads the 16 bytes by file handle once
+  per version of the file; the built-in engine checks the bytes it has
+  loaded anyway. An empty file is still read as an empty database.
+- **Scatter chart** (`"viz": "scatter"`): one point per row, placed by a
+  number in `x` and a number in `y`. `colorBy` colours the points by a
+  column (the four most common values, the rest as Other), `trend` draws the
+  least-squares line through them, `xMin` and `xMax` fix the number scale
+  along the bottom. The y axis fields, `refLines` and `zones` work as on a
+  line chart.
+- **Year calendar** (`"viz": "calendar"`): one square for each day, a week
+  to a column, coloured by value levels like a heatmap. It reads a `date`
+  and a `value` column and shows the last 53 weeks up to the newest day in
+  the data, or a whole `year`; `weekStart` is `"sunday"` (default) or
+  `"monday"`. It is its own widget, not a heatmap mode, because it reads one
+  date column where a heatmap reads a row and a column.
+- **Bullet chart** (`"viz": "bullet"`): a bar for the actual value against a
+  mark for its target, for each row, on one shared scale shaded in bands by
+  the value levels. `x` labels the bars, `target` names the target column,
+  `scaleMin` and `scaleMax` fix the scale.
+- **Sparklines in table rows**: `sparklines` on a table names the columns
+  whose cells each hold a short series of numbers (written `3,5,4,8`, as
+  `group_concat` writes them) and draws every such cell as a tiny line
+  chart.
+- The edit form builds and reads back all of these, and the help file, the
+  AI guide and the README reference document them, with a light and a dark
+  picture for each new widget.
+
+### Changed
+- The messages for the axis fields, guide lines, zones and colour name
+  scatter among the chart types that take them.
+- The table sample in the help file shows a sparkline column.
+
 ## [0.6.1] - 2026-09-26
 
 ### Fixed
