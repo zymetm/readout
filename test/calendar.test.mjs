@@ -235,7 +235,7 @@ test('a calendar built from a blank widget in the form matches the hand-written 
   await form.runPreview();
   assert.equal(form.previewState, 'error', 'not complete without its columns');
   for (const label of ['Date column', 'Day value column']) assert.equal(byLabel(form.formEl, label).tagName, 'SELECT', label + ' is a picker');
-  assert.deepEqual(unwrap(byLabel(form.formEl, 'Week starts on').children.map((o) => o.value)), ['', 'monday']);
+  assert.deepEqual(unwrap(byLabel(form.formEl, 'Week starts on').children.map((o) => o.value)), ['', 'sunday', 'monday']);
   assert.equal(byLabel(form.formEl, 'Year').getAttribute('placeholder'), 'empty: the last 53 weeks up to the newest day');
   assert.equal(byLabel(form.formEl, 'Row labels column'), null, 'no heatmap fields on a calendar');
   Object.assign(form.state, { calDate: 'day', calValue: 'minutes', calWeekStart: 'monday', calYear: '2025', hint: 'since the new job' });

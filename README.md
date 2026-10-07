@@ -426,8 +426,9 @@ column where a heatmap reads a row and a column.
   day with no row stays empty; a day twice takes the later row.
 - `ranges`, `levelColors`: the colours, as on a heatmap; without ranges every
   day with data is grey.
-- `weekStart`: `"sunday"` (the default) or `"monday"`, the day each column of
-  weeks starts on.
+- `weekStart`: `"sunday"` or `"monday"`, the day each column of weeks
+  starts on. Left out, the calendar follows the plugin setting "Week starts on"
+  (Sunday unless the member changed it), so one choice covers every calendar.
 - `year`: a whole calendar year like `2026`. Left out, the calendar shows the
   last 53 weeks up to the newest day in the data, never "today".
 

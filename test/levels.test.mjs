@@ -78,7 +78,7 @@ test('the plugin normalizes its saved levels when it loads', async () => {
   const plugin = fresh.makePlugin(app, { levels: [{ name: 'Fine', color: '#00ff00' }, { name: '' }], levelLooks: { stat: 'outline' } });
   await plugin.onload();
   assert.deepEqual(unwrap(plugin.settings.levels), [{ id: 'fine', name: 'Fine', color: '#00ff00' }]);
-  assert.deepEqual(unwrap(plugin.levelExtras()), { levels: [{ id: 'fine', name: 'Fine', color: '#00ff00' }], levelLooks: { stat: 'outline', segments: 'same' } });
+  assert.deepEqual(unwrap(plugin.levelExtras()), { levels: [{ id: 'fine', name: 'Fine', color: '#00ff00' }], levelLooks: { stat: 'outline', segments: 'same' }, weekStart: 'sunday' });
 });
 
 /* ------------------------------------------------------ classification -- */

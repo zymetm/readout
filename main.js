@@ -224,6 +224,9 @@ const DEFAULT_SETTINGS = {
   catalogIncludeValues: false,
   /* The plugin claims .json files for its reader and the dashboards. */
   openJsonFiles: true,
+  /* The day a calendar's weeks start on, for every calendar widget that
+   * does not name its own "weekStart". */
+  weekStart: 'sunday',
   /* The named levels a stat widget's ranges point at, and how a level
    * shows per widget type. */
   levels: DEFAULT_LEVELS,
@@ -2460,7 +2463,7 @@ function calendarIsoOf(ms) {
  * `months` are the labels along the top, as { col, name }, one where a month
  * starts, with at least three columns between two. Null when there is no
  * day to draw. Pure, in UTC, so no time zone moves a day. */
-function calendarOf(table, tile) {
+function calendarOf(table, tile, defaultWeekStart) {
   const di = columnIndex(table.columns, tile.date);
   const vi = columnIndex(table.columns, tile.value);
   if (di < 0 || vi < 0) return null;
@@ -2473,7 +2476,8 @@ function calendarOf(table, tile) {
     if (ms > newest) newest = ms;
   }
   if (!values.size && !tile.year) return null;
-  const startDay = tile.weekStart === 'monday' ? 1 : 0;
+  /* The widget's own "weekStart" wins; without one the plugin setting does. */
+  const startDay = (tile.weekStart || defaultWeekStart) === 'monday' ? 1 : 0;
   const weekStartOf = (ms) => ms - ((new Date(ms).getUTCDay() - startDay + 7) % 7) * DAY_MS;
   let from;
   let to;
@@ -2507,7 +2511,7 @@ function calendarOf(table, tile) {
 }
 
 function renderCalendar(parentEl, table, tile, extras) {
-  const cal = calendarOf(table, tile);
+  const cal = calendarOf(table, tile, extras && extras.weekStart);
   if (!cal) {
     parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
     return;
@@ -6078,7 +6082,7 @@ class WidgetFormModal extends Modal {
     this.columnField(form, { label: 'Day value column', value: s.calValue, onChange: (v) => { s.calValue = v; this.touch(); } });
     this.nativeSelect(form, {
       label: 'Week starts on', optional: true,
-      options: [['', 'Sunday (default)'], ['monday', 'Monday']],
+      options: [['', 'The plugin setting (default)'], ['sunday', 'Sunday'], ['monday', 'Monday']],
       value: s.calWeekStart,
       onChange: (v) => { s.calWeekStart = v; this.touch(); },
     });
@@ -7826,6 +7830,25 @@ class SqliteViewerSettingTab extends PluginSettingTab {
         new Notice('Reload the plugin (or restart Obsidian) to apply this.');
       }));
 
+    new Setting(containerEl)
+      .setName('Week starts on')
+      .setDesc('The day each column of weeks starts on in a calendar widget. A widget with its own "Week starts on" keeps it.')
+      .addDropdown((d) => {
+        d.addOption('sunday', 'Sunday');
+        d.addOption('monday', 'Monday');
+        d.setValue(CAL_WEEK_STARTS.includes(this.plugin.settings.weekStart) ? this.plugin.settings.weekStart : DEFAULT_SETTINGS.weekStart);
+        d.onChange(async (v) => {
+          this.plugin.settings.weekStart = CAL_WEEK_STARTS.includes(v) ? v : DEFAULT_SETTINGS.weekStart;
+          await this.plugin.saveSettings();
+          const ws = this.app.workspace;
+          if (ws && typeof ws.getLeavesOfType === 'function') {
+            for (const leaf of ws.getLeavesOfType(VIEW_DASHBOARDS)) {
+              if (leaf.view && typeof leaf.view.reload === 'function') leaf.view.reload().catch(() => {});
+            }
+          }
+        });
+      });
+
     this.displayLevels(containerEl);
 
     new Setting(containerEl).setName('Tidy up').setHeading();
@@ -8538,7 +8561,7 @@ calendar
 | --- | --- | --- |
 | "Date column" | The day of each row, written like 2026-01-31 (a time after it is ignored). | |
 | "Day value column" | The number that colours the day. | |
-| "Week starts on" | "Sunday (default)" or "Monday": the day each column of weeks starts on. | "Sunday (default)" |
+| "Week starts on" | "The plugin setting (default)", "Sunday" or "Monday": the day each column of weeks starts on. The plugin setting "Week starts on" (Settings, then this plugin) is the default for every calendar; pick Sunday or Monday here to override it for this widget. | "The plugin setting (default)" |
 | "Year" | Shows that whole calendar year, like 2026. | "empty: the last 53 weeks up to the newest day" |
 
 Shared: value levels, hint and footnote.
@@ -8855,7 +8878,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`bullet\` | \`sql\`, \`y\` (one number column: the actual value) | \`x\` (column naming each bar), \`target\` (column of targets), \`scaleMin\`, \`scaleMax\` (default zero up to the largest value, target or range end), \`ranges\` (the bands behind the bars), \`levelColors\`; never \`color\`, \`rangeColumn\`, built \`source\` |
 | \`segments\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`segmentColors\` (\`{"Part name": colour}\`), \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
 | \`heatmap\` | \`sql\`, \`row\`, \`column\`, \`value\` | \`ranges\` (without them every cell is grey), \`levelColors\`, \`marker\`, \`markerColor\`, \`markerLabel\`, \`highlight\` (\`"hour"\`, \`"day"\`, \`"weekday"\`), \`cells\` (\`"square"\`, \`"fill"\`; default thin rows), \`columnLabelEvery\` (whole number) |
-| \`calendar\` | \`sql\`, \`date\` (column of days), \`value\` (column) | \`ranges\` (without them every day with data is grey), \`levelColors\`, \`weekStart\` (\`"sunday"\` default, \`"monday"\`), \`year\` (a four-digit year; default the last 53 weeks up to the newest day) |
+| \`calendar\` | \`sql\`, \`date\` (column of days), \`value\` (column) | \`ranges\` (without them every day with data is grey), \`levelColors\`, \`weekStart\` (\`"sunday"\` or \`"monday"\`; left out, the plugin setting "Week starts on", Sunday unless changed), \`year\` (a four-digit year; default the last 53 weeks up to the newest day) |
 | \`text\` | \`text\` (up to 2,000 characters) or \`sql\`, never both | \`line\` (true: one thin strip, no title) |
 | \`divider\` | nothing | \`title\` (the heading); \`layout.h\` must be 1; no \`sql\` or \`source\` |
 
@@ -9330,8 +9353,9 @@ column where a heatmap reads a row and a column.
   day with no row stays empty; a day twice takes the later row.
 - \`ranges\`, \`levelColors\`: the colours, as on a heatmap; without ranges every
   day with data is grey.
-- \`weekStart\`: \`"sunday"\` (the default) or \`"monday"\`, the day each column of
-  weeks starts on.
+- \`weekStart\`: \`"sunday"\` or \`"monday"\`, the day each column of weeks
+  starts on. Left out, the calendar follows the plugin setting "Week starts on"
+  (Sunday unless the member changed it), so one choice covers every calendar.
 - \`year\`: a whole calendar year like \`2026\`. Left out, the calendar shows the
   last 53 weeks up to the newest day in the data, never "today".
 
@@ -9357,8 +9381,8 @@ column where a heatmap reads a row and a column.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 4, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 4, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 5, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 5, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -9738,6 +9762,7 @@ class IcorSqliteViewerPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     this.settings.levels = normalizeLevels(this.settings.levels);
     this.settings.levelLooks = normalizeLevelLooks(this.settings.levelLooks);
+    if (!CAL_WEEK_STARTS.includes(this.settings.weekStart)) this.settings.weekStart = DEFAULT_SETTINGS.weekStart;
   }
 
   /* Rename a level in the settings and carry the new name into every
@@ -9784,7 +9809,7 @@ class IcorSqliteViewerPlugin extends Plugin {
   /* What every tile render needs to draw value levels. */
   levelExtras() {
     const settings = this.settings || {};
-    return { levels: settings.levels || [], levelLooks: settings.levelLooks };
+    return { levels: settings.levels || [], levelLooks: settings.levelLooks, weekStart: settings.weekStart };
   }
 
   /* The 0.5.0 rename: the default home moved from "07 Data" to

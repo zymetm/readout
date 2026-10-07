@@ -288,7 +288,7 @@ Shared: value levels, hint and footnote.
 | --- | --- | --- |
 | "Date column" | The day of each row, written like 2026-01-31 (a time after it is ignored). | |
 | "Day value column" | The number that colours the day. | |
-| "Week starts on" | "Sunday (default)" or "Monday": the day each column of weeks starts on. | "Sunday (default)" |
+| "Week starts on" | "The plugin setting (default)", "Sunday" or "Monday": the day each column of weeks starts on. The plugin setting "Week starts on" (Settings, then this plugin) is the default for every calendar; pick Sunday or Monday here to override it for this widget. | "The plugin setting (default)" |
 | "Year" | Shows that whole calendar year, like 2026. | "empty: the last 53 weeks up to the newest day" |
 
 Shared: value levels, hint and footnote.
@@ -456,4 +456,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 71995de0). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 5, fingerprint bbb9fdf6). If you edit this file, the plugin stops updating it. -->

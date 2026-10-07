@@ -145,7 +145,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `bullet` | `sql`, `y` (one number column: the actual value) | `x` (column naming each bar), `target` (column of targets), `scaleMin`, `scaleMax` (default zero up to the largest value, target or range end), `ranges` (the bands behind the bars), `levelColors`; never `color`, `rangeColumn`, built `source` |
 | `segments` | `sql`, `x` (part name), `y` (part size) | `segmentColors` (`{"Part name": colour}`), `ranges` with `rangeColumn` (needed when there are ranges), `levelColors` |
 | `heatmap` | `sql`, `row`, `column`, `value` | `ranges` (without them every cell is grey), `levelColors`, `marker`, `markerColor`, `markerLabel`, `highlight` (`"hour"`, `"day"`, `"weekday"`), `cells` (`"square"`, `"fill"`; default thin rows), `columnLabelEvery` (whole number) |
-| `calendar` | `sql`, `date` (column of days), `value` (column) | `ranges` (without them every day with data is grey), `levelColors`, `weekStart` (`"sunday"` default, `"monday"`), `year` (a four-digit year; default the last 53 weeks up to the newest day) |
+| `calendar` | `sql`, `date` (column of days), `value` (column) | `ranges` (without them every day with data is grey), `levelColors`, `weekStart` (`"sunday"` or `"monday"`; left out, the plugin setting "Week starts on", Sunday unless changed), `year` (a four-digit year; default the last 53 weeks up to the newest day) |
 | `text` | `text` (up to 2,000 characters) or `sql`, never both | `line` (true: one thin strip, no title) |
 | `divider` | nothing | `title` (the heading); `layout.h` must be 1; no `sql` or `source` |
 
@@ -620,8 +620,9 @@ column where a heatmap reads a row and a column.
   day with no row stays empty; a day twice takes the later row.
 - `ranges`, `levelColors`: the colours, as on a heatmap; without ranges every
   day with data is grey.
-- `weekStart`: `"sunday"` (the default) or `"monday"`, the day each column of
-  weeks starts on.
+- `weekStart`: `"sunday"` or `"monday"`, the day each column of weeks
+  starts on. Left out, the calendar follows the plugin setting "Week starts on"
+  (Sunday unless the member changed it), so one choice covers every calendar.
 - `year`: a whole calendar year like `2026`. Left out, the calendar shows the
   last 53 weeks up to the newest day in the data, never "today".
 
@@ -640,4 +641,4 @@ column where a heatmap reads a row and a column.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint a9f38dd4). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 5, fingerprint 34e196e6). If you edit this file, the plugin stops updating it. -->
