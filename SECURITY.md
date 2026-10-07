@@ -60,7 +60,8 @@ CREATE, DROP, ALTER, VACUUM, REINDEX, ANALYZE) refused wherever they
 appear as statement verbs, including behind a WITH clause; and PRAGMA
 limited to a read-only introspection allowlist, with every assignment
 form refused. On the desktop the database is then opened by the system
-`sqlite3` tool with the `-readonly` flag AND a `mode=ro` file URI;
+`sqlite3` tool in safe mode (`-safe`, so version 3.37.0 or newer; an older
+program is not used) with the `-readonly` flag AND a `mode=ro` file URI;
 elsewhere by the bundled sql.js engine on an in-memory copy of the file,
 which cannot reach the original at all. The gate is the first test in
 the repo, and the tests include mutation runs that watched it fail.
@@ -68,7 +69,11 @@ the repo, and the tests include mutation runs that watched it fail.
 **Processes.** On the desktop the plugin runs `sqlite3` with a fixed
 argument list; the SQL and the database path travel as arguments, never
 through a shell. A query is killed after the configured timeout. No other
-process is started.
+process is started. The statement gate also refuses the names readfile,
+writefile, edit, load_extension, fsdir, lsdir, zipfile and fts3_tokenizer,
+because `-safe` does not close them all, and every database path passes one
+guard that refuses `..`, absolute paths and drive letters, hidden and
+configuration folders, and anything the vault does not know as a file.
 
 **Files it writes.** Only into the vault: dashboard starter files (once,
 only when missing), dashboard cache JSON (query results, so other devices

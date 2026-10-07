@@ -476,7 +476,17 @@ column where a heatmap reads a row and a column.
   `AI-WIDGET-GUIDE.md`), and replaces them only while they are still its own
   unedited text.
 
-**It makes no network connection and starts no process.**
+**It makes no network connection and downloads nothing.** On the desktop it
+runs the `sqlite3` program if one is installed, in its safe mode (`-safe`,
+version 3.37.0 or newer, with the functions that read or write files and load
+code refused as well), one short-lived process per query, with the SQL and the
+database path passed as plain arguments and never through a shell. Where there
+is no suitable `sqlite3` program, and always on a phone or tablet, the engine
+is the SQLite build embedded in the plugin (sql.js, WebAssembly), which loads a
+copy of the file in memory. Nothing else is started.
+
+A database path must be a real file inside the vault: a path with `..`, an
+absolute path, or one inside a hidden or configuration folder is refused.
 
 ## Good to know
 
