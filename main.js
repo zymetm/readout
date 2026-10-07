@@ -2550,7 +2550,26 @@ function renderCalendar(parentEl, table, tile, extras) {
     if (level && (level.label || level.name)) parts.push(level.label || level.name);
     box.setAttribute('title', parts.join(' · '));
   }
+  revealNewestWeek(scroll, el, extras && extras.observers);
   renderRangeLegend(wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-calendar-legend' }), tile, levels);
+}
+
+/* A calendar wider than its tile scrolls sideways, and the newest week is
+ * at the right end: open it there, not on the oldest week. It stays there
+ * while the tile is measured and resized, until the reader scrolls it. */
+function revealNewestWeek(scroll, grid, observers) {
+  let touched = false;
+  for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.addEventListener(type, () => { touched = true; });
+  const toNewest = () => { scroll.scrollLeft = scroll.scrollWidth; };
+  toNewest();
+  const observer = resizeObserverFor(scroll, () => {
+    if (!scroll.isConnected) { observer.disconnect(); return; }
+    if (!touched) toNewest();
+  });
+  if (!observer) return;
+  observer.observe(scroll);
+  observer.observe(grid);
+  if (observers) observers.push(observer);
 }
 
 /* A bullet chart: for each row of the query, a bar for the actual value

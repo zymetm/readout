@@ -276,3 +276,48 @@ test('"value" is named for what it is: a heatmap or a calendar setting, never "o
   assert.match(parse(calTile({ row: 'a' })).reason, /"row" only works on a heatmap\./);
   assert.equal(parse(calTile()).ok, true);
 });
+
+/* ------------------------------------------- opens at the newest week -- */
+
+test('a calendar wider than its tile opens scrolled to the newest week, and stays until the reader scrolls', () => {
+  const made = [];
+  class FakeRO {
+    constructor(cb) { this.cb = cb; this.watched = []; this.gone = false; made.push(this); }
+    observe(el) { this.watched.push(el); }
+    disconnect() { this.gone = true; }
+  }
+  const fresh = loadPlugin({ globals: { ResizeObserver: FakeRO } });
+  const el = new fresh.obsidian.Modal({}).contentEl;
+  const observers = [];
+  fresh.lib.renderTile(el, { viz: 'calendar', date: 'day', value: 'walks' }, TABLE, { observers });
+  const scroll = byClass(el, 'icor-sqlv-calendar-scroll')[0];
+  assert.ok(scroll, 'the scrolling box');
+  scroll.isConnected = true;
+  const ro = made[0];
+  assert.equal(observers.length, 1, 'the owner can release it');
+  assert.ok(ro.watched.includes(scroll), 'the box is measured');
+  /* The tile is laid out: the box is 900 wide inside, it is shown at its end. */
+  scroll.scrollWidth = 900;
+  ro.cb();
+  assert.equal(scroll.scrollLeft, 900, 'opened on the newest week, not the oldest');
+  scroll.scrollWidth = 1000;
+  ro.cb();
+  assert.equal(scroll.scrollLeft, 1000, 'follows a resize while untouched');
+  /* The reader scrolls: it is left where they put it. */
+  scroll.handlers.wheel[0]();
+  scroll.scrollLeft = 120;
+  scroll.scrollWidth = 1100;
+  ro.cb();
+  assert.equal(scroll.scrollLeft, 120, 'never pulled back once the reader has scrolled');
+  /* A tile that is gone releases its observer. */
+  scroll.isConnected = false;
+  ro.cb();
+  assert.equal(ro.gone, true);
+});
+
+test('the first paint already sits at the newest week, before any measuring', () => {
+  const el = freshEl();
+  lib.renderTile(el, { viz: 'calendar', date: 'day', value: 'walks' }, TABLE, {});
+  const scroll = byClass(el, 'icor-sqlv-calendar-scroll')[0];
+  assert.ok('scrollLeft' in scroll, 'the box was asked to scroll');
+});
