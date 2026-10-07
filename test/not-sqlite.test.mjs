@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { loadPlugin, makeFakeAdapter, makeFakeVault } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, makeFakeVault, unwrap } from './harness.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodeRequire = createRequire(import.meta.url);
@@ -162,14 +162,14 @@ test('the built-in engine checks the bytes it has loaded: a thumbnail cache and 
   }
   assert.equal(plugin.query.wasm.open.size, 0, 'a file that is not SQLite is never kept open');
   const res = await plugin.query.query('07 Data/tiny.db', 'SELECT day, n FROM things ORDER BY day');
-  assert.deepEqual(res.rows, [['2026-08-01', 3], ['2026-08-02', 5]]);
+  assert.deepEqual(unwrap(res.rows), [['2026-08-01', 3], ['2026-08-02', 5]]);
 });
 
 test('on the built-in engine a file of fewer than 16 bytes is not SQLite, and an empty one is an empty database', async () => {
   const { plugin } = await mobileOf({ '07 Data/one.db': Uint8Array.from([1]), '07 Data/empty.db': new Uint8Array(0) });
   await assert.rejects(plugin.query.query('07 Data/one.db', 'SELECT 1'), SENTENCE);
   const res = await plugin.query.query('07 Data/empty.db', "SELECT count(*) AS n FROM sqlite_master");
-  assert.deepEqual(res.rows, [[0]]);
+  assert.deepEqual(unwrap(res.rows), [[0]]);
 });
 
 /* ------------------------------------- where a member reads it -- */

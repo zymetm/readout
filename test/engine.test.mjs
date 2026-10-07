@@ -192,10 +192,18 @@ test('Engine B end to end: real bytes through the plugin loader, on the mobile p
 
 /* -------------------------------------- the embedded runtime (0.5.3) -- */
 
-test('the embedded copies decode byte-identical to the vendored standalone files', () => {
-  const embeddedJs = Buffer.from(lib.utf8OfB64(lib.EMBEDDED_SQL_WASM_JS_B64), 'utf8');
-  assert.ok(embeddedJs.equals(readFileSync(resolve(repo, 'sql-wasm.js'))),
-    'embedded sql-wasm.js drifted from the vendored file; regenerate per the comment in main.js');
+test('the embedded sql.js source and binary are byte-identical to the vendored files, and nothing is built from a string', () => {
+  const main = readFileSync(resolve(repo, 'main.js'), 'utf8');
+  const begin = '/* BEGIN vendored sql-wasm.js */\nfunction vendoredSqlJs(module, exports, require, __dirname, __filename) {\n';
+  const end = '\n}\n/* END vendored sql-wasm.js */';
+  const a = main.indexOf(begin);
+  const b = main.indexOf(end);
+  assert.ok(a > 0 && b > a, 'the vendored source markers are in main.js');
+  const pasted = main.slice(a + begin.length, b);
+  assert.equal(pasted, readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8').replace(/\s+$/, ''),
+    'the pasted sql-wasm.js drifted from the vendored file; paste it again between the markers');
+  /* The old way compiled a base64 string with new Function; it must stay gone. */
+  assert.doesNotMatch(main.slice(0, a), /new Function\(|\beval\(|EMBEDDED_SQL_WASM_JS_B64/);
   const embeddedWasm = Buffer.from(lib.bytesOfB64(lib.EMBEDDED_SQL_WASM_B64));
   assert.ok(embeddedWasm.equals(readFileSync(resolve(repo, 'sql-wasm.wasm'))),
     'embedded sql-wasm.wasm drifted from the vendored file; regenerate per the comment in main.js');
@@ -223,7 +231,7 @@ test('Engine B on a three-file install: the embedded sql.js answers with no stan
   assert.deepEqual(unwrap(res.rows), [[1]]);
 });
 
-test('a five-file install still prefers the standalone copies over the embedded ones', async () => {
+test('a five-file install still prefers the standalone wasm, and never reads JavaScript from the folder', async () => {
   const initSqlJs = nodeRequire(resolve(repo, 'sql-wasm.js'));
   const SQL = await initSqlJs({ wasmBinary: readFileSync(resolve(repo, 'sql-wasm.wasm')) });
   const source = new SQL.Database();
@@ -233,7 +241,7 @@ test('a five-file install still prefers the standalone copies over the embedded 
 
   const pluginDir = '.obsidian/plugins/icor-for-life-sqlite-viewer';
   const adapter = makeFakeAdapter(
-    { [pluginDir + '/sql-wasm.js']: readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8') },
+    { [pluginDir + '/sql-wasm.js']: 'throw new Error("never run: code is not read from disk");' },
     {
       [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')),
       '07 Data/tiny.db': bytes,
@@ -242,11 +250,14 @@ test('a five-file install still prefers the standalone copies over the embedded 
   const reads = [];
   const origRead = adapter.read.bind(adapter);
   adapter.read = async (p) => { reads.push(p); return origRead(p); };
+  const origBin = adapter.readBinary.bind(adapter);
+  adapter.readBinary = async (p) => { reads.push(p); return origBin(p); };
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
   const res = await plugin.query.query('07 Data/tiny.db', 'SELECT 1 AS one');
   assert.equal(res.engine, 'wasm');
-  assert.ok(reads.includes(pluginDir + '/sql-wasm.js'),
-    'the standalone sql-wasm.js must be the copy the engine reads when it exists');
+  assert.ok(reads.includes(pluginDir + '/sql-wasm.wasm'),
+    'the standalone sql-wasm.wasm must be the copy the engine reads when it exists');
+  assert.ok(!reads.includes(pluginDir + '/sql-wasm.js'), 'no JavaScript is ever read from the plugin folder');
 });
 
 /* ---------------------------------------------------- the dashboard cache -- */
