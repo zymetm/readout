@@ -257,3 +257,22 @@ test('changing a new widget to a bullet chart clears the placeholder label colum
   Object.assign(form.state, { y: 'walks', scaleMax: 'big' });
   assert.match(form.buildTile().reason, /Scale: the highest value must be a number/);
 });
+
+/* ------------------------------------------- the legend matches the bands -- */
+
+test('a legend swatch is drawn as pale as the band it names, in one shared opacity', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const el = draw(tileOf(), TABLE, { levels: LEVELS });
+  const chips = byClass(el, 'icor-sqlv-bullet-legend').flatMap((l) => byClass(l, 'icor-sqlv-legend-chip')).filter((c) => !c.classSet.has('is-target'));
+  assert.equal(chips.length, 3, 'one swatch per range');
+  assert.ok(chips.every((c) => c.classSet.has('is-band')), 'each swatch is marked as a band swatch');
+  /* Bands and swatches take their opacity from the same variable, so they cannot drift apart. */
+  assert.match(css, /\.icor-sqlv-bullet-band\s*\{[^}]*opacity:\s*var\(--sqlv-band-opacity\)/);
+  assert.match(css, /\.icor-sqlv-bullet-legend \.icor-sqlv-legend-chip\.is-band\s*\{[^}]*opacity:\s*var\(--sqlv-band-opacity\)/);
+  assert.match(css, /\.icor-sqlv-bullet\s*\{[^}]*--sqlv-band-opacity:\s*0\.4/);
+  /* The other coloured widgets keep full-strength swatches: their cells are full strength. */
+  const cal = freshEl();
+  lib.renderTile(cal, { viz: 'calendar', date: 'd', value: 'v', ranges: RANGES }, { columns: ['d', 'v'], rows: [['2026-01-18', 5]] }, { levels: LEVELS });
+  assert.equal(byClass(cal, 'is-band').length, 0);
+});

@@ -2321,13 +2321,13 @@ function heatmapGrid(table, tile) {
 
 /* The legend of a coloured widget: a chip for each range, in its level's
  * colour, and (unless `withEmpty` is false) one for a cell with no data. */
-function renderRangeLegend(legend, tile, levels, withEmpty) {
+function renderRangeLegend(legend, tile, levels, withEmpty, chipClass) {
   for (const range of tile.ranges || []) {
     const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
     const own = tile.levelColors && Object.prototype.hasOwnProperty.call(tile.levelColors, range.level) ? tile.levelColors[range.level] : undefined;
     const color = level ? (isLevelColor(own) ? own : level.color) : '';
     const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
-    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' });
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' + (chipClass ? ' ' + chipClass : '') });
     if (isLevelColor(color)) chip.style.setProperty('background', color);
     item.createSpan({ cls: 'icor-sqlv-legend-name', text: range.label || range.level });
   }
@@ -2696,7 +2696,8 @@ function renderBullet(parentEl, table, tile, extras) {
     row.createSpan({ cls: 'icor-sqlv-bullet-value', text: !has ? 'no data' : formatNumber(r.actual) + (hasTarget ? ' / ' + formatNumber(r.target) : '') + unit });
   }
   const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-bullet-legend' });
-  renderRangeLegend(legend, tile, levels, false);
+  /* The bands behind the bars are drawn pale; the swatches are too, so a swatch matches its band. */
+  renderRangeLegend(legend, tile, levels, false, 'is-band');
   if (rows.some((r) => Number.isFinite(r.target))) {
     const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
     item.createSpan({ cls: 'icor-sqlv-legend-chip is-target' });
