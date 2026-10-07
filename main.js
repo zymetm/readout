@@ -3679,8 +3679,36 @@ class QueryService {
 
   cliReady() { return !!(this.deps && this.cli && this.cli.ok); }
 
+  /* THE PATH GUARD. A database path is untrusted text (a console box, a
+   * dashboard file, a note block), and the desktop engine turns it into an
+   * absolute path on the computer. So the only paths that pass are real
+   * vault files: no `..` segment, no absolute path or drive letter, nothing
+   * inside a dot folder or the vault's config folder, and the vault itself
+   * must know a file there. Returns a plain reason, or null when it is fine. */
+  pathRefusal(dbPath) {
+    if (typeof dbPath !== 'string' || dbPath.trim() === '') return 'No database path was given.';
+    const vault = this.plugin.app.vault;
+    const segments = dbPath.split(/[\\/]/);
+    if (dbPath.indexOf('\0') >= 0) return 'That database path is not allowed.';
+    if (/^[\\/]/.test(dbPath) || /^[A-Za-z]:/.test(dbPath)) {
+      return 'A database path must be a path inside the vault, not an absolute path: ' + dbPath;
+    }
+    if (segments.some((s) => s === '..')) {
+      return 'A database path may not contain "..": ' + dbPath;
+    }
+    const configDir = String(vault.configDir || '.obsidian').replace(/^[\\/]+|[\\/]+$/g, '').toLowerCase();
+    if (segments.some((s) => s.startsWith('.')) || (configDir && segments[0].toLowerCase() === configDir)) {
+      return 'A database inside a hidden or configuration folder is not opened: ' + dbPath;
+    }
+    const file = typeof vault.getAbstractFileByPath === 'function' ? vault.getAbstractFileByPath(dbPath) : null;
+    if (!(file instanceof TFile)) return 'The database file was not found in the vault at ' + dbPath + '.';
+    return null;
+  }
+
   /* Which engine answers for this database, or a plain reason why none can. */
   async engineFor(dbPath) {
+    const refusal = this.pathRefusal(dbPath);
+    if (refusal) return { engine: null, reason: refusal };
     const adapter = this.plugin.app.vault.adapter;
     const stat = await adapter.stat(dbPath);
     if (!stat) return { engine: null, reason: 'The database file was not found at ' + dbPath + '.' };

@@ -192,7 +192,7 @@ export function makeFakeVault(adapter, TFile) {
   return {
     adapter,
     getFiles: () => [],
-    getAbstractFileByPath: (p) => (adapter.files.has(p) ? new TFile(p) : null),
+    getAbstractFileByPath: (p) => (adapter.files.has(p) || adapter.binaries.has(p) ? new TFile(p) : null),
     read: async (f) => adapter.read(f.path),
     async create(p, text) {
       if (adapter.files.has(p)) throw new Error('File already exists.');
