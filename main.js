@@ -224,6 +224,9 @@ const DEFAULT_SETTINGS = {
   catalogIncludeValues: false,
   /* The plugin claims .json files for its reader and the dashboards. */
   openJsonFiles: true,
+  /* Widgets written in notes (a code block) draw. Off, a block shows its own
+   * text as plain code. */
+  drawNoteBlocks: true,
   /* The day a calendar's weeks start on, for every calendar widget that
    * does not name its own "weekStart". */
   weekStart: 'sunday',
@@ -8085,6 +8088,14 @@ class SqliteViewerSettingTab extends PluginSettingTab {
       }));
 
     new Setting(containerEl)
+      .setName('Draw widgets written in notes')
+      .setDesc('When on, a code block with the word ' + WIDGET_BLOCK_LANG + ' in any note draws one widget, read-only. When off, such a block shows its own text as plain code. A note that is already open changes the next time it is shown.')
+      .addToggle((t) => t.setValue(this.plugin.settings.drawNoteBlocks !== false).onChange(async (v) => {
+        this.plugin.settings.drawNoteBlocks = v;
+        await this.plugin.saveSettings();
+      }));
+
+    new Setting(containerEl)
       .setName('Week starts on')
       .setDesc('The day each column of weeks starts on in a calendar widget. A widget with its own "Week starts on" keeps it.')
       .addDropdown((d) => {
@@ -10237,7 +10248,14 @@ class IcorSqliteViewerPlugin extends Plugin {
       new Notice('Another plugin already uses the "' + SAMPLE_BLOCK_LANG + '" code block, so the help file samples will not draw.');
     }
     try {
-      this.registerMarkdownCodeBlockProcessor(WIDGET_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetBlockChild(el, source, this)); });
+      this.registerMarkdownCodeBlockProcessor(WIDGET_BLOCK_LANG, (source, el, ctx) => {
+        if (this.settings.drawNoteBlocks === false) {
+          /* Switched off in the settings: the block stays what it is, text. */
+          el.createEl('pre').createEl('code', { text: source });
+          return;
+        }
+        ctx.addChild(new WidgetBlockChild(el, source, this));
+      });
     } catch (e) {
       new Notice('Another plugin already uses the "' + WIDGET_BLOCK_LANG + '" code block, so widgets written in notes will not draw.');
     }
