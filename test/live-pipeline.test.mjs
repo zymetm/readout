@@ -94,8 +94,8 @@ test('the full dashboard pipeline against the real vault, on the GUI PATH', { sk
       }
       await plugin.writeDashboardCache(spec, cachedTiles);
       /* The cache folder is whatever the plugin resolved for THIS vault
-       * (07 Databases, or 07 Databases on a vault the adoption path has not
-       * renamed) - derived, never hardcoded, so both vault names pass. */
+       * (Databases, or 07 Databases in an ICOR for Life vault) - derived,
+       * never hardcoded, so both vault names pass. */
       const cacheFile = join(overlay, ...plugin.settings.cacheFolder.split('/'), 'dashboards', spec.id + '.json');
       assert.ok(existsSync(cacheFile), 'the cache must be written for ' + spec.id);
       const cache = JSON.parse(readFileSync(cacheFile, 'utf8'));

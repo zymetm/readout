@@ -1,8 +1,56 @@
 # Changelog
 
-All notable changes to ICOR for Life - SQLite Viewer.
+All notable changes to ReadOut. Entries before 1.0.0 are the history of the
+ICOR for Life SQLite Viewer by myICOR, which ReadOut is forked from; they are
+kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
+
+## [1.0.0] - 2026-10-07
+
+ReadOut's first release: the ICOR for Life SQLite Viewer 0.7.0, forked and
+renamed, under the same MIT licence with the original authors credited in
+`LICENSE`. Every widget, setting and engine of 0.7.0 is here.
+
+### Changed
+- **New name and id.** The plugin is ReadOut, id `readout`. It is a new plugin
+  to Obsidian: install it beside or instead of the old one, and move
+  `data.json` across to keep your settings.
+- **The code block in a note is now `readout`.** A note that used the
+  `sqlite-viewer` block word stops drawing the widget and shows the block as
+  plain code until the word is changed to `readout`. The words inside the
+  block are unchanged.
+- **The help file's live samples use `readout-sample`.** An unedited copy of the
+  help file in a dashboards folder is brought up to date at start.
+- **The folders are chosen for the vault, once.** A fresh install in a vault
+  with the ICOR for Life scaffold uses `07 Databases`, `07 Databases/Dashboards`
+  and `07 Databases/Dashboard Cache`; any other vault uses `Databases`,
+  `Databases/Dashboards` and `Databases/Dashboard Cache`. Saved settings always
+  win, and an existing `data.json` is never changed by this.
+- **"Open JSON files in the vault" is off for a new install.** Switch it on in
+  the settings to open a dashboard file as its dashboard. An existing
+  `data.json` keeps what it saved.
+- **The two guide files are written when you ask.** Starting ReadOut no longer
+  writes `README.md` and `AI-WIDGET-GUIDE.md` into the dashboards folder. Run
+  the command "Write the guide files", or press the button of the same name in
+  the settings. A copy that is already there and still unedited is kept up to
+  date at start; an edited copy is never touched. The fingerprint line now
+  says "Written by ReadOut", and copies that say "Written by the SQLite Viewer
+  plugin" are still recognised.
+- The log prefix is "ReadOut:".
+
+### Removed
+- **The three starter dashboards** (health, engagement, YouTube). They pointed
+  at databases most vaults do not have. An empty dashboards view offers
+  "Create your first dashboard".
+- **The automatic move from "07 Data" to "07 Databases".** It only helped
+  vaults on the 0.1 to 0.4 releases of the original plugin. Set the folders in
+  the settings if you are coming from one of those.
+
+### Release
+- The release is built by this repository's own workflow and carries
+  `main.js`, `manifest.json` and `styles.css` only. The SQLite engine is inside
+  `main.js`.
 
 ## [0.7.0] - 2026-10-06
 
