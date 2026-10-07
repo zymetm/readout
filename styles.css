@@ -2092,3 +2092,25 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   height: 100%;
   box-sizing: border-box;
 }
+
+/* ------------------------------------------ a widget inside a note -- */
+
+/* A widget a code block draws in a note: the same fixed-height box as a
+ * help-file sample, because the charts measure it. */
+.icor-sqlv-block {
+  max-width: 640px;
+  margin: var(--sqlv-s2) 0 var(--sqlv-s4);
+}
+
+.icor-sqlv-block.is-chart { height: 260px; }
+
+.icor-sqlv-block.is-short { height: 180px; }
+
+.icor-sqlv-block.is-thin { height: 32px; }
+
+.icor-sqlv-block > .icor-sqlv-tile {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.icor-sqlv-block-note { margin: var(--sqlv-s2) 0; }

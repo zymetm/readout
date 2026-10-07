@@ -664,4 +664,37 @@ column where a heatmap reads a row and a column.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint 065f70f1). If you edit this file, the plugin stops updating it. -->
+
+## 9. A widget inside a note
+
+A code block in any note draws one widget, read-only. The language word after
+the three backticks is `sqlite-viewer`. The block below is shown indented; in
+a note it is fenced:
+
+    ```sqlite-viewer
+    dashboard: sales
+    widget: Orders per day
+    ```
+
+Or the block holds one widget written out as JSON: the widget's own settings
+from section 4 plus `database`, the vault path of the database. It is read by
+the same parser as a dashboard file, so every rule above applies and the query
+must be read-only.
+
+    ```sqlite-viewer
+    { "database": "Databases/shop.db", "title": "Orders per day", "viz": "bar",
+      "x": "day", "y": "orders", "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day" }
+    ```
+
+- By name: `dashboard` is the dashboard's id (its file name without `.json`),
+  `widget` is a widget's `title` or its number counting from 1 (dividers count).
+  The note follows the dashboard; nothing is copied.
+- Written out: not a whole dashboard (no `tiles`), one widget. Use it when the
+  chart belongs to the note and no dashboard needs it.
+- Where the data comes from: live where the device can open the database,
+  otherwise the desktop's last result. A named widget reads the dashboard's
+  cache; a written-out widget keeps its own small cache in the cache folder,
+  written by the desktop when the note is shown. A phone writes nothing.
+- A mistake in the block, an unknown dashboard or a failed query is shown as a
+  line in the block, never as an error in the note.
+<!-- Written by the SQLite Viewer plugin (revision 8, fingerprint 4a3f5af2). If you edit this file, the plugin stops updating it. -->

@@ -8800,20 +8800,35 @@ divider
 
 No shared settings.
 
+## Showing a widget in a note
+
+Any note can show one widget of a dashboard, read-only, so a project page or a journal entry carries the chart itself. Write a code block whose language is \`sqlite-viewer\` and name the dashboard and the widget. The block below is shown here as plain text; in a note, put three backticks before and after it:
+
+    \`\`\`sqlite-viewer
+    dashboard: health-overview
+    widget: Heart rate, last 90 days
+    \`\`\`
+
+- "dashboard" is the dashboard's id: its file name in the dashboards folder, without \`.json\`.
+- "widget" is the widget's title, or its number on the dashboard counting from 1 (a section divider counts).
+- The note always shows what the dashboard shows now. Edit the widget on the dashboard and every note follows.
+- On a phone or tablet the note shows the dashboard's last desktop result, with a line saying when it was computed. Open the dashboard once on the desktop and let it sync to refresh it.
+- The block has no buttons: change the widget on the dashboard. To write a widget out inside the note instead, see \`AI-WIDGET-GUIDE.md\`.
+
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Heatmap | Calendar | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | |
-| Number size | | | | | | Yes | | | | | |
-| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | | | |
-| Meter | | | | | | Yes | | | | | |
-| Sparklines | | | | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
-| Band | SQL only | | | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Pie | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | | |
+| Number size | | | | | | Yes | | | | | | |
+| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | | | |
+| Meter | | | | | | Yes | | | | | | |
+| Sparklines | | | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | | |
+| Band | SQL only | | | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -9575,6 +9590,39 @@ column where a heatmap reads a row and a column.
 - \`line: true\`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
+
+## 9. A widget inside a note
+
+A code block in any note draws one widget, read-only. The language word after
+the three backticks is \`sqlite-viewer\`. The block below is shown indented; in
+a note it is fenced:
+
+    \`\`\`sqlite-viewer
+    dashboard: sales
+    widget: Orders per day
+    \`\`\`
+
+Or the block holds one widget written out as JSON: the widget's own settings
+from section 4 plus \`database\`, the vault path of the database. It is read by
+the same parser as a dashboard file, so every rule above applies and the query
+must be read-only.
+
+    \`\`\`sqlite-viewer
+    { "database": "Databases/shop.db", "title": "Orders per day", "viz": "bar",
+      "x": "day", "y": "orders", "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day" }
+    \`\`\`
+
+- By name: \`dashboard\` is the dashboard's id (its file name without \`.json\`),
+  \`widget\` is a widget's \`title\` or its number counting from 1 (dividers count).
+  The note follows the dashboard; nothing is copied.
+- Written out: not a whole dashboard (no \`tiles\`), one widget. Use it when the
+  chart belongs to the note and no dashboard needs it.
+- Where the data comes from: live where the device can open the database,
+  otherwise the desktop's last result. A named widget reads the dashboard's
+  cache; a written-out widget keeps its own small cache in the cache folder,
+  written by the desktop when the note is shown. A phone writes nothing.
+- A mistake in the block, an unknown dashboard or a failed query is shown as a
+  line in the block, never as an error in the note.
 `;
 
 /* The guides the plugin writes into the dashboards folder. `legacy` holds
@@ -9582,8 +9630,8 @@ column where a heatmap reads a row and a column.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 6, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 7, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 7, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 8, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -9750,6 +9798,193 @@ class WidgetSampleChild extends MarkdownRenderChild {
   }
 }
 
+/* ------------------------------------------- a widget inside a note -- */
+
+/* A code block in any note draws one widget, read-only:
+ *
+ *     ```sqlite-viewer
+ *     dashboard: health-overview
+ *     widget: Heart rate
+ *     ```
+ *
+ * names a widget of a saved dashboard (by its title or its number on the
+ * dashboard, counting from 1), so the note always shows what the dashboard
+ * shows; or the block holds one widget written out, as a JSON object with
+ * the dashboard's "database" and the widget's own settings:
+ *
+ *     ```sqlite-viewer
+ *     { "database": "Databases/shop.db", "viz": "bar", "x": "day", "y": "orders", "sql": "SELECT ..." }
+ *     ```
+ *
+ * The word after the three backticks is the one constant below. Every rule
+ * of a dashboard file applies, because the block is run through the same
+ * parser. It reads like the dashboards do: live where this device can open
+ * the database; otherwise from the desktop's cache. A named widget reads
+ * the dashboard's own cache (the dashboards view writes it, a block never
+ * does); a written-out widget has none, so on the desktop it keeps its own
+ * small cache beside the others, keyed by what the block says. */
+const WIDGET_BLOCK_LANG = 'sqlite-viewer';
+
+/* The block's text as a request, or a plain-words reason. Pure.
+ * { ok, kind: 'ref', dashboard, widget } with widget a 1-based number or a
+ * title, or { ok, kind: 'inline', spec, key }: a one-widget dashboard the
+ * parser accepted, and the key its cache is filed under. */
+function parseWidgetBlock(text) {
+  const body = String(text === null || text === undefined ? '' : text).trim();
+  if (!body) return { ok: false, reason: 'The block is empty. Name a widget ("dashboard: ..." and "widget: ...") or write one as JSON.' };
+  if (body.startsWith('{')) {
+    let raw;
+    try { raw = JSON.parse(body); } catch (e) { return { ok: false, reason: 'The block looks like JSON but is not valid JSON. ' + e.message }; }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { ok: false, reason: 'A written-out widget must be one JSON object.' };
+    if (raw.tiles !== undefined) return { ok: false, reason: 'A block draws one widget, not a whole dashboard. Write one widget, or name one with "dashboard:" and "widget:".' };
+    const database = raw.database;
+    const tile = Object.assign({}, raw);
+    delete tile.database;
+    const wrapped = JSON.stringify({ id: 'note-block', title: 'Note block', database: typeof database === 'string' ? database : undefined, tiles: [tile] });
+    const parsed = parseDashboardSpec(wrapped);
+    if (!parsed.ok) return { ok: false, reason: parsed.reason.replace(/^Tile 1/, 'The widget').replace('the dashboard needs a top-level "database"', 'the block needs a "database": the vault path of the database') };
+    return { ok: true, kind: 'inline', spec: parsed.spec, key: shortHash(JSON.stringify(parsed.spec.tiles[0]) + '|' + parsed.spec.database) };
+  }
+  const fields = {};
+  for (const line of body.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const m = /^\s*([A-Za-z]+)\s*:\s*(.*?)\s*$/.exec(line);
+    if (!m) return { ok: false, reason: 'Each line of a block is "name: value", like "dashboard: health-overview". This line is not: ' + line.trim().slice(0, 60) };
+    const key = m[1].toLowerCase();
+    if (key !== 'dashboard' && key !== 'widget') return { ok: false, reason: 'A block knows "dashboard" and "widget", not "' + m[1] + '".' };
+    fields[key] = m[2];
+  }
+  if (!fields.dashboard) return { ok: false, reason: 'The block needs a "dashboard:" line: the id of a dashboard, which is its file name without .json.' };
+  if (!fields.widget) return { ok: false, reason: 'The block needs a "widget:" line: the title of a widget on the dashboard, or its number counting from 1.' };
+  const widget = /^\d+$/.test(fields.widget) ? Number(fields.widget) : fields.widget;
+  return { ok: true, kind: 'ref', dashboard: fields.dashboard, widget };
+}
+
+/* The index of the widget a block names on a dashboard, or -1. A number
+ * counts from 1, dividers included, as the dashboard lays them out; a title
+ * matches without regard to case or the spaces around it. Pure. */
+function widgetIndexIn(spec, widget) {
+  const tiles = (spec && spec.tiles) || [];
+  if (typeof widget === 'number') return widget >= 1 && widget <= tiles.length ? widget - 1 : -1;
+  const want = String(widget).trim().toLowerCase();
+  return tiles.findIndex((t) => String(t.title || '').trim().toLowerCase() === want);
+}
+
+/* How tall a block is, by what it draws (the sizes are in styles.css). */
+function blockSizeFor(tile) {
+  if (tile.viz === 'divider' || (tile.viz === 'text' && tile.line === true)) return 'thin';
+  if (['stat', 'segments', 'bullet', 'calendar', 'text'].includes(tile.viz)) return 'short';
+  return 'chart';
+}
+
+/* Where a written-out widget's desktop result is kept. */
+function blockCachePath(cacheFolder, key) {
+  return normalizePath(cacheFolder + '/notes/' + key + '.json');
+}
+
+class WidgetBlockChild extends MarkdownRenderChild {
+  constructor(containerEl, source, plugin) {
+    super(containerEl);
+    this.source = source;
+    this.plugin = plugin;
+    this.observers = [];
+    this.gone = false;
+  }
+
+  onload() {
+    this.draw().catch((e) => {
+      console.error(safeLogLine('a ' + WIDGET_BLOCK_LANG + ' block failed to draw', e));
+      this.say('This widget could not be drawn: ' + (e && e.message ? e.message : 'unknown error') + '.');
+    });
+  }
+
+  onunload() {
+    this.gone = true;
+    for (const observer of this.observers) observer.disconnect();
+    this.observers = [];
+  }
+
+  /* A line in the block's own box, never an exception into the note. */
+  say(text) {
+    if (this.gone) return;
+    const box = this.containerEl.createDiv({ cls: 'icor-sqlv-block-note' });
+    box.setAttribute('data-ink-plugin', 'icor-for-life-sqlite-viewer');
+    box.createDiv({ cls: 'icor-sqlv-error', text });
+  }
+
+  async draw() {
+    const request = parseWidgetBlock(this.source);
+    if (!request.ok) { this.say(request.reason); return; }
+    const plugin = this.plugin;
+    let spec;
+    let index = 0;
+    let dashboardCache = null;
+    if (request.kind === 'ref') {
+      const { specs } = await plugin.loadDashboardSpecs();
+      spec = specs.find((d) => d.id === request.dashboard);
+      if (!spec) { this.say('There is no dashboard "' + request.dashboard + '". Use the id of a dashboard in ' + plugin.settings.dashboardFolder + ', which is its file name without .json.'); return; }
+      index = widgetIndexIn(spec, request.widget);
+      if (index < 0) {
+        this.say('The dashboard "' + spec.title + '" has no widget ' + (typeof request.widget === 'number' ? 'number ' + request.widget : 'titled "' + request.widget + '"') + '.');
+        return;
+      }
+    } else {
+      spec = request.spec;
+    }
+    const tile = spec.tiles[index];
+    const box = this.containerEl.createDiv({ cls: 'icor-sqlv-block is-' + blockSizeFor(tile) });
+    box.setAttribute('data-ink-plugin', 'icor-for-life-sqlite-viewer');
+    const tileEl = box.createDiv({ cls: sampleTileClass(tile) });
+    const extras = (table, more) => Object.assign({ observers: this.observers }, more || {}, plugin.levelExtras());
+    if (drawsNoData(tile)) { renderTile(tileEl, tile, { columns: [], rows: [] }, extras()); return; }
+
+    const db = tileDatabase(tile, spec);
+    if (!db) { tileEl.createDiv({ cls: 'icor-sqlv-error', text: 'This widget names no database.' }); return; }
+    const choice = await plugin.query.engineFor(db);
+    if (this.gone) return;
+    if (choice.engine) {
+      try {
+        const res = await plugin.query.query(db, tileSql(tile, spec), { cap: 5000 });
+        let ghost = null;
+        if (tile.source && tile.compare && tile.compare !== 'none' && canCompare(tile, spec.globalTimeframe)) {
+          const shift = tile.compare === 'last_year' ? 'year' : 'previous';
+          const g = await plugin.query.query(db, sqlForWidget(tile, spec.globalTimeframe, shift), { cap: 5000 });
+          ghost = { columns: g.columns, rows: g.rows };
+        }
+        if (this.gone) return;
+        const prepared = prepareTileForRender(tile, res);
+        renderTile(tileEl, prepared.spec, prepared.table, extras(null, { ghost, compare: tile.compare, favorable: tile.favorable }));
+        if (request.kind === 'inline') plugin.keepBlockResult(request.key, { columns: res.columns, rows: res.rows, ghost });
+      } catch (e) {
+        if (tile.title) tileEl.createDiv({ cls: 'icor-sqlv-tile-title', text: tile.title });
+        tileEl.createDiv({ cls: 'icor-sqlv-error', text: e.message });
+      }
+      return;
+    }
+    /* This device cannot open the database: the desktop's cache. */
+    let cached = null;
+    let computedAt = '';
+    if (request.kind === 'ref') {
+      dashboardCache = await plugin.readDashboardCache(spec);
+      const t = dashboardCache && dashboardCache.tiles[index];
+      if (t && Array.isArray(t.columns) && Array.isArray(t.rows)) { cached = t; computedAt = dashboardCache.computedAt; }
+    } else {
+      const c = await plugin.readBlockCache(request.key);
+      if (c) { cached = c.result; computedAt = c.computedAt; }
+    }
+    if (this.gone) return;
+    if (!cached) {
+      if (tile.title) tileEl.createDiv({ cls: 'icor-sqlv-tile-title', text: tile.title });
+      tileEl.createDiv({ cls: 'icor-sqlv-note', text: (choice.reason || 'This database cannot be opened here.') + ' No cached result yet. ' + (request.kind === 'ref' ? 'Open this dashboard once on the desktop and sync.' : 'Open this note once on the desktop and sync.') });
+      return;
+    }
+    const prepared = prepareTileForRender(tile, { columns: cached.columns, rows: cached.rows });
+    renderTile(tileEl, prepared.spec, prepared.table, extras(null, { ghost: cached.ghost || null, compare: tile.compare, favorable: tile.favorable }));
+    const note = 'Computed on desktop, ' + relativeTime(computedAt) + '.';
+    tileEl.createDiv({ cls: 'icor-sqlv-note icor-sqlv-cache-note', text: note }).setAttribute('title', note);
+  }
+}
+
 const STARTER_DASHBOARDS = [
   {
     file: 'health-overview.json',
@@ -9891,6 +10126,8 @@ class IcorSqliteViewerPlugin extends Plugin {
 
     /* The help file's live samples (see WIDGET_SAMPLES). */
     this.registerMarkdownCodeBlockProcessor(SAMPLE_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetSampleChild(el, source)); });
+    /* A widget of a dashboard, or one written out, inside any note. */
+    this.registerMarkdownCodeBlockProcessor(WIDGET_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetBlockChild(el, source, this)); });
     this.registerView(VIEW_BROWSER, (leaf) => new SqliteBrowserView(leaf, this));
     this.registerView(VIEW_DASHBOARDS, (leaf) => new SqliteDashboardsView(leaf, this));
     this.registerView(VIEW_JSON, (leaf) => new JsonFileView(leaf, this));
@@ -10162,6 +10399,36 @@ class IcorSqliteViewerPlugin extends Plugin {
     await adapter.write(path, JSON.stringify(payload, null, 2));
   }
 
+  /* The desktop result of a widget written out in a note, filed by a key
+   * of what the block says. Once per key per session, desktop only, in the
+   * background: a note never waits for it and never fails because of it. */
+  keepBlockResult(key, result) {
+    if (!Platform.isDesktopApp) return;
+    if (!this.keptBlocks) this.keptBlocks = new Set();
+    if (this.keptBlocks.has(key)) return;
+    this.keptBlocks.add(key);
+    (async () => {
+      const adapter = this.app.vault.adapter;
+      const path = blockCachePath(this.settings.cacheFolder, key);
+      await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
+      await adapter.write(path, JSON.stringify({ computedAt: new Date().toISOString(), result }));
+    })().catch((e) => {
+      this.keptBlocks.delete(key);
+      console.error(safeLogLine('the note block cache write failed', e));
+    });
+  }
+
+  async readBlockCache(key) {
+    const adapter = this.app.vault.adapter;
+    const path = blockCachePath(this.settings.cacheFolder, key);
+    if (!(await adapter.exists(path))) return null;
+    try {
+      const c = JSON.parse(await adapter.read(path));
+      if (c && typeof c.computedAt === 'string' && c.result && Array.isArray(c.result.columns) && Array.isArray(c.result.rows)) return c;
+    } catch (e) { /* an unreadable cache reads as none */ }
+    return null;
+  }
+
   async readDashboardCache(spec) {
     const adapter = this.app.vault.adapter;
     const candidates = [dashCachePath(this.settings.cacheFolder, spec.id)];
@@ -10325,6 +10592,7 @@ const EMBEDDED_SQL_WASM_B64 = 'AGFzbQEAAAABnwRFYAJ/fwF/YAF/AX9gA39/fwBgA39/fwF/Y
 
 /* The pure library, exposed for the gates. */
 IcorSqliteViewerPlugin.lib = {
+  WIDGET_BLOCK_LANG, parseWidgetBlock, widgetIndexIn, blockSizeFor, blockCachePath, WidgetBlockChild,
   checkSegments, segmentsOf, checkPie, pieOf, piePath, isPartsViz,
   checkMeter, meterFill,
   checkHeatmap, heatmapHighlight, heatmapGrid,

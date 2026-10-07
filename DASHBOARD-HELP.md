@@ -378,20 +378,35 @@ Shared: hint and footnote.
 
 No shared settings.
 
+## Showing a widget in a note
+
+Any note can show one widget of a dashboard, read-only, so a project page or a journal entry carries the chart itself. Write a code block whose language is `sqlite-viewer` and name the dashboard and the widget. The block below is shown here as plain text; in a note, put three backticks before and after it:
+
+    ```sqlite-viewer
+    dashboard: health-overview
+    widget: Heart rate, last 90 days
+    ```
+
+- "dashboard" is the dashboard's id: its file name in the dashboards folder, without `.json`.
+- "widget" is the widget's title, or its number on the dashboard counting from 1 (a section divider counts).
+- The note always shows what the dashboard shows now. Edit the widget on the dashboard and every note follows.
+- On a phone or tablet the note shows the dashboard's last desktop result, with a line saying when it was computed. Open the dashboard once on the desktop and let it sync to refresh it.
+- The block has no buttons: change the widget on the dashboard. To write a widget out inside the note instead, see `AI-WIDGET-GUIDE.md`.
+
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Heatmap | Calendar | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | |
-| Number size | | | | | | Yes | | | | | |
-| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | | | |
-| Meter | | | | | | Yes | | | | | |
-| Sparklines | | | | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
-| Band | SQL only | | | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | Bullet | One big number | Table | Segments | Pie | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | | | |
+| Number size | | | | | | Yes | | | | | | |
+| Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | | | |
+| Meter | | | | | | Yes | | | | | | |
+| Sparklines | | | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | | |
+| Band | SQL only | | | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -483,4 +498,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 6, fingerprint 71f4f665). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint 23d732f2). If you edit this file, the plugin stops updating it. -->
