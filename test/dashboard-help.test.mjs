@@ -394,7 +394,7 @@ test('the GitHub help file shows a light and a dark picture for every sample, an
   assert.equal(pictures.length, [...lib.VIZ_KINDS].length, 'one picture per widget type');
   /* A widget's pictures are screenshots of its sample in the vault; a new widget's are
    * shot after it is built, so it is listed here until they are in docs/images. */
-  const NOT_SHOT_YET = ['pie'];
+  const NOT_SHOT_YET = [];
   for (const [, dark, light] of pictures) {
     for (const file of [dark, light]) {
       if (NOT_SHOT_YET.some((w) => file.includes('widget-' + w + '-'))) continue;
