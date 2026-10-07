@@ -61,3 +61,82 @@ test('the pie legend is stretched, not centred, so no row is cut on the left', (
 test('muted words in a note or sample lean toward the full ink', () => {
   assert.match(css, /\.icor-sqlv-sample,\s*\.icor-sqlv-block\s*\{\s*--sqlv-fg-faint:\s*color-mix\(/);
 });
+
+test('a chart drawn before it has a size is scaled into its area, never taller', () => {
+  const block = css.slice(css.indexOf('.icor-sqlv-chart-host > .icor-sqlv-chart:not(.is-measured)'));
+  assert.match(block.slice(0, block.indexOf('}')), /position:\s*absolute[^}]*width:\s*100%[^}]*height:\s*100%/);
+});
+
+test('a chart drawn off screen is drawn again once it has a size, with no observer needed', async () => {
+  const { loadPlugin } = await import('./harness.mjs');
+  const frames = [];
+  const win = { requestAnimationFrame: (cb) => { frames.push(cb); return frames.length; } };
+  const { lib, obsidian } = loadPlugin();
+  const walk = function* (el) { yield el; for (const c of el.children || []) yield* walk(c); };
+  const tileEl = new obsidian.Modal({}).contentEl;
+  tileEl.win = win;
+  const rows = Array.from({ length: 12 }, (_, i) => ['d' + i, 10 + i, 5 + (i % 3)]);
+  lib.renderTile(tileEl, { title: 'T', viz: 'line', x: 'd', y: ['a', 'b'] }, { columns: ['d', 'a', 'b'], rows }, {});
+  const host = [...walk(tileEl)].find((e) => e.classSet && e.classSet.has('icor-sqlv-chart-host'));
+  const box = [...walk(tileEl)].find((e) => e.classSet && e.classSet.has('icor-sqlv-chart-box'));
+  assert.ok(frames.length > 0, 'a retry is queued while the chart has no size');
+  box.isConnected = true;
+  box.clientHeight = 200;
+  host.clientWidth = 600;
+  host.clientHeight = 169;
+  frames.shift()();
+  assert.equal(host.children[0].getAttribute('height'), '169', 'the retry measured and redrew it');
+});
+
+test('a chart whose area settles to a smaller size a moment after it was drawn is drawn again to fit', async () => {
+  const { loadPlugin } = await import('./harness.mjs');
+  const frames = [];
+  const win = { requestAnimationFrame: (cb) => { frames.push(cb); return frames.length; } };
+  const { lib, obsidian } = loadPlugin();
+  const walk = function* (el) { yield el; for (const c of el.children || []) yield* walk(c); };
+  const tileEl = new obsidian.Modal({}).contentEl;
+  tileEl.win = win;
+  const rows = Array.from({ length: 12 }, (_, i) => ['d' + i, 10 + i]);
+  const proto = Object.getPrototypeOf(tileEl);
+  const box0 = [];
+  const orig = proto.createDiv;
+  proto.createDiv = function (o) {
+    const el = orig.call(this, o);
+    if (o && o.cls === 'icor-sqlv-chart-box') { el.isConnected = true; el.clientHeight = 425; }
+    if (o && o.cls === 'icor-sqlv-chart-host') { el.clientWidth = 792; el.clientHeight = 425; box0.push(el); }
+    return el;
+  };
+  try {
+    lib.renderTile(tileEl, { title: 'T', viz: 'line', x: 'd', y: ['a'] }, { columns: ['d', 'a'], rows }, {});
+  } finally { proto.createDiv = orig; }
+  const host = [...walk(tileEl)].find((e) => e.classSet && e.classSet.has('icor-sqlv-chart-host'));
+  assert.equal(host.children[0].getAttribute('height'), '425', 'first drawn at the size it had');
+  host.clientWidth = 606;
+  host.clientHeight = 169;
+  frames.shift()();
+  assert.equal(host.children[0].getAttribute('height'), '169', 'the next frame saw the settled size');
+});
+
+test('a chart scrolled into view is measured again, long after it was drawn', async () => {
+  const { loadPlugin } = await import('./harness.mjs');
+  const seers = [];
+  const win = {
+    requestAnimationFrame: () => 0,
+    IntersectionObserver: class { constructor(cb) { this.cb = cb; seers.push(this); } observe(el) { this.el = el; } },
+  };
+  const { lib, obsidian } = loadPlugin();
+  const walk = function* (el) { yield el; for (const c of el.children || []) yield* walk(c); };
+  const tileEl = new obsidian.Modal({}).contentEl;
+  tileEl.win = win;
+  const rows = Array.from({ length: 12 }, (_, i) => ['d' + i, 10 + i]);
+  lib.renderTile(tileEl, { title: 'T', viz: 'line', x: 'd', y: ['a'] }, { columns: ['d', 'a'], rows }, {});
+  const host = [...walk(tileEl)].find((e) => e.classSet && e.classSet.has('icor-sqlv-chart-host'));
+  const box = [...walk(tileEl)].find((e) => e.classSet && e.classSet.has('icor-sqlv-chart-box'));
+  assert.equal(seers.length, 1, 'one visibility observer on the chart box');
+  box.isConnected = true;
+  box.clientHeight = 200;
+  host.clientWidth = 606;
+  host.clientHeight = 169;
+  seers[0].cb([]);
+  assert.equal(host.children[0].getAttribute('height'), '169');
+});

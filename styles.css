@@ -674,6 +674,15 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   overflow: hidden;
 }
 
+/* A chart drawn before it had a size is scaled into the area, never taller. */
+.icor-sqlv-chart-host > .icor-sqlv-chart:not(.is-measured) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .icor-sqlv-chart-host > .icor-sqlv-chart.is-measured {
   position: absolute;
   top: 0;

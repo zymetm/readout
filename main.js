@@ -4007,6 +4007,33 @@ function chartBox(parentEl, names, palette, draw, observers, guides) {
     draw(svg, W, H);
   };
   redraw();
+  /* A chart drawn before it has its final size (a note section built off
+   * screen, a frame whose style lands a moment later) is measured again on
+   * the next frames, even if no observer reports the change: for about two
+   * seconds, and for as long as it has no size at all. */
+  {
+    const win = box.win || (typeof window !== 'undefined' ? window : null);
+    let tries = 0;
+    const settle = () => {
+      tries++;
+      if (tries > 600 || (tries > 120 && !last.endsWith('?'))) return;
+      if (box.isConnected) redraw();
+      win.requestAnimationFrame(settle);
+    };
+    if (win && typeof win.requestAnimationFrame === 'function') win.requestAnimationFrame(settle);
+
+    /* A section the note draws off screen gets its size only when it is
+     * scrolled to: measure again whenever it comes into view. */
+    const Seen = win && win.IntersectionObserver;
+    if (Seen) {
+      const seen = new Seen(() => {
+        if (!box.isConnected) return;
+        redraw();
+        if (win.requestAnimationFrame) win.requestAnimationFrame(redraw);
+      });
+      seen.observe(box);
+    }
+  }
   const observer = resizeObserverFor(box, () => {
     if (!box.isConnected) { observer.disconnect(); return; }
     redraw();
