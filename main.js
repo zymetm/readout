@@ -10226,10 +10226,21 @@ class IcorSqliteViewerPlugin extends Plugin {
     this.query = new QueryService(this);
     this.query.detect();
 
-    /* The help file's live samples (see WIDGET_SAMPLES). */
-    this.registerMarkdownCodeBlockProcessor(SAMPLE_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetSampleChild(el, source)); });
-    /* A widget of a dashboard, or one written out, inside any note. */
-    this.registerMarkdownCodeBlockProcessor(WIDGET_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetBlockChild(el, source, this)); });
+    /* The help file's live samples (see WIDGET_SAMPLES), and a widget of a
+     * dashboard, or one written out, inside any note. Obsidian throws when
+     * another plugin already owns a code-block word, and that must not abort
+     * the rest of onload, so each registration is guarded like the file
+     * extensions below. */
+    try {
+      this.registerMarkdownCodeBlockProcessor(SAMPLE_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetSampleChild(el, source)); });
+    } catch (e) {
+      new Notice('Another plugin already uses the "' + SAMPLE_BLOCK_LANG + '" code block, so the help file samples will not draw.');
+    }
+    try {
+      this.registerMarkdownCodeBlockProcessor(WIDGET_BLOCK_LANG, (source, el, ctx) => { ctx.addChild(new WidgetBlockChild(el, source, this)); });
+    } catch (e) {
+      new Notice('Another plugin already uses the "' + WIDGET_BLOCK_LANG + '" code block, so widgets written in notes will not draw.');
+    }
     this.registerView(VIEW_BROWSER, (leaf) => new SqliteBrowserView(leaf, this));
     this.registerView(VIEW_DASHBOARDS, (leaf) => new SqliteDashboardsView(leaf, this));
     this.registerView(VIEW_JSON, (leaf) => new JsonFileView(leaf, this));
