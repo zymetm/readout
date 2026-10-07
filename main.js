@@ -69,7 +69,9 @@ const {
 const MB = 1024 * 1024;
 const DB_EXTS = new Set(['db', 'sqlite', 'sqlite3']);
 const SIDECAR_RE = /\.(db|sqlite|sqlite3)-(wal|shm)$/i;
-const SKIP_FOLDERS = new Set(['.obsidian', '.git', '.trash']);
+/* Folders nobody means, besides the vault's own config folder (which the
+ * vault names, so it is passed in; see isSkippedPath). */
+const SKIP_FOLDERS = new Set(['.git', '.trash']);
 const ALLOWED_KEYWORDS = new Set(['select', 'with', 'pragma', 'explain']);
 /* Statement verbs that write. Refused anywhere they appear as words in a
  * stripped statement, because a WITH prefix can lead into any of them. */
@@ -538,15 +540,16 @@ function isDbPath(path) {
   return DB_EXTS.has(extOf(path));
 }
 
-function isSkippedPath(path) {
-  return String(path).split('/').some((seg) => SKIP_FOLDERS.has(seg));
+function isSkippedPath(path, configDir) {
+  const config = String(configDir || '.obsidian');
+  return String(path).split('/').some((seg) => SKIP_FOLDERS.has(seg) || seg === config);
 }
 
 /* Every database in the vault, from a list of { path, size }. Sidecars and
- * the folders nobody means (.obsidian, .git, .trash) stay out. */
-function findDatabases(files) {
+ * the folders nobody means (the config folder, .git, .trash) stay out. */
+function findDatabases(files, configDir) {
   return files
-    .filter((f) => isDbPath(f.path) && !isSkippedPath(f.path))
+    .filter((f) => isDbPath(f.path) && !isSkippedPath(f.path, configDir))
     .sort((a, b) => a.path.localeCompare(b.path));
 }
 
@@ -10413,7 +10416,7 @@ class IcorSqliteViewerPlugin extends Plugin {
   }
 
   vaultDatabases() {
-    return findDatabases(this.app.vault.getFiles().map((f) => ({ path: f.path, size: f.stat.size })));
+    return findDatabases(this.app.vault.getFiles().map((f) => ({ path: f.path, size: f.stat.size })), this.app.vault.configDir);
   }
 
   async openBrowserFor(dbPath) {
