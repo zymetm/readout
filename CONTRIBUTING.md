@@ -61,23 +61,15 @@ request. Merging a pull request ships nothing: releases are cut from a
 version tag by the maintainer, never from a push to `main`, so your change
 reaches members with the next tagged release.
 
-## Forks and new projects
+## Where this project comes from
 
-The Obsidian directory encourages developers to collaborate on fewer
-high-quality projects, so a change that fits this plugin belongs here as a
-pull request.
+ReadOut is forked from the ICOR for Life SQLite Viewer by myICOR (MIT
+licence; its authors are credited in `LICENSE`). A fix that also applies to
+the original is welcome there too.
 
-The Obsidian Community directory does not list forks: its Developer policies
-state that "Forks are not allowed in the Community directory unless" the fork
-"has received explicit written approval from the original author in a
-publicly verifiable way" or the original author has been unreachable with no
-update for at least 6 months, and that "If your project diverges from
-existing options, it should not be a fork. Start fresh with a new repository
-and your own code." So a project that diverges from this plugin ships under
-its own plugin id and its own name, never `icor-for-life-sqlite-viewer` or
-"ICOR for Life - SQLite Viewer": the id is unique to this entry and its Owner, the
-name is covered by `TRADEMARK.md`, and the MIT licence grants you the code,
-not the listing and not the name.
+A project that forks ReadOut ships under its own plugin id and its own name,
+never `readout` or "ReadOut": the MIT licence grants you the code, not the
+listing and not the name. Do not use the marks named in `TRADEMARK.md` either.
 
 ## Security
 

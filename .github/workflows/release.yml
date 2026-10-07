@@ -1,26 +1,25 @@
 name: Release
 
-# A release is a bare version tag (0.6.2, never v0.6.2: the Obsidian
-# directory reads the tag as the version). A plain push to main never cuts
-# a release; it only ever lands code. Tom decisions r7k and t5m, 2026-09-07.
+# A release is a bare version tag (1.0.0, never v1.0.0: the Obsidian
+# community directory reads the tag as the version). A plain push to main
+# never cuts a release; it only ever lands code.
 #
 # manifest.json stays the source of truth for the version. The guard job
 # refuses a tag that does not equal manifest.json's version, and a tag that
-# is not on main. Only then does the shared release logic publish.
+# is not on main. Then the tests run, and only then is the release created.
 #
-# Asset set: main.js, manifest.json, styles.css, plus the SQLite engine the
-# plugin loads at runtime, sql-wasm.js and sql-wasm.wasm (extra-assets). All
-# five are tracked in git; the release publishes them, the provenance job
-# signs them and the verify job compares every one with the tag.
+# The release carries exactly three files: main.js, manifest.json and
+# styles.css. That is all the directory installer downloads. The SQLite
+# engine is already inside main.js, so there is nothing else to ship. The
+# release notes are the matching section of CHANGELOG.md.
 #
-# Rehearsal: run this workflow by hand (Actions, Release, Run workflow, or
-# `gh workflow run release.yml -R myICOR/icor-for-life-sqlite-viewer -f tag=<tag>`)
-# with an EXISTING tag, normally the current release. A manual run is always
-# a dry run: nothing is tagged, published or signed, and the verify job
-# checks the published release.
+# Rehearsal: run this workflow by hand (Actions, Release, Run workflow) with
+# an EXISTING tag. A manual run is always a dry run: it checks the guard and
+# runs the tests, and publishes
+# nothing.
 #
-# The gate runs AFTER the release job, never beside it. Run in parallel they
-# race: the gate reads the repo before the release exists.
+# This is ReadOut's own workflow. It calls no shared workflow from any other
+# organisation, and every action is pinned to a commit SHA.
 
 on:
   push:
@@ -36,8 +35,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   guard:
+    name: The tag is the manifest version, and it sits on main
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -56,7 +60,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: The tag is the manifest version, and it sits on main
+      - name: The tag matches manifest.json, versions.json and the changelog, and sits on main
         env:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
@@ -64,11 +68,14 @@ jobs:
           SHA=$(git rev-parse HEAD)
           [ "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$SHA" ] \
             || { echo "::error::checkout $SHA is not tag $TAG"; exit 1; }
-          MANIFEST=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
+          MANIFEST=$(node -p "require('./manifest.json').version")
           if [ "$MANIFEST" != "$TAG" ]; then
             echo "::error::tag $TAG does not equal manifest.json version $MANIFEST"
             exit 1
           fi
+          node -e "const v=require('./versions.json'); const m=require('./manifest.json'); if (v[m.version] !== m.minAppVersion) { console.error('versions.json does not map ' + m.version + ' to ' + m.minAppVersion); process.exit(1); }"
+          grep -q "^## \[$TAG\]" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no section for $TAG"; exit 1; }
           git fetch --no-tags --force origin "+refs/heads/main:refs/remotes/origin/main"
           if ! git merge-base --is-ancestor "$SHA" origin/main; then
             echo "::error::tag $TAG points at $SHA, which is not on main"
@@ -76,29 +83,95 @@ jobs:
           fi
           echo "tag $TAG == manifest.json $MANIFEST at $SHA, on main"
 
-  release:
+  test:
+    name: The tests pass on the tagged commit
     needs: guard
-    # id-token and attestations: the shared workflow's `provenance` job signs
-    # the five published files after the release job publishes them. A called
-    # workflow gets no more than its caller grants, and GitHub checks the
-    # grant when the run starts, dry run or not.
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    uses: myICOR/.github/.github/workflows/obsidian-release.yml@main
-    with:
-      kind: plugin
-      extra-assets: sql-wasm.js sql-wasm.wasm
-      dry-run: ${{ github.event_name == 'workflow_dispatch' }}
-
-  verify:
-    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
-      issues: write
-    uses: myICOR/.github/.github/workflows/obsidian-version-gate.yml@main
-    with:
-      kind: plugin
-      extra-assets: sql-wasm.js sql-wasm.wasm
-      open-issue: ${{ github.event_name != 'workflow_dispatch' }}
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # No dependencies and no lockfile: nothing to install.
+      - name: Test
+        run: npm test
+
+  release:
+    name: Publish the release
+    needs: test
+    # A rehearsal never publishes.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Write the release notes from the changelog
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          awk -v tag="$TAG" '
+            $0 ~ "^## \\[" tag "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > release-notes.md
+          [ -s release-notes.md ] || { echo "::error::the changelog section for $TAG is empty"; exit 1; }
+
+      - name: Create the release with exactly three files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" main.js manifest.json styles.css \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes-file release-notes.md \
+            --verify-tag
+
+  verify:
+    name: The published files are the tagged files
+    needs: release
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Download the release and compare every file with the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir published
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir published
+          [ "$(ls published | sort | tr '\n' ' ')" = "main.js manifest.json styles.css " ] \
+            || { echo "::error::the release must carry exactly main.js, manifest.json and styles.css"; ls published; exit 1; }
+          for f in main.js manifest.json styles.css; do
+            cmp "$f" "published/$f" || { echo "::error::$f in the release differs from the tag"; exit 1; }
+          done
+          sha256sum published/main.js published/manifest.json published/styles.css

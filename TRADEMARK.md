@@ -1,3 +1,8 @@
+ReadOut is forked from the ICOR for Life SQLite Viewer by myICOR, and carries
+over the trademark notice of that project, below. ReadOut itself uses none of
+these marks in its id, name or description, and claims no connection to their
+owner beyond the truthful statement that it is forked from that project.
+
 Trademarks. "ICOR", "ICOR for Life", "myICOR" and "Paperless Movement" are
 trademarks of Paperless Movement, S.L. ("ICOR" and "PAPERLESS MOVEMENT" are
 registered in the United States). The MIT licence covers the code only and

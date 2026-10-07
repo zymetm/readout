@@ -1,10 +1,10 @@
 {
-  "id": "icor-for-life-sqlite-viewer",
-  "name": "ICOR for Life - SQLite Viewer",
+  "id": "readout",
+  "name": "ReadOut",
   "version": "0.7.0",
   "minAppVersion": "1.7.2",
-  "description": "Opens the SQLite databases inside your vault, read-only: browse tables, run your own queries, and see dashboards drawn from your data on every device. Part of the ICOR for Life suite.",
-  "author": "myICOR",
-  "authorUrl": "https://myicor.com",
+  "description": "Read-only dashboards and a database browser for the SQLite databases in your vault. Browse tables, run your own read-only queries, and draw charts, tables and big numbers from your data on desktop and phone.",
+  "author": "Matt Zymet",
+  "authorUrl": "https://github.com/zymetm",
   "isDesktopOnly": false
 }

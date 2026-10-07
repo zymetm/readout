@@ -1,6 +1,12 @@
 # Third-party notices
 
-ICOR for Life - SQLite Viewer bundles one third-party component.
+ReadOut is forked from the ICOR for Life SQLite Viewer by myICOR
+(https://github.com/myICOR/icor-for-life-sqlite-viewer), copyright (c) 2026
+Paperless Movement, S.L., released under the MIT licence (see `LICENSE`).
+Its code is the base of this one, and its authors are credited there. ReadOut
+is not made, supported or endorsed by myICOR or Paperless Movement.
+
+ReadOut bundles one third-party component.
 
 ## sql.js
 

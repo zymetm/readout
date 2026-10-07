@@ -1,6 +1,6 @@
 # Security Policy
 
-ICOR for Life - SQLite Viewer is a local-only Obsidian plugin. It makes no
+ReadOut is a local-only Obsidian plugin. It makes no
 network requests and it stores no credentials. Its whole job is to READ the
 member's own SQLite databases, so the security surface is the read-only
 promise, and this file says so plainly and names what a report should be
@@ -10,14 +10,13 @@ about.
 
 **Please do not open a public GitHub issue for a security problem.**
 
-Two channels, in order of preference:
+Use a **GitHub private security advisory**. Go to the
+[Security tab](https://github.com/zymetm/readout/security/advisories/new)
+of this repository and open a draft advisory. This keeps the report private
+between you and the maintainer until a fix ships.
 
-1. **GitHub private security advisory** (preferred). Go to the
-   [Security tab](https://github.com/myICOR/icor-for-life-sqlite-viewer/security/advisories/new)
-   of this repository and open a draft advisory. This keeps the report private
-   between you and the maintainer until a fix ships.
-2. **Email** `support@myicor.com` with `SECURITY` and `icor-for-life-sqlite-viewer`
-   in the subject line. This is a monitored mailbox.
+A problem in the original ICOR for Life SQLite Viewer that ReadOut shares is
+best reported to that project too, through its own security policy.
 
 A useful report contains:
 
@@ -75,8 +74,9 @@ because `-safe` does not close them all, and every database path passes one
 guard that refuses `..`, absolute paths and drive letters, hidden and
 configuration folders, and anything the vault does not know as a file.
 
-**Files it writes.** Only into the vault: dashboard starter files (once,
-only when missing), dashboard cache JSON (query results, so other devices
+**Files it writes.** Only into the vault: the two guide files in the
+dashboards folder (only when you ask, or refreshed in place while an existing
+copy is still its own unedited text), dashboard cache JSON (query results, so other devices
 can render them), a schema catalog per database (table and column names
 and types) for the mobile picker, and its own `data.json` settings. The
 catalog carries RAW VALUES of small text columns only when the member

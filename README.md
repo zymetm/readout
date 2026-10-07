@@ -1,34 +1,67 @@
-# ICOR for Life - SQLite Viewer
+# ReadOut
 
 **Read the databases in your vault, on any device.**
 
-Open, browse and chart SQLite files that live next to your notes. Read-only.
-A multi-gigabyte database answers in milliseconds on the desktop, and your
-phone shows the same dashboards.
+ReadOut opens the SQLite files that live next to your notes: browse the
+tables, run your own read-only queries, and keep charts, tables and big
+numbers as dashboards you can open again. It is read-only, so it cannot
+change your data. A multi-gigabyte database answers in milliseconds on the
+desktop, and your phone shows the same dashboards.
 
-Made by [myICOR](https://myicor.com). Part of the ICOR for Life suite, and
-useful in any vault that keeps SQLite files.
+ReadOut is forked from the
+[ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
+by myICOR, under its MIT licence, and credits its original authors (see
+`LICENSE`). It is an independent project: myICOR and Paperless Movement do
+not make, support or endorse it.
 
 ## What it is for
 
 Notes are for knowledge. Millions of rows are not knowledge, they are data,
 and data wants a database.
 
-An Apple Health archive, an engagement log, an analytics store: these belong
-in your vault because they are yours, but they do not belong in markdown.
-This brings the query to the vault instead of dragging the data out of it.
+A health archive, an engagement log, an analytics store, a finance export:
+these belong in your vault because they are yours, but they do not belong in
+markdown. ReadOut brings the query to the vault instead of dragging the data
+out of it.
+
+## Install
+
+ReadOut is not in the Community plugins list yet. To install it by hand,
+download `main.js`, `manifest.json` and `styles.css` from the latest
+[release](../../releases) and put the three files in a folder called
+`readout` inside your vault's plugins folder (`.obsidian/plugins/readout`).
+Then turn ReadOut on in Settings, Community plugins.
 
 ## Getting started
 
-Put a `.db` or `.sqlite` file anywhere in your vault and click it. The viewer
-opens.
-
-Nothing is imported, converted or copied. The file stays exactly where you
-put it.
+Put a `.db` or `.sqlite` file anywhere in your vault and click it. The
+browser opens. Nothing is imported, converted or copied: the file stays
+exactly where you put it.
 
 A file that has a database name but is not a SQLite database (a Windows
 `Thumbs.db`, a text file renamed by hand) says "This file isn't a SQLite
 database" instead of showing an engine error.
+
+For dashboards, run the command "Open dashboards" (or press the bar-chart
+icon in the ribbon) and create your first one. The edit panel builds a widget
+from a table with a few clicks, or you can write the SQL yourself.
+
+## Where it keeps things
+
+- Your databases can be anywhere in the vault. The data folder (by default
+  `Databases`) is only where the "Move databases into ..." button in the
+  settings gathers them.
+- Dashboards are plain JSON files in the dashboards folder, and the desktop
+  writes a small cache next to them so a phone can show a database that is
+  too large to sync.
+- The first time ReadOut runs it picks the folders: `Databases`,
+  `Databases/Dashboards` and `Databases/Dashboard Cache`. In a vault that has
+  the ICOR for Life scaffold it picks the vault's own Databases room
+  (`07 Databases`) instead. That choice is only made once, on a fresh
+  install. After that, whatever is in Settings wins.
+- ReadOut does not open `.json` files by default. Switch on "Open JSON files in the vault"
+  in the settings if you want a dashboard file to open as its
+  dashboard.
 
 ## What you can do
 
@@ -38,6 +71,10 @@ database" instead of showing an engine error.
 
 **Chart** a result, and keep the chart as a dashboard you can open again.
 
+**Put a widget in a note.** A code block in any note draws one widget of a
+dashboard, read-only. The language word after the three backticks is
+`readout`, and the block names the dashboard and the widget.
+
 **On your phone**, see the same dashboards from a synced cache, so a database
 too large to sync still shows you its answers.
 
@@ -46,7 +83,7 @@ too large to sync still shows you its answers.
 A dashboard is one JSON file in the dashboards folder. The edit panel
 writes it, and every widget type and setting below can be set there.
 
-The plugin writes two guides into the dashboards folder, mirrored here:
+ReadOut can write two guides into the dashboards folder, mirrored here:
 
 - `README.md` ([DASHBOARD-HELP.md](DASHBOARD-HELP.md) in this repository):
   what each widget type shows, what it is good for, and what each of its
@@ -55,9 +92,11 @@ The plugin writes two guides into the dashboards folder, mirrored here:
   build a widget: the rules, the procedure, the schema, the result
   shapes, and the reference below for the dashboard file.
 
-Each copy ends with a fingerprint of its text. A newer plugin replaces a
-copy only while it still matches (nobody has edited it); an edited copy
-is never overwritten. Delete a copy to get the newest text.
+They are written only when you ask: run the command "Write the guide files"
+or press the button of the same name in the settings. Each copy ends with a
+fingerprint of its text. A newer version of ReadOut replaces a copy only while
+it still matches (nobody has edited it); an edited copy is never
+overwritten. Delete a copy and run the command again to get the newest text.
 
 <!-- field reference -->
 ### The file
@@ -471,10 +510,13 @@ column where a heatmap reads a row and a column.
 
 - **Reads database files in your vault.** Read-only, always. It never writes
   to your databases, and it cannot alter your data.
-- **Writes the dashboards you save**, as ordinary files in your vault.
+- **Writes the dashboards you save**, as ordinary files in your vault, and the
+  small caches that let a phone show them.
 - **Writes two guides into the dashboards folder** (`README.md` and
-  `AI-WIDGET-GUIDE.md`), and replaces them only while they are still its own
-  unedited text.
+  `AI-WIDGET-GUIDE.md`) only when you ask, and replaces an existing copy only
+  while it is still its own unedited text.
+- **Writes nothing else on its own.** Starting ReadOut creates no folder and
+  no file in your vault.
 
 **It makes no network connection and downloads nothing.** On the desktop it
 runs the `sqlite3` program if one is installed, in its safe mode (`-safe`,
@@ -482,7 +524,7 @@ version 3.37.0 or newer, with the functions that read or write files and load
 code refused as well), one short-lived process per query, with the SQL and the
 database path passed as plain arguments and never through a shell. Where there
 is no suitable `sqlite3` program, and always on a phone or tablet, the engine
-is the SQLite build embedded in the plugin (sql.js, WebAssembly), which loads a
+is the SQLite build embedded in ReadOut (sql.js, WebAssembly), which loads a
 copy of the file in memory. Nothing else is started.
 
 A database path must be a real file inside the vault: a path with `..`, an
@@ -494,32 +536,28 @@ absolute path, or one inside a hidden or configuration folder is refused.
   that can write is a viewer that can lose your data.
 - **Desktop and mobile**, with the phone reading a cache rather than the whole
   database.
-- **Beta.** In daily use in a real vault; rough edges likely. Open an issue.
+- **One maintainer.** ReadOut is looked after by one person, on a best-effort
+  basis.
 
 ## Support
 
-What myICOR supports: the plugin as published in a tagged release, on the
-current version, installed from that release. Bugs go to this repo's issues,
-security reports to the process in `SECURITY.md`.
-
-What the community maintains: anything marked community-maintained, including
-community source adapters. We review it before it is merged. We do not support
-it, we cannot promise it keeps working, and it can be disabled or removed in
-any release.
-
-What is yours: your own changes, your fork, your local patch. Please reproduce
-the problem on a clean install of the current release before reporting it.
+Bugs and ideas go to this repository's issues. Please reproduce a problem on a
+clean install of the current release before reporting it. Security reports go
+through the process in `SECURITY.md`, never a public issue.
 
 ## Licence
 
 MIT, see `LICENSE`. Install it, run it, read it, change it, sell it, ship it in
-your own product; keep the copyright and licence notice.
-Releases before 0.6.0 stay under the ICOR for Life
-Source-Available License (Code) v1.0 they were published with.
+your own product; keep the copyright and licence notice. The code started as
+the ICOR for Life SQLite Viewer by myICOR and Paperless Movement, S.L.,
+released under the same MIT licence from version 0.6.0; releases before 0.6.0
+of that project were published under another licence and are not part of
+ReadOut.
 
 The licence covers the code only. "ICOR", "ICOR for Life", "myICOR" and
-"Paperless Movement" are trademarks of Paperless Movement, S.L.; a fork needs
-its own plugin id and name. See `TRADEMARK.md`.
+"Paperless Movement" are trademarks of Paperless Movement, S.L., and ReadOut
+claims no connection to them beyond the truthful statement that it is forked
+from their SQLite Viewer. See `TRADEMARK.md`.
 
 Contributions are welcome as pull requests under the same MIT terms, with a
 DCO sign-off on every commit. See `CONTRIBUTING.md`.
