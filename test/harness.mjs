@@ -240,6 +240,11 @@ export function makeFakeAdapter(initialFiles = {}, initialBinaries = {}) {
       files.delete(from);
       log.push(['rename', from, to]);
     },
+    async remove(p) {
+      if (!files.has(p) && !binaries.has(p)) throw new Error('not found: ' + p);
+      files.delete(p); binaries.delete(p);
+      log.push(['remove', p]);
+    },
     async list(p) {
       const out = { files: [], folders: [] };
       for (const key of files.keys()) if (key.startsWith(p + '/') && !key.slice(p.length + 1).includes('/')) out.files.push(key);

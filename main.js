@@ -9991,6 +9991,9 @@ function blockSizeFor(tile) {
 }
 
 /* Where a written-out widget's desktop result is kept. */
+/* How long a note-block cache file may sit unused before it is removed. */
+const BLOCK_CACHE_MAX_AGE_DAYS = 60;
+
 function blockCachePath(cacheFolder, key) {
   return normalizePath(cacheFolder + '/notes/' + key + '.json');
 }
@@ -10325,7 +10328,12 @@ class IcorSqliteViewerPlugin extends Plugin {
 
     /* Starter dashboards and the folder README, written once, only when
      * missing. The one write besides the dashboard cache. */
-    this.app.workspace.onLayoutReady(() => { this.ensureStarterFiles().catch(() => {}); });
+    this.app.workspace.onLayoutReady(() => {
+      this.ensureStarterFiles().catch(() => {});
+      /* The desktop is the only writer of the note-block cache, so it is the
+       * only one that tidies it. */
+      if (Platform.isDesktopApp) this.pruneBlockCache().catch(() => {});
+    });
   }
 
   onunload() {
@@ -10547,6 +10555,38 @@ class IcorSqliteViewerPlugin extends Plugin {
       this.keptBlocks.delete(key);
       console.error(safeLogLine('the note block cache write failed', e));
     });
+  }
+
+  /* A block's cache file is rewritten once per session in which its note is
+   * shown, so a file nobody has touched for BLOCK_CACHE_MAX_AGE_DAYS belongs
+   * to a block that was edited or removed. Only .json files directly inside
+   * <cache>/notes/ are considered; the dashboard cache is never touched.
+   * Returns how many files went. A file that cannot be read or removed is
+   * skipped, never an error. */
+  async pruneBlockCache() {
+    const adapter = this.app.vault.adapter;
+    const folder = normalizePath(this.settings.cacheFolder + '/notes');
+    let listing;
+    try {
+      if (!(await adapter.exists(folder))) return 0;
+      listing = await adapter.list(folder);
+    } catch (e) {
+      return 0;
+    }
+    const cutoff = Date.now() - BLOCK_CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+    let removed = 0;
+    for (const path of (listing && listing.files) || []) {
+      if (!/\.json$/i.test(path)) continue;
+      try {
+        const stat = await adapter.stat(path);
+        if (!stat || typeof stat.mtime !== 'number' || stat.mtime >= cutoff) continue;
+        await adapter.remove(path);
+        removed++;
+      } catch (e) {
+        /* locked or already gone: the next start tries again */
+      }
+    }
+    return removed;
   }
 
   async readBlockCache(key) {
