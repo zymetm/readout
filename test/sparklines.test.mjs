@@ -233,3 +233,22 @@ test('the field is a table\'s only: no other widget type offers it', async () =>
   form.open();
   assert.ok(byLabel(form.formEl, 'Sparkline columns (comma-separated)'));
 });
+
+/* ---------------------------------------- the trend stays in view -- */
+
+test('the last sparkline column is pinned to the right edge, so a narrow screen never scrolls it away', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+  const table = { columns: ['page', 'visits', 'last week', 'last month'], rows: [['Home', 120, '1,2,3', '4,5,6'], ['Shop', 80, '3,2,1', '6,5,4']] };
+  const el = draw(tileOf({ sparklines: ['last week', 'last month'] }), table);
+  const pinned = byClass(el, 'icor-sqlv-pinned');
+  assert.equal(pinned.length, 3, 'the header and the two cells of one column');
+  assert.deepEqual(pinned.map((p) => p.tagName), ['TH', 'TD', 'TD']);
+  assert.equal(pinned[0].textContent, 'last month', 'the last sparkline column, not the first');
+  assert.ok(pinned.slice(1).every((td) => td.classSet.has('icor-sqlv-spark-cell')));
+  /* A table with no sparklines pins nothing. */
+  assert.equal(byClass(draw({ title: 'Visits', viz: 'table', sql: 'SELECT 1' }, table), 'icor-sqlv-pinned').length, 0);
+  /* The stylesheet sticks it to the right, and shortens the lines on a phone. */
+  assert.match(css, /td\.icor-sqlv-pinned\s*\{[^}]*position:\s*sticky;[^}]*right:\s*0/);
+  assert.match(css, /@media \(max-width: 600px\)\s*\{\s*\.icor-sqlv-tile \.icor-sqlv-spark \{ width: 56px; \}/);
+});

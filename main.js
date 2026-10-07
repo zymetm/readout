@@ -4423,8 +4423,13 @@ function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
   const sparks = new Set(Array.isArray(sparklines) ? sparklines : []);
   const scroller = parentEl.createDiv({ cls: 'icor-sqlv-table-scroll' });
   const t = scroller.createEl('table', { cls: 'icor-sqlv-table' });
+  /* On a narrow screen the table scrolls sideways and a trend column at
+   * the right would be out of sight, so the last sparkline column stays
+   * pinned to the right edge while the other columns scroll under it. */
+  let pinned = -1;
+  table.columns.forEach((c, i) => { if (sparks.has(c)) pinned = i; });
   const head = t.createEl('thead').createEl('tr');
-  for (const col of table.columns) head.createEl('th', { text: col });
+  table.columns.forEach((col, i) => head.createEl('th', { text: col, cls: i === pinned ? 'icor-sqlv-pinned' : '' }));
   const body = t.createEl('tbody');
   for (const row of table.rows.slice(0, cap)) {
     const tr = body.createEl('tr');
@@ -4433,6 +4438,7 @@ function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
       const td = tr.createEl('td', { text: series ? '' : (v === null || v === undefined ? '' : String(v)) });
       if (series) { td.addClass('icor-sqlv-spark-cell'); drawSpark(td, series); }
       else if (typeof v === 'number') td.addClass('icor-sqlv-num');
+      if (i === pinned) td.addClass('icor-sqlv-pinned');
     });
   }
   if (table.rows.length > cap) {

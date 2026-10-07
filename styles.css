@@ -1974,6 +1974,25 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-spark-end { fill: var(--sqlv-fg); }
 
+/* The last sparkline column stays at the right edge while the other
+ * columns scroll under it, so a phone never hides the trends. A narrow
+ * screen also draws the line shorter and trims the text columns. */
+.icor-sqlv-table th.icor-sqlv-pinned,
+.icor-sqlv-table td.icor-sqlv-pinned {
+  position: sticky;
+  right: 0;
+  background: var(--sqlv-card);
+  border-left: 1px solid var(--sqlv-hairline-subtle);
+}
+.icor-sqlv-table th.icor-sqlv-pinned { z-index: 2; }
+.icor-sqlv-table tbody tr:hover td.icor-sqlv-pinned { background: var(--sqlv-hover-wash); }
+
+@media (max-width: 600px) {
+  .icor-sqlv-tile .icor-sqlv-spark { width: 56px; }
+  .icor-sqlv-tile .icor-sqlv-table th,
+  .icor-sqlv-tile .icor-sqlv-table td { max-width: 9em; }
+}
+
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at
