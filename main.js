@@ -99,6 +99,12 @@ const VIEW_JSON = 'icor-sqlite-viewer-json';
 const JSON_RENDER_CAP = 2 * MB;
 const JSON_SLICE = 200 * 1024;
 const CLI_MAX_BUFFER = 64 * MB;
+/* Every SQLite database starts with these 16 bytes. A file with a
+ * database-style name that does not (a Thumbs.db, a renamed text file) is
+ * told apart before an engine is asked, so it reaches a member as a plain
+ * sentence, never as an engine's error. */
+const SQLITE_MAGIC = 'SQLite format 3\u0000';
+const NOT_SQLITE_TEXT = "This file isn't a SQLite database. It has a database-style name, but its first bytes are not SQLite's, so it may be another kind of file (a thumbnail cache, a renamed document) or an encrypted database.";
 /* Chart series colors per the INKLINE spec (Iris, 2026-09-01): a single
  * series is the ink writing (paper-dim); two or more take the four
  * category lenses; anything past the lenses renders faint. styles.css
@@ -477,6 +483,21 @@ function findDatabases(files) {
   return files
     .filter((f) => isDbPath(f.path) && !isSkippedPath(f.path))
     .sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/* Whether these bytes begin like a SQLite database file: the first 16
+ * must read "SQLite format 3" and a zero byte. An empty file is not judged
+ * here (SQLite reads one as an empty database); the callers skip it. Pure. */
+function hasSqliteHeader(bytes) {
+  if (!bytes || bytes.length < SQLITE_MAGIC.length) return false;
+  for (let i = 0; i < SQLITE_MAGIC.length; i++) if (bytes[i] !== SQLITE_MAGIC.charCodeAt(i)) return false;
+  return true;
+}
+
+function notSqliteError() {
+  const e = new Error(NOT_SQLITE_TEXT);
+  e.notSqlite = true;
+  return e;
 }
 
 /* ---------------------------------------------------- dashboard specs -- */
@@ -3042,6 +3063,8 @@ class WasmEngine {
     if (cached) { try { cached.db.close(); } catch (e) { /* already gone */ } this.open.delete(dbPath); }
     await this.init();
     const bytes = await adapter.readBinary(dbPath);
+    /* The bytes are in hand already, so the header costs nothing here. */
+    if (bytes.byteLength > 0 && !hasSqliteHeader(new Uint8Array(bytes, 0, Math.min(SQLITE_MAGIC.length, bytes.byteLength)))) throw notSqliteError();
     const db = new this.SQL.Database(new Uint8Array(bytes));
     this.open.set(dbPath, { db, mtime: stat.mtime, size: stat.size });
     return db;
@@ -3065,6 +3088,8 @@ class QueryService {
     this.deps = deps === undefined ? makeDesktopDeps() : deps;
     this.cli = null; /* { ok, version | reason } after detect() */
     this.wasm = new WasmEngine(plugin);
+    /* dbPath -> "mtime:size" of the last file the desktop header check passed. */
+    this.headerOk = new Map();
   }
 
   async detect() {
@@ -3080,7 +3105,7 @@ class QueryService {
     const adapter = this.plugin.app.vault.adapter;
     const stat = await adapter.stat(dbPath);
     if (!stat) return { engine: null, reason: 'The database file was not found at ' + dbPath + '.' };
-    if (this.cliReady()) return { engine: 'cli', size: stat.size };
+    if (this.cliReady()) return { engine: 'cli', size: stat.size, mtime: stat.mtime };
     const capBytes = this.plugin.settings.mobileCapMb * MB;
     if (stat.size <= capBytes) return { engine: 'wasm', size: stat.size };
     const where = this.deps
@@ -3091,6 +3116,32 @@ class QueryService {
       size: stat.size,
       reason: where + ' (' + formatBytes(stat.size) + ', the cap is ' + this.plugin.settings.mobileCapMb + ' MB). Dashboards for it still work from the desktop cache.',
     };
+  }
+
+  /* The desktop engine opens the file by path and has the bytes nowhere, so
+   * its first 16 are read here, once per version of the file. A fake or odd
+   * setup with no file system handle is not judged; the engine then speaks
+   * for itself. The other engine checks the bytes it loads. */
+  checkHeader(dbPath, choice) {
+    const fsx = this.deps && this.deps.fsx;
+    if (!fsx || !choice.size) return;
+    const key = choice.mtime + ':' + choice.size;
+    if (this.headerOk.get(dbPath) === key) return;
+    let head = null;
+    try {
+      const fd = fsx.openSync(this.absPathOf(dbPath), 'r');
+      try {
+        head = new Uint8Array(SQLITE_MAGIC.length);
+        const n = fsx.readSync(fd, head, 0, head.length, 0);
+        head = head.subarray(0, n);
+      } finally {
+        fsx.closeSync(fd);
+      }
+    } catch (e) {
+      return;
+    }
+    if (!hasSqliteHeader(head)) throw notSqliteError();
+    this.headerOk.set(dbPath, key);
   }
 
   absPathOf(dbPath) {
@@ -3116,6 +3167,7 @@ class QueryService {
     const t0 = Date.now();
     let table;
     if (choice.engine === 'cli') {
+      this.checkHeader(dbPath, choice);
       table = await cliQuery(this.deps, {
         bin: this.plugin.settings.sqlite3Path || 'sqlite3',
         absPath: this.absPathOf(dbPath),
@@ -8075,6 +8127,9 @@ build widgets the panel can show in full:
   unreadable.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in \`tiles\`.
+- Pointing \`database\` at a file that is not SQLite (a renamed text file, a
+  \`Thumbs.db\`): every widget on the dashboard then shows "This file isn't a
+  SQLite database." Fix the path.
 - Leaving a test dashboard or test widget behind (rule 9).
 
 ## 8. The field reference
@@ -8390,7 +8445,7 @@ the value levels.
  * refreshed. */
 const GUIDE_FILES = [
   { file: 'README.md', text: DASHBOARD_README, revision: 3, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 3, legacy: [] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 4, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -9119,6 +9174,7 @@ IcorSqliteViewerPlugin.lib = {
   checkChartMarks, chartMarkValues,
   checkBand, bandPaths, cellNumber,
   checkCombo,
+  SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
 };
 
 /* The form modal, exposed for the gates only. */

@@ -226,6 +226,9 @@ build widgets the panel can show in full:
   unreadable.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in `tiles`.
+- Pointing `database` at a file that is not SQLite (a renamed text file, a
+  `Thumbs.db`): every widget on the dashboard then shows "This file isn't a
+  SQLite database." Fix the path.
 - Leaving a test dashboard or test widget behind (rule 9).
 
 ## 8. The field reference
@@ -533,4 +536,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 3, fingerprint 54e082ad). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 1258eeb0). If you edit this file, the plugin stops updating it. -->

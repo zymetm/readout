@@ -26,6 +26,10 @@ opens.
 Nothing is imported, converted or copied. The file stays exactly where you
 put it.
 
+A file that has a database name but is not a SQLite database (a Windows
+`Thumbs.db`, a text file renamed by hand) says "This file isn't a SQLite
+database" instead of showing an engine error.
+
 ## What you can do
 
 **Browse** tables and rows, with sorting and filtering.
