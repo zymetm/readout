@@ -310,3 +310,26 @@ test('the function names are refused inside a string too (strict on purpose), bu
     assert.equal(lib.gateStatement(ok).ok, true, ok + ' must pass');
   }
 });
+
+/* ------------------------------------------------------------ EXPLAIN -- */
+
+/* EXPLAIN only describes a statement, but the gate reads what follows it as
+ * if it stood alone, so a write PRAGMA cannot hide behind it. */
+test('EXPLAIN and EXPLAIN QUERY PLAN pass the rest of the statement through the gate again', () => {
+  for (const sql of ['EXPLAIN SELECT 1', 'explain query plan SELECT 1', 'EXPLAIN  QUERY   PLAN WITH a AS (SELECT 1) SELECT * FROM a', 'EXPLAIN PRAGMA table_info(t)', '/* c */ EXPLAIN SELECT 1']) {
+    assert.equal(lib.gateStatement(sql).ok, true, sql + ' must pass');
+  }
+  for (const sql of [
+    'EXPLAIN PRAGMA user_version=5',
+    'EXPLAIN PRAGMA writable_schema=ON',
+    'EXPLAIN QUERY PLAN PRAGMA user_version=5',
+    'explain pragma journal_mode',
+    'EXPLAIN EXPLAIN PRAGMA writable_schema=ON',
+    'EXPLAIN DELETE FROM t',
+    'EXPLAIN ATTACH x AS y',
+    'EXPLAIN',
+    'EXPLAIN QUERY PLAN',
+  ]) {
+    assert.equal(lib.gateStatement(sql).ok, false, sql + ' must be refused');
+  }
+});

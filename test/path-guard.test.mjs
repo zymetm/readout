@@ -50,6 +50,10 @@ const BAD = [
   '07 Data/.cache/x.db',
   '',
   '07 Data/nope.db',
+  'file:07 Data/x.db?mode=rwc',
+  'file:///07 Data/x.db?mode=rwc',
+  'FILE:07 Data/x.db',
+  '07 Data/x.db?mode=rwc',
   '07 Data',
 ];
 

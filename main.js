@@ -425,6 +425,14 @@ function gateStatement(sql) {
   if (!ALLOWED_KEYWORDS.has(kw)) {
     return { ok: false, reason: 'Only read queries run here. Start with SELECT, WITH, PRAGMA or EXPLAIN.' };
   }
+  /* EXPLAIN only describes a statement, but SQLite accepts EXPLAIN in front
+   * of a PRAGMA that sets something. So what follows EXPLAIN (or EXPLAIN
+   * QUERY PLAN) goes through the whole gate again, as a statement of its own.
+   * The stripped text keeps the original's offsets, so the cut is exact. */
+  if (kw === 'explain') {
+    const lead = /^\s*explain(?:\s+query\s+plan)?/i.exec(stripped);
+    return gateStatement(String(sql).slice(lead[0].length));
+  }
   if (/\b(attach|detach)\b/i.test(stripped)) {
     return { ok: false, reason: 'ATTACH is not allowed. This viewer reads one database at a time.' };
   }
@@ -3685,8 +3693,8 @@ class QueryService {
     const vault = this.plugin.app.vault;
     const segments = dbPath.split(/[\\/]/);
     if (dbPath.indexOf('\0') >= 0) return 'That database path is not allowed.';
-    if (/^[\\/]/.test(dbPath) || /^[A-Za-z]:/.test(dbPath)) {
-      return 'A database path must be a path inside the vault, not an absolute path: ' + dbPath;
+    if (/^[\\/]/.test(dbPath) || /^[A-Za-z][A-Za-z0-9+.-]*:/.test(dbPath)) {
+      return 'A database path must be a path inside the vault, not an absolute path or a URI: ' + dbPath;
     }
     if (segments.some((s) => s === '..')) {
       return 'A database path may not contain "..": ' + dbPath;
