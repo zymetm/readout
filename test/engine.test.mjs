@@ -56,7 +56,7 @@ test('Engine A: the SQL is one argument after -readonly and -json, never a shell
   assert.equal(deps.calls.length, 1);
   const call = deps.calls[0];
   assert.equal(call.bin, 'sqlite3');
-  assert.deepEqual(unwrap(call.args), ['-readonly', '-json', '-cmd', '.timeout 5000', 'file:/v/x.db?mode=ro', sql]);
+  assert.deepEqual(unwrap(call.args), ['-safe', '-readonly', '-json', '-cmd', '.timeout 5000', 'file:/v/x.db?mode=ro', sql]);
   assert.equal(call.options.timeout, 1234);
   assert.equal(call.options.killSignal, 'SIGKILL');
   assert.deepEqual(unwrap(table), { columns: ['a'], rows: [[1]] });
@@ -87,6 +87,14 @@ test('Engine A: a locked database explains itself in plain words', async () => {
     lib.cliQuery(deps, { absPath: '/v/x.db', sql: 'SELECT 1' }),
     /Another app is writing to this database right now/
   );
+});
+
+test('detectCli: a sqlite3 older than 3.37.0 is refused, so the built-in engine answers (it has no -safe)', async () => {
+  for (const [out, ok] of [['3.36.9 2021-01-01 abc', false], ['3.30.1 2019', false], ['3.37.0 2021-11-27 x', true], ['3.51.0 2026', true], ['4.0.0 x', true], ['garbage', false], ['', false]]) {
+    const r = await lib.detectCli(fakeCli((cb) => cb(null, out + '\n', '')));
+    assert.equal(r.ok, ok, out + ' -> ' + JSON.stringify(unwrap(r)));
+    if (!ok) assert.match(r.reason, /3\.37/);
+  }
 });
 
 test('detectCli: a found binary reports its version, a missing one says so plainly', async () => {
@@ -131,10 +139,10 @@ test('the row cap lands on an uncapped SELECT and leaves a capped one alone', as
   plugin.query.cli = { ok: true, version: 'gate' };
   const res = await plugin.query.query('07 Data/x.db', 'SELECT * FROM t', { cap: 500 });
   assert.equal(res.capped, true);
-  assert.match(deps.calls[0].args[5], / LIMIT 500$/);
+  assert.match(deps.calls[0].args[6], / LIMIT 500$/);
   await plugin.query.query('07 Data/x.db', 'SELECT * FROM t LIMIT 7', { cap: 500 });
-  assert.match(deps.calls[1].args[5], /LIMIT 7$/);
-  assert.doesNotMatch(deps.calls[1].args[5], /LIMIT 500/);
+  assert.match(deps.calls[1].args[6], /LIMIT 7$/);
+  assert.doesNotMatch(deps.calls[1].args[6], /LIMIT 500/);
 });
 
 test('engine choice: no CLI and a file over the cap means no engine, in plain words', async () => {

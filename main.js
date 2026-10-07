@@ -3446,6 +3446,16 @@ function dbFileUri(absPath) {
   return 'file:' + String(absPath).replace(/[%?#]/g, (c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')) + '?mode=ro';
 }
 
+function cliVersionAtLeast(version, min) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(version));
+  if (!m) return false;
+  for (let i = 0; i < 3; i++) {
+    const v = Number(m[i + 1]);
+    if (v !== min[i]) return v > min[i];
+  }
+  return true;
+}
+
 function detectCli(deps, bin) {
   return new Promise((resolve) => {
     let done = false;
@@ -3454,7 +3464,17 @@ function detectCli(deps, bin) {
         if (done) return;
         done = true;
         if (err) resolve({ ok: false, reason: 'The sqlite3 command line tool was not found.' });
-        else resolve({ ok: true, version: String(stdout).trim().split(' ')[0] });
+        else {
+          const version = String(stdout).trim().split(' ')[0];
+          /* `-safe` (no file, shell or code functions) arrived in 3.37.0. An
+           * older program cannot be made safe, so it is not used: the
+           * built-in engine answers instead. */
+          if (!cliVersionAtLeast(version, [3, 37, 0])) {
+            resolve({ ok: false, version, reason: 'The sqlite3 command line tool is older than 3.37.0 and has no safe mode, so the built-in engine is used instead.' });
+          } else {
+            resolve({ ok: true, version });
+          }
+        }
       });
     } catch (e) {
       if (!done) { done = true; resolve({ ok: false, reason: 'The sqlite3 command line tool was not found.' }); }
@@ -3463,14 +3483,16 @@ function detectCli(deps, bin) {
 }
 
 /* ENGINE A: one sqlite3 process per query. The SQL is an argument, never a
- * shell string. Read-only twice over: the -readonly flag and mode=ro in the
+ * shell string. `-safe` comes first: the program then refuses its file,
+ * shell and code-loading commands and functions (detectCli only accepts a
+ * version that has it; the gate also names what -safe leaves). Read-only twice over: the -readonly flag and mode=ro in the
  * URI. A busy timeout retries for a few seconds when another app is
  * writing to the database at that moment (live gate: the engagement loop
  * held a write lock and every tile failed with "database is locked").
  * A query that runs too long is killed, and says so in plain words. */
 function cliQuery(deps, { bin, absPath, sql, timeoutMs, maxBuffer }) {
   return new Promise((resolve, reject) => {
-    const args = ['-readonly', '-json', '-cmd', '.timeout 5000', dbFileUri(absPath), sql];
+    const args = ['-safe', '-readonly', '-json', '-cmd', '.timeout 5000', dbFileUri(absPath), sql];
     deps.childProcess.execFile(
       bin || 'sqlite3',
       args,
