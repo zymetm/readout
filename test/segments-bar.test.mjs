@@ -21,7 +21,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sg', title: 'Split', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sg', title: 'Split', database: '07 Databases/x.db', tiles: [tile] }));
 const segTile = (extra) => Object.assign({ title: 'Time per state', viz: 'segments', x: 'state', y: 'pct', unit: '%', sql: 'SELECT 1 AS state, 2 AS pct' }, extra);
 const TABLE = { columns: ['state', 'pct', 'score'], rows: [['Asleep', 0, 2], ['Idle', 4.5, 2], ['Busy', 80.3, 2], ['Away', 12.2, 2], ['Off', 3, 2]] };
 const LEVELS = [{ id: 'good', name: 'Good', color: 'var(--color-green)' }, { id: 'watch', name: 'Watch', color: 'var(--color-orange)' }];
@@ -121,7 +121,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }

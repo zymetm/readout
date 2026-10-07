@@ -125,7 +125,7 @@ const PATH = '07 Databases/Dashboards/README.md';
 
 test('a guide is written when missing, left alone when current, refreshed when the plugin\'s text changed', async () => {
   const text = lib.guideTextFor(README_FILE, '07 Databases');
-  assert.match(text, /fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+  assert.match(text, /Written by ReadOut \(revision \d+, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
   assert.equal(lib.guideIsPluginOwn(text, [], '07 Databases'), true, 'a fresh copy is the plugin\'s own');
   const aiText = lib.guideTextFor(AI_FILE, '07 Databases');
   assert.equal(lib.guideIsPluginOwn(aiText, [], '07 Databases'), true);
@@ -148,11 +148,11 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [7, '23d732f2'], 'AI-WIDGET-GUIDE.md': [8, '4a3f5af2'] };
+  const pinned = { 'README.md': [8, 'a6160d7d'], 'AI-WIDGET-GUIDE.md': [9, 'd4429cbe'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /\(revision 7, fingerprint [0-9a-f]{8}\)\. If you edit this file, the plugin stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /Written by ReadOut \(revision 8, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {
@@ -230,7 +230,7 @@ test('a copy from before the fingerprint is refreshed only when it is an old plu
 });
 
 test('the guides are written through the Vault API, never behind its back through the adapter', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const fresh = loadPlugin();
   const vault = makeFakeVault(adapter, fresh.obsidian.TFile);
   const through = [];
@@ -244,12 +244,12 @@ test('the guides are written through the Vault API, never behind its back throug
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
-  await plugin.ensureStarterFiles();
+  await plugin.writeGuideFiles();
   const folder = plugin.settings.dashboardFolder;
   assert.deepEqual(through.map(([op, p]) => op + ' ' + p).sort(), ['create ' + folder + '/AI-WIDGET-GUIDE.md', 'create ' + folder + '/README.md']);
   /* An old plugin copy is refreshed through Vault.process. */
   adapter.files.set(folder + '/README.md', fresh.lib.guideTextFor({ text: 'Old.\n' }, plugin.settings.dataFolder));
-  await plugin.ensureStarterFiles();
+  await plugin.writeGuideFiles();
   assert.deepEqual(through.slice(2).map(([op, p]) => op + ' ' + p), ['process ' + folder + '/README.md']);
   assert.equal(adapter.files.get(folder + '/README.md'), fresh.lib.guideTextFor(fresh.lib.GUIDE_FILES[0], plugin.settings.dataFolder));
 });
@@ -266,41 +266,97 @@ test('a guide edit that lands between the read and the write is never overwritte
   assert.equal(adapter.files.get(PATH), 'My own words.\n');
 });
 
-test('a guide on disk that the vault does not index is left alone, and a failed guide never stops the starters', async () => {
+test('a guide on disk that the vault does not index is left alone, and a failed guide never stops the other', async () => {
   const adapter = makeFakeAdapter({ [PATH]: 'Something.\n' });
   const vault = vaultOf(adapter);
   vault.getAbstractFileByPath = () => null;
   assert.equal(await lib.refreshGuideFile(vault, PATH, lib.guideTextFor(README_FILE, '07 Databases'), [], '07 Databases'), 'kept');
   assert.equal(adapter.files.get(PATH), 'Something.\n');
 
-  const disk = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const disk = makeFakeAdapter();
   const fresh = loadPlugin();
   const broken = makeFakeVault(disk, fresh.obsidian.TFile);
-  broken.create = async () => { throw new Error('no room'); };
+  let attempts = 0;
+  broken.create = async () => { attempts++; throw new Error('no room'); };
   const app = { vault: broken, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
-  await plugin.ensureStarterFiles();
-  assert.ok(disk.files.has(plugin.settings.dashboardFolder + '/engagement-overview.json'), 'the starter is still seeded');
+  const results = await plugin.writeGuideFiles();
+  assert.equal(attempts, 2, 'the second guide is tried after the first one failed');
+  assert.deepEqual(JSON.parse(JSON.stringify(results.map((r) => r.outcome))), ['failed', 'failed']);
 });
 
-test('the plugin writes both guides on load, then leaves them alone', async () => {
+test('starting the plugin writes nothing: no folder, no guide', async () => {
+  const adapter = makeFakeAdapter();
+  const fresh = loadPlugin();
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: (fn) => fn(), on: () => ({}) } };
+  const plugin = fresh.makePlugin(app);
+  plugin.app = app;
+  await plugin.onload();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(adapter.log.filter(([op]) => op === 'write' || op === 'mkdir'), [], 'nothing written, nothing created');
+  void PluginClass;
+});
+
+test('the command and the button write both guides once, then leave them alone', async () => {
   const adapter = makeFakeAdapter();
   const fresh = loadPlugin();
   const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
-  const { makePlugin } = fresh;
-  const plugin = makePlugin(app);
+  const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
-  await plugin.ensureStarterFiles();
+  assert.ok((plugin.commands || []).some((c) => c.id === 'write-guide-files'), 'the command exists');
   const folder = plugin.settings.dashboardFolder;
   const writes = () => adapter.log.filter(([op, p]) => op === 'write' && /\.md$/.test(p)).map(([, p]) => p);
+  await plugin.writeGuideFilesWithNotice();
   assert.deepEqual(writes().sort(), [folder + '/AI-WIDGET-GUIDE.md', folder + '/README.md']);
   assert.equal(adapter.files.get(folder + '/README.md'), lib.guideTextFor(README_FILE, plugin.settings.dataFolder));
-  await plugin.ensureStarterFiles();
-  assert.equal(writes().length, 2, 'a second load writes nothing');
-  void PluginClass;
+  await plugin.writeGuideFiles();
+  assert.equal(writes().length, 2, 'asking again writes nothing');
+});
+
+test('at start an existing, unedited guide is brought up to date; an edited one and a missing one are left alone', async () => {
+  const adapter = makeFakeAdapter();
+  const fresh = loadPlugin();
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const plugin = fresh.makePlugin(app);
+  plugin.app = app;
+  await plugin.onload();
+  const folder = plugin.settings.dashboardFolder;
+  /* The README is an older plugin text; the AI guide is the member's own words. */
+  adapter.files.set(folder + '/README.md', fresh.lib.guideTextFor({ text: 'Old.\n' }, plugin.settings.dataFolder));
+  adapter.files.set(folder + '/AI-WIDGET-GUIDE.md', 'Mine.\n');
+  await plugin.refreshExistingGuideFiles();
+  assert.equal(adapter.files.get(folder + '/README.md'), lib.guideTextFor(README_FILE, plugin.settings.dataFolder));
+  assert.equal(adapter.files.get(folder + '/AI-WIDGET-GUIDE.md'), 'Mine.\n');
+  /* A vault with neither file gets neither. */
+  const empty = makeFakeAdapter();
+  const app2 = { vault: makeFakeVault(empty, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const p2 = fresh.makePlugin(app2);
+  p2.app = app2;
+  await p2.onload();
+  await p2.refreshExistingGuideFiles();
+  assert.equal([...empty.files.keys()].filter((k) => /\.md$/.test(k)).length, 0);
+});
+
+test('a copy that says "Written by the SQLite Viewer plugin" is still recognised, and so is the ReadOut wording', async () => {
+  const text = lib.guideTextFor(README_FILE, '07 Databases');
+  const old = text.replace(/<!-- Written by[^\n]*\n$/, (m) => m.replace('Written by ReadOut', 'Written by the SQLite Viewer plugin').replace('ReadOut stops', 'the plugin stops'));
+  assert.match(old, /Written by the SQLite Viewer plugin \(revision 8/);
+  assert.equal(lib.guideIsPluginOwn(old, [], '07 Databases'), true, 'the old wording');
+  assert.equal(lib.guideIsPluginOwn(text, [], '07 Databases'), true, 'the new wording');
+  assert.equal(lib.guideRevision(old), 8);
+  /* An old-wording copy of an older revision is refreshed to the new wording. */
+  const olderBody = 'Old.\n';
+  const olderOld = olderBody + '<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint ' + lib.guideHash(olderBody) + '). If you edit this file, the plugin stops updating it. -->\n';
+  const adapter = makeFakeAdapter({ [PATH]: olderOld });
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter), PATH, text, README_FILE.legacy, '07 Databases'), 'refreshed');
+  assert.equal(adapter.files.get(PATH), text);
+  /* An edited old-wording copy is still kept. */
+  const edited = olderOld.replace('Old.', 'Mine.');
+  const adapter2 = makeFakeAdapter({ [PATH]: edited });
+  assert.equal(await lib.refreshGuideFile(vaultOf(adapter2), PATH, text, README_FILE.legacy, '07 Databases'), 'kept');
 });
 
 test('the old help files recognised are the four texts released versions wrote', () => {
@@ -315,8 +371,8 @@ test('the old help files recognised are the four texts released versions wrote',
 test('the repository mirrors are the files the plugin writes', () => {
   const help = readFileSync(new URL('../DASHBOARD-HELP.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const ai = readFileSync(new URL('../AI-WIDGET-GUIDE.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.equal(help, helpMirrorOf(lib.guideTextFor(README_FILE, '07 Databases')), 'DASHBOARD-HELP.md is the help file with pictures for samples');
-  assert.equal(ai, lib.guideTextFor(AI_FILE, '07 Databases'));
+  assert.equal(help, helpMirrorOf(lib.guideTextFor(README_FILE, 'Databases')), 'DASHBOARD-HELP.md is the help file with pictures for samples');
+  assert.equal(ai, lib.guideTextFor(AI_FILE, 'Databases'));
 });
 
 test('the guides are read inside a vault: a repository they name is the plugin\'s on GitHub', () => {
@@ -333,7 +389,7 @@ test('the guides are read inside a vault: a repository they name is the plugin\'
 
 test('the GitHub help file shows a light and a dark picture for every sample, and every picture is in the repository', () => {
   const help = readFileSync(new URL('../DASHBOARD-HELP.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-  assert.doesNotMatch(help, /```sqlite-viewer-sample/, 'no bare sample block on GitHub');
+  assert.doesNotMatch(help, /```readout-sample/, 'no bare sample block on GitHub');
   const pictures = [...help.matchAll(/<picture>\n {2}<source media="\(prefers-color-scheme: dark\)" srcset="([^"]+)">\n {2}<img alt="[^"]+" src="([^"]+)" width="600">\n<\/picture>/g)];
   assert.equal(pictures.length, [...lib.VIZ_KINDS].length, 'one picture per widget type');
   /* A widget's pictures are screenshots of its sample in the vault; a new widget's are
@@ -347,9 +403,9 @@ test('the GitHub help file shows a light and a dark picture for every sample, an
   }
   for (const word of lib.VIZ_KINDS) assert.ok(help.includes(imageOf(word, 'light')) && help.includes(imageOf(word, 'dark')), word);
   /* The swap itself: a sample block becomes a picture; anything else stays. */
-  const one = helpMirrorOf('A\n\n```sqlite-viewer-sample\nbar\n```\n\n```sqlite-viewer-sample\ndoughnut\n```\n');
+  const one = helpMirrorOf('A\n\n```readout-sample\nbar\n```\n\n```readout-sample\ndoughnut\n```\n');
   assert.ok(one.startsWith('A\n\n<picture>\n') && one.includes('srcset="docs/images/widget-bar-dark.png"') && one.includes('src="docs/images/widget-bar-light.png"'));
-  assert.ok(one.endsWith('```sqlite-viewer-sample\ndoughnut\n```\n'), 'an unknown word is left as it is');
+  assert.ok(one.endsWith('```readout-sample\ndoughnut\n```\n'), 'an unknown word is left as it is');
 });
 
 /* ------------------------------------------------------- the AI guide -- */

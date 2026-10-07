@@ -33,13 +33,13 @@ async function service(files, { configDir } = {}) {
   return { plugin, calls };
 }
 
-const GOOD = '07 Data/x.db';
+const GOOD = '07 Databases/x.db';
 const BAD = [
   '../outside.db',
-  '07 Data/../../outside.db',
-  '07 Data/..',
+  '07 Databases/../../outside.db',
+  '07 Databases/..',
   '..\\outside.db',
-  '07 Data\\..\\..\\outside.db',
+  '07 Databases\\..\\..\\outside.db',
   '/etc/passwd',
   '\\\\server\\share\\x.db',
   'C:/Users/me/x.db',
@@ -47,14 +47,14 @@ const BAD = [
   'C:x.db',
   '.obsidian/plugins/x/data.db',
   '.hidden/x.db',
-  '07 Data/.cache/x.db',
+  '07 Databases/.cache/x.db',
   '',
-  '07 Data/nope.db',
-  'file:07 Data/x.db?mode=rwc',
-  'file:///07 Data/x.db?mode=rwc',
-  'FILE:07 Data/x.db',
-  '07 Data/x.db?mode=rwc',
-  '07 Data',
+  '07 Databases/nope.db',
+  'file:07 Databases/x.db?mode=rwc',
+  'file:///07 Databases/x.db?mode=rwc',
+  'FILE:07 Databases/x.db',
+  '07 Databases/x.db?mode=rwc',
+  '07 Databases',
 ];
 
 test('a plain vault path passes the guard and reaches the engine', async () => {
@@ -66,7 +66,7 @@ test('a plain vault path passes the guard and reaches the engine', async () => {
 });
 
 test('every escaping, absolute, hidden or unknown path is refused, by engineFor and by query, and no process starts', async () => {
-  const files = { [GOOD]: new Uint8Array([1]), '.hidden/x.db': new Uint8Array([1]), '07 Data/.cache/x.db': new Uint8Array([1]), '.obsidian/plugins/x/data.db': new Uint8Array([1]) };
+  const files = { [GOOD]: new Uint8Array([1]), '.hidden/x.db': new Uint8Array([1]), '07 Databases/.cache/x.db': new Uint8Array([1]), '.obsidian/plugins/x/data.db': new Uint8Array([1]) };
   const { plugin, calls } = await service(files);
   for (const p of BAD) {
     const choice = await plugin.query.engineFor(p);
@@ -79,7 +79,7 @@ test('every escaping, absolute, hidden or unknown path is refused, by engineFor 
 
 test('a path that is not a string is refused', async () => {
   const { plugin } = await service({ [GOOD]: new Uint8Array([1]) });
-  for (const p of [null, undefined, 5, {}, ['07 Data/x.db']]) {
+  for (const p of [null, undefined, 5, {}, ['07 Databases/x.db']]) {
     assert.equal((await plugin.query.engineFor(p)).engine, null);
   }
 });

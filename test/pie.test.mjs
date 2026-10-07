@@ -23,7 +23,7 @@ function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkE
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const byAttrClass = (root, cls) => [...walkEl(root)].filter((e) => e.getAttribute && e.getAttribute('class') === cls);
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'pc', title: 'Pies', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'pc', title: 'Pies', database: '07 Databases/x.db', tiles: [tile] }));
 const pieTile = (extra) => Object.assign({ title: 'Orders by channel', viz: 'pie', x: 'channel', y: 'orders', unit: 'orders', sql: 'SELECT 1 AS channel, 2 AS orders' }, extra);
 const TABLE = { columns: ['channel', 'orders', 'score'], rows: [['Web', 50, 2], ['Shop', 25, 2], ['Phone', 0, 2], ['Email', 25, 2]] };
 const LEVELS = [{ id: 'good', name: 'Good', color: 'var(--color-green)' }, { id: 'watch', name: 'Watch', color: 'var(--color-orange)' }];
@@ -172,10 +172,10 @@ test('the edit form builds a pie field for field, and reads one back', async () 
   assert.equal(form.previewState, 'ok', form.previewError);
   assert.ok(slices(form.previewEl).length > 0, 'the preview draws the pie');
   await form.save();
-  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
 
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   const again = await makeForm(parsed);
   again.form.open();
   assert.equal(again.form.state.pieDoughnut, true, 'read back');
@@ -195,7 +195,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }

@@ -28,7 +28,7 @@ const BUILT = {
 
 async function makeForm(tile, { schemaFails = false } = {}) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -39,7 +39,7 @@ async function makeForm(tile, { schemaFails = false } = {}) {
   };
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['value'], rows: [[7]], ms: 1 });
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [JSON.parse(JSON.stringify(tile))] : [], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [JSON.parse(JSON.stringify(tile))] : [], path: 'd.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, tile ? 0 : -1);
   return { form, spec, lib: fresh.lib };
@@ -75,7 +75,7 @@ test('a built widget is renamed and saved like any other, and the name survives 
 test('the auto-name is only the default: it fills in while no name is typed, and a typed name stays', async () => {
   const { form } = await makeForm(null);
   form.open();
-  Object.assign(form.state, { database: '07 Data/x.db', table: 'readings', metric: 'qty', agg: 'avg', viz: 'stat', timeColumn: 'day' });
+  Object.assign(form.state, { database: '07 Databases/x.db', table: 'readings', metric: 'qty', agg: 'avg', viz: 'stat', timeColumn: 'day' });
   assert.equal(form.buildTile().tile.title, 'qty', 'no name typed: the suggestion');
   form.state.metric = 'day';
   assert.equal(form.buildTile().tile.title, 'day', 'the suggestion follows the value');

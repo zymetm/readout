@@ -14,8 +14,8 @@ import assert from 'node:assert/strict';
 
 import { loadPlugin, makeFakeAdapter } from './harness.mjs';
 
-const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
-const VIEW_JSON = 'icor-sqlite-viewer-json';
+const VIEW_BROWSER = 'readout-browser';
+const VIEW_JSON = 'readout-json';
 
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
@@ -23,7 +23,7 @@ function click(el) { for (const fn of (el.handlers && el.handlers.click) || []) 
 
 async function makeBrowser() {
   const { makePlugin } = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
@@ -43,7 +43,7 @@ const settle = () => new Promise((r) => setTimeout(r, 20));
 
 test('the filter row is hidden at rest; the funnel shows it; the dot marks active filters', async () => {
   const { view } = await makeBrowser();
-  await view.setDatabase('07 Data/x.db');
+  await view.setDatabase('07 Databases/x.db');
   await settle();
   assert.equal(byClass(view.contentEl, 'icor-sqlv-filter').length, 0, 'no filter inputs at rest');
   const funnel = byClass(view.contentEl, 'icor-sqlv-funnel')[0];
@@ -69,7 +69,7 @@ test('the filter row is hidden at rest; the funnel shows it; the dot marks activ
 
 test('the browser root declares the INKLINE plugin-owned control boundary', async () => {
   const { view } = await makeBrowser();
-  await view.setDatabase('07 Data/x.db');
+  await view.setDatabase('07 Databases/x.db');
   assert.equal(view.contentEl.attrs['data-ink-plugin'], 'icor-for-life-sqlite-viewer');
 });
 
@@ -119,12 +119,12 @@ test('a JSON that is not a dashboard opens in the reader: pretty, read-only, wit
 });
 
 test('a JSON that parses as a dashboard spec hands its leaf to the builder', async () => {
-  const spec = { id: 'my-dash', title: 'Mine', database: '07 Data/x.db', tiles: [{ sql: 'SELECT 1 AS one', viz: 'stat', y: 'one' }] };
-  const { view, file, states } = await makeJsonView({ '07 Data/Dashboards/my-dash.json': JSON.stringify(spec) });
+  const spec = { id: 'my-dash', title: 'Mine', database: '07 Databases/x.db', tiles: [{ sql: 'SELECT 1 AS one', viz: 'stat', y: 'one' }] };
+  const { view, file, states } = await makeJsonView({ '07 Databases/Dashboards/my-dash.json': JSON.stringify(spec) });
   await view.onLoadFile(file);
   await settle();
   assert.equal(states.length, 1, 'the leaf is redirected once');
-  assert.equal(states[0].type, 'icor-sqlite-viewer-dashboards');
+  assert.equal(states[0].type, 'readout-dashboards');
 });
 
 test('a cache file and a plain object are not mistaken for dashboards', () => {

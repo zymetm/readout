@@ -28,8 +28,8 @@ const { lib, makePlugin } = loadPlugin();
 /* ------------------------------------------------------------- the URI -- */
 
 test('the database URI is read-only and survives spaces, percent signs and question marks', () => {
-  const uri = lib.dbFileUri('/Users/tom/My Life Folder - TR/07 Data/mypka-health.db');
-  assert.equal(uri, 'file:/Users/tom/My Life Folder - TR/07 Data/mypka-health.db?mode=ro');
+  const uri = lib.dbFileUri('/Users/tom/My Life Folder - TR/07 Databases/mypka-health.db');
+  assert.equal(uri, 'file:/Users/tom/My Life Folder - TR/07 Databases/mypka-health.db?mode=ro');
   assert.equal(lib.dbFileUri('/a/100%?x#y.db'), 'file:/a/100%25%3fx%23y.db?mode=ro');
 });
 
@@ -121,42 +121,42 @@ async function makeServicePlugin(adapter, { desktop = true } = {}) {
 }
 
 test('the service refuses a write before any engine is asked', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const { plugin } = await makeServicePlugin(adapter);
   const deps = fakeCli((cb) => cb(null, '[]', ''));
   plugin.query.deps = deps;
   plugin.query.cli = { ok: true, version: 'gate' };
-  await assert.rejects(plugin.query.query('07 Data/x.db', 'DROP TABLE t'), /Only read queries/);
+  await assert.rejects(plugin.query.query('07 Databases/x.db', 'DROP TABLE t'), /Only read queries/);
   assert.equal(deps.calls.length, 0, 'the gate must fire before the process runner');
 });
 
 test('the row cap lands on an uncapped SELECT and leaves a capped one alone', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   adapter.getBasePath = () => '/vault';
   const { plugin } = await makeServicePlugin(adapter);
   const deps = fakeCli((cb) => cb(null, '[]', ''));
   plugin.query.deps = deps;
   plugin.query.cli = { ok: true, version: 'gate' };
-  const res = await plugin.query.query('07 Data/x.db', 'SELECT * FROM t', { cap: 500 });
+  const res = await plugin.query.query('07 Databases/x.db', 'SELECT * FROM t', { cap: 500 });
   assert.equal(res.capped, true);
   assert.match(deps.calls[0].args[6], / LIMIT 500$/);
-  await plugin.query.query('07 Data/x.db', 'SELECT * FROM t LIMIT 7', { cap: 500 });
+  await plugin.query.query('07 Databases/x.db', 'SELECT * FROM t LIMIT 7', { cap: 500 });
   assert.match(deps.calls[1].args[6], /LIMIT 7$/);
   assert.doesNotMatch(deps.calls[1].args[6], /LIMIT 500/);
 });
 
 test('engine choice: no CLI and a file over the cap means no engine, in plain words', async () => {
   const big = new Uint8Array(3 * 1024 * 1024);
-  const adapter = makeFakeAdapter({}, { '07 Data/big.db': big });
+  const adapter = makeFakeAdapter({}, { '07 Databases/big.db': big });
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
   plugin.settings.mobileCapMb = 2;
   plugin.query.cli = { ok: false, reason: 'not here' };
-  const choice = await plugin.query.engineFor('07 Data/big.db');
+  const choice = await plugin.query.engineFor('07 Databases/big.db');
   assert.equal(choice.engine, null);
   assert.match(choice.reason, /too big to load into memory/);
   assert.match(choice.reason, /the cap is 2 MB/);
   assert.match(choice.reason, /desktop cache/);
-  const missing = await plugin.query.engineFor('07 Data/gone.db');
+  const missing = await plugin.query.engineFor('07 Databases/gone.db');
   assert.equal(missing.engine, null);
   assert.match(missing.reason, /not found/);
 });
@@ -171,23 +171,23 @@ test('Engine B end to end: real bytes through the plugin loader, on the mobile p
   const bytes = source.export();
   source.close();
 
-  const pluginDir = '.obsidian/plugins/icor-for-life-sqlite-viewer';
+  const pluginDir = '.obsidian/plugins/readout';
   const adapter = makeFakeAdapter(
     { [pluginDir + '/sql-wasm.js']: readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8') },
     {
       [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')),
-      '07 Data/tiny.db': bytes,
+      '07 Databases/tiny.db': bytes,
     }
   );
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
   assert.equal(plugin.query.deps, null, 'no Node handles exist off the desktop');
-  const choice = await plugin.query.engineFor('07 Data/tiny.db');
+  const choice = await plugin.query.engineFor('07 Databases/tiny.db');
   assert.equal(choice.engine, 'wasm');
-  const res = await plugin.query.query('07 Data/tiny.db', 'SELECT day, n FROM things ORDER BY day');
+  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT day, n FROM things ORDER BY day');
   assert.equal(res.engine, 'wasm');
   assert.deepEqual(unwrap(res.rows), [['2026-08-01', 3], ['2026-08-02', 5]]);
   /* And the gate holds on this engine too. */
-  await assert.rejects(plugin.query.query('07 Data/tiny.db', 'DELETE FROM things'), /Only read queries/);
+  await assert.rejects(plugin.query.query('07 Databases/tiny.db', 'DELETE FROM things'), /Only read queries/);
 });
 
 /* -------------------------------------- the embedded runtime (0.5.3) -- */
@@ -222,11 +222,11 @@ test('Engine B on a three-file install: the embedded sql.js answers with no stan
   /* The community-directory installer downloads main.js, manifest.json
    * and styles.css only, so the plugin folder holds neither sql-wasm.js
    * nor sql-wasm.wasm. */
-  const adapter = makeFakeAdapter({}, { '07 Data/tiny.db': bytes });
+  const adapter = makeFakeAdapter({}, { '07 Databases/tiny.db': bytes });
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
-  const choice = await plugin.query.engineFor('07 Data/tiny.db');
+  const choice = await plugin.query.engineFor('07 Databases/tiny.db');
   assert.equal(choice.engine, 'wasm');
-  const res = await plugin.query.query('07 Data/tiny.db', 'SELECT 1 AS one');
+  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS one');
   assert.equal(res.engine, 'wasm');
   assert.deepEqual(unwrap(res.rows), [[1]]);
 });
@@ -239,12 +239,12 @@ test('a five-file install still prefers the standalone wasm, and never reads Jav
   const bytes = source.export();
   source.close();
 
-  const pluginDir = '.obsidian/plugins/icor-for-life-sqlite-viewer';
+  const pluginDir = '.obsidian/plugins/readout';
   const adapter = makeFakeAdapter(
     { [pluginDir + '/sql-wasm.js']: 'throw new Error("never run: code is not read from disk");' },
     {
       [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')),
-      '07 Data/tiny.db': bytes,
+      '07 Databases/tiny.db': bytes,
     }
   );
   const reads = [];
@@ -253,7 +253,7 @@ test('a five-file install still prefers the standalone wasm, and never reads Jav
   const origBin = adapter.readBinary.bind(adapter);
   adapter.readBinary = async (p) => { reads.push(p); return origBin(p); };
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
-  const res = await plugin.query.query('07 Data/tiny.db', 'SELECT 1 AS one');
+  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS one');
   assert.equal(res.engine, 'wasm');
   assert.ok(reads.includes(pluginDir + '/sql-wasm.wasm'),
     'the standalone sql-wasm.wasm must be the copy the engine reads when it exists');
@@ -265,7 +265,7 @@ test('a five-file install still prefers the standalone wasm, and never reads Jav
 test('the cache round-trips through the adapter, keyed by dashboard id, and a 0.1.x cache still reads', async () => {
   const adapter = makeFakeAdapter();
   const { plugin } = await makeServicePlugin(adapter);
-  const spec = { id: 'health-overview', title: 'Health', database: '07 Data/mypka-health.db', tiles: [] };
+  const spec = { id: 'health-overview', title: 'Health', database: '07 Databases/mypka-health.db', tiles: [] };
   const tiles = [{ title: 'T', viz: 'stat', x: '', y: ['n'], unit: '', stack: false, columns: ['n'], rows: [[42]] }];
   await plugin.writeDashboardCache(spec, tiles);
   const path = plugin.settings.cacheFolder + '/dashboards/health-overview.json';
@@ -275,7 +275,7 @@ test('the cache round-trips through the adapter, keyed by dashboard id, and a 0.
   assert.deepEqual(unwrap(cache.tiles[0].rows), [[42]]);
   assert.equal(typeof cache.computedAt, 'string');
   /* A cache written by 0.1.x under the database stem is still found. */
-  const old = { id: 'legacy-dash', title: 'L', database: '07 Data/mypka-health.db', tiles: [] };
+  const old = { id: 'legacy-dash', title: 'L', database: '07 Databases/mypka-health.db', tiles: [] };
   await adapter.write(plugin.settings.cacheFolder + '/mypka-health/legacy-dash.json',
     JSON.stringify({ dashboardId: 'legacy-dash', computedAt: '2026-09-01T00:00:00Z', tiles: [] }));
   const legacy = await plugin.readDashboardCache(old);
@@ -283,32 +283,9 @@ test('the cache round-trips through the adapter, keyed by dashboard id, and a 0.
 });
 
 test('a broken cache file reads as no cache, never as a crash', async () => {
-  const adapter = makeFakeAdapter({ '07 Data/Dashboard Cache/mypka-health/health-overview.json': '{ not json' });
+  const adapter = makeFakeAdapter({ '07 Databases/Dashboard Cache/mypka-health/health-overview.json': '{ not json' });
   const { plugin } = await makeServicePlugin(adapter);
-  const spec = { id: 'health-overview', title: 'Health', database: '07 Data/mypka-health.db', tiles: [] };
+  const spec = { id: 'health-overview', title: 'Health', database: '07 Databases/mypka-health.db', tiles: [] };
   assert.equal(await plugin.readDashboardCache(spec), null);
 });
 
-/* ------------------------------------------------- the starter writer -- */
-
-test('starter files are written once and never overwritten', async () => {
-  const adapter = makeFakeAdapter(
-    { '07 Data/Dashboards/health-overview.json': 'MEMBER EDITED' },
-    {
-      '07 Data/mypka-health.db': new Uint8Array([1]),
-      '07 Data/engagement.db': new Uint8Array([1]),
-      '06 AI Team/AI Team Knowledge/Data/youtube-analytics.db': new Uint8Array([1]),
-    }
-  );
-  const { plugin } = await makeServicePlugin(adapter);
-  await plugin.ensureStarterFiles();
-  assert.equal(adapter.files.get('07 Data/Dashboards/health-overview.json'), 'MEMBER EDITED',
-    'an edited dashboard is the member\'s, not the plugin\'s');
-  assert.equal(adapter.files.has('07 Data/Dashboards/README.md'), true);
-  assert.equal(adapter.files.has('07 Data/Dashboards/engagement-overview.json'), true);
-  assert.equal(adapter.files.has('07 Data/Dashboards/youtube-overview.json'), true);
-  const before = adapter.log.length;
-  await plugin.ensureStarterFiles();
-  const writesAfter = adapter.log.slice(before).filter((l) => l[0] === 'write');
-  assert.equal(writesAfter.length, 0, 'the second load writes nothing');
-});

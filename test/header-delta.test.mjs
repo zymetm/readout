@@ -18,7 +18,7 @@ const { lib, obsidian } = loadPlugin();
 
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'd', title: 'D', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'd', title: 'D', database: '07 Databases/x.db', tiles: [tile] }));
 
 /* Twenty days, 100.0 falling by 0.5 a day, with a noisy first and last day. */
 const ROWS = Array.from({ length: 20 }, (_, i) => {
@@ -149,7 +149,7 @@ test('a phone shows the change from the cached rows', async () => {
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   await view.onOpen();
   await new Promise((r) => setTimeout(r, 20));
@@ -162,7 +162,7 @@ test('a phone shows the change from the cached rows', async () => {
 
 async function makeForm(tile) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -170,7 +170,7 @@ async function makeForm(tile) {
   plugin.schemaFor = async () => ({ live: true, tables: [{ name: 't', columns: [{ name: 'day', type: 'TEXT' }, { name: 'v', type: 'REAL' }] }] });
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['x', 'value'], rows: [['2026-01-01', 1], ['2026-01-02', 2]], ms: 1 });
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: [JSON.parse(JSON.stringify(tile))], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: [JSON.parse(JSON.stringify(tile))], path: 'd.json' };
   const view = { saveAndRender: async () => {} };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, 0);
   return { form, spec };

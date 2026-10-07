@@ -20,7 +20,7 @@ const { lib, obsidian } = loadPlugin();
 
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
-const parse = (tiles, extra) => lib.parseDashboardSpec(JSON.stringify(Object.assign({ id: 'd', title: 'D', database: '07 Data/x.db', tiles }, extra || {})));
+const parse = (tiles, extra) => lib.parseDashboardSpec(JSON.stringify(Object.assign({ id: 'd', title: 'D', database: '07 Databases/x.db', tiles }, extra || {})));
 
 /* --------------------------------------------------------- the spec -- */
 
@@ -107,7 +107,7 @@ test('the divider draws a line with an optional heading, marked as a separator',
 
 /* ---------------------------------------------------------- the view -- */
 
-const VIEW = 'icor-sqlite-viewer-dashboards';
+const VIEW = 'readout-dashboards';
 const DASH = '07 Databases/Dashboards/mixed.json';
 const CACHE = '07 Databases/Dashboard Cache/dashboards/mixed.json';
 const MIXED = {
@@ -165,7 +165,7 @@ test('a phone draws the divider with nothing to compute and the next widget from
 
 async function makeForm(tiles, editIndex) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -173,7 +173,7 @@ async function makeForm(tiles, editIndex) {
   let queried = 0;
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => { queried++; return { columns: ['value'], rows: [[1]], ms: 1 }; };
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles, path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles, path: 'd.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, editIndex);
   return { form, spec, view, queries: () => queried };

@@ -16,7 +16,7 @@ import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
-async function bootPlugin(fresh, adapter, saved = null) {
+async function bootPlugin(fresh, adapter, saved = undefined) {
   const registered = [];
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app, saved);
@@ -40,11 +40,11 @@ function stubSchemaQueries(plugin) {
 
 test('M2: by default the catalog holds structure only, no raw values', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/moods.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/moods.db': new Uint8Array([1]) });
   const { plugin } = await bootPlugin(fresh, adapter);
   stubSchemaQueries(plugin);
-  await plugin.writeCatalog('07 Data/moods.db');
-  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Data/moods.db');
+  await plugin.writeCatalog('07 Databases/moods.db');
+  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/moods.db');
   const catalog = JSON.parse(adapter.files.get(path));
   assert.equal(catalog.tables[0].name, 'health_mood', 'the structure is there');
   assert.deepEqual(unwrap(catalog.values), {}, 'no value of any column reaches the synced file by default');
@@ -52,12 +52,12 @@ test('M2: by default the catalog holds structure only, no raw values', async () 
 
 test('M2: with the setting on, small text columns are harvested as before', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/moods.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/moods.db': new Uint8Array([1]) });
   const { plugin } = await bootPlugin(fresh, adapter);
   stubSchemaQueries(plugin);
   plugin.settings.catalogIncludeValues = true;
-  await plugin.writeCatalog('07 Data/moods.db');
-  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Data/moods.db');
+  await plugin.writeCatalog('07 Databases/moods.db');
+  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/moods.db');
   const catalog = JSON.parse(adapter.files.get(path));
   assert.deepEqual(unwrap(catalog.values['health_mood.mood']), ['fine', 'great', 'low']);
 });
@@ -65,17 +65,17 @@ test('M2: with the setting on, small text columns are harvested as before', asyn
 test('M2: without values, the picker path says to type the value, naming the setting', async () => {
   const fresh = loadPlugin();
   const catalog = {
-    database: '07 Data/big.db', computedAt: '2026-09-01T10:00:00Z',
+    database: '07 Databases/big.db', computedAt: '2026-09-01T10:00:00Z',
     tables: [{ name: 't', columns: [{ name: 'kind', type: 'TEXT' }] }],
     values: {},
   };
   const adapter = makeFakeAdapter(
-    { [lib.catalogPathFor('07 Data/Dashboard Cache', '07 Data/big.db')]: JSON.stringify(catalog) },
-    { '07 Data/big.db': new Uint8Array(3 * 1024 * 1024) }
+    { [lib.catalogPathFor('07 Databases/Dashboard Cache', '07 Databases/big.db')]: JSON.stringify(catalog) },
+    { '07 Databases/big.db': new Uint8Array(3 * 1024 * 1024) }
   );
   const { plugin } = await bootPlugin(loadPlugin({ desktop: false }), adapter);
   plugin.settings.mobileCapMb = 1;
-  await assert.rejects(plugin.distinctValues('07 Data/big.db', 't', 'kind'),
+  await assert.rejects(plugin.distinctValues('07 Databases/big.db', 't', 'kind'),
     /Include category values in the mobile catalog/);
 });
 
@@ -92,17 +92,17 @@ test('L4: same-named databases in different folders get different catalog paths'
 test('L4: a 0.5.0 stem-keyed catalog is still read, but only when it names the same database', async () => {
   const fresh = loadPlugin();
   const legacy = {
-    database: '07 Data/big.db', computedAt: '2026-09-01T10:00:00Z',
+    database: '07 Databases/big.db', computedAt: '2026-09-01T10:00:00Z',
     tables: [{ name: 't', columns: [] }], values: {},
   };
   const adapter = makeFakeAdapter(
-    { '07 Data/Dashboard Cache/catalogs/big.json': JSON.stringify(legacy) },
-    { '07 Data/big.db': new Uint8Array([1]) }
+    { '07 Databases/Dashboard Cache/catalogs/big.json': JSON.stringify(legacy) },
+    { '07 Databases/big.db': new Uint8Array([1]) }
   );
   const { plugin } = await bootPlugin(fresh, adapter);
-  const found = await plugin.readCatalog('07 Data/big.db');
+  const found = await plugin.readCatalog('07 Databases/big.db');
   assert.ok(found, 'the legacy key still reads');
-  assert.equal(found.database, '07 Data/big.db');
+  assert.equal(found.database, '07 Databases/big.db');
   const wrong = await plugin.readCatalog('Elsewhere/big.db');
   assert.equal(wrong, null, 'a same-named database in another folder must not inherit the catalog');
 });
@@ -113,9 +113,9 @@ test('L2: the console line carries the place and the error class, never the mess
   const e = new Error("no such table: secret_diagnosis near 'SELECT qty FROM health'");
   e.name = 'Error';
   const line = lib.safeLogLine('dashboards failed to render', e);
-  assert.equal(line, 'ICOR SQLite Viewer: dashboards failed to render (Error)');
+  assert.equal(line, 'ReadOut: dashboards failed to render (Error)');
   assert.doesNotMatch(line, /secret|SELECT|health/);
-  assert.equal(lib.safeLogLine('x', null), 'ICOR SQLite Viewer: x (Error)');
+  assert.equal(lib.safeLogLine('x', null), 'ReadOut: x (Error)');
 });
 
 /* --------------------------------------------- L3: the sqlite3 path rule -- */
@@ -133,8 +133,10 @@ test('L3: the sqlite3 path must be absolute and named like sqlite3; empty clears
 /* ------------------------------------------------- L1: the .json setting -- */
 
 test('L1: the .json claim rides its setting; the database extensions never do', async () => {
-  const on = await bootPlugin(loadPlugin(), makeFakeAdapter());
-  assert.deepEqual(unwrap(on.registered.map((r) => r[0])), ['db,sqlite,sqlite3', 'json'], 'default: both registered');
+  const fresh = await bootPlugin(loadPlugin(), makeFakeAdapter(), null);
+  assert.deepEqual(unwrap(fresh.registered.map((r) => r[0])), ['db,sqlite,sqlite3'], 'a new install leaves .json to the other plugins');
+  const on = await bootPlugin(loadPlugin(), makeFakeAdapter(), { openJsonFiles: true });
+  assert.deepEqual(unwrap(on.registered.map((r) => r[0])), ['db,sqlite,sqlite3', 'json'], 'switched on: both registered');
   const off = await bootPlugin(loadPlugin(), makeFakeAdapter(), { openJsonFiles: false });
   assert.deepEqual(unwrap(off.registered.map((r) => r[0])), ['db,sqlite,sqlite3'], 'setting off: json stays free');
 });

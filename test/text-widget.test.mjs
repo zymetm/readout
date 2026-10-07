@@ -24,7 +24,7 @@ function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkE
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const byTag = (root, tag) => [...walkEl(root)].filter((e) => e.tagName === tag.toUpperCase());
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tiles, extra) => lib.parseDashboardSpec(JSON.stringify(Object.assign({ id: 'tx', title: 'Words', database: '07 Data/x.db', tiles: Array.isArray(tiles) ? tiles : [tiles] }, extra)));
+const parse = (tiles, extra) => lib.parseDashboardSpec(JSON.stringify(Object.assign({ id: 'tx', title: 'Words', database: '07 Databases/x.db', tiles: Array.isArray(tiles) ? tiles : [tiles] }, extra)));
 
 test('THE LIMIT: no other widget shows free words', () => {
   assert.equal(parse({ viz: 'stat', text: 'hello', sql: 'SELECT 1' }).ok, true, 'a stat ignores the field, as before');
@@ -122,7 +122,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }

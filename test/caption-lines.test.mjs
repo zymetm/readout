@@ -25,7 +25,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
 function freshEl() { return new obsidian.Modal({}).contentEl; }
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'cl', title: 'Lines', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'cl', title: 'Lines', database: '07 Databases/x.db', tiles: [tile] }));
 const statTile = (extra) => Object.assign({ title: 'Index', viz: 'stat', y: 'value', sql: 'SELECT 1 AS value' }, extra);
 const TABLE = { columns: ['value', 'change', 'window', 'source'], rows: [[42, 'up 2 vs. last week', 'last 7 days', 'Scale A']] };
 const captionsOf = (el) => byClass(el, 'icor-sqlv-stat-caption').map((c) => c.textContent);
@@ -161,7 +161,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }
@@ -185,7 +185,7 @@ test('a phone shows the same caption lines from the desktop cache', async () => 
 
 test('the edit screen shows the caption columns for an SQL stat tile and saves them back', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -193,7 +193,7 @@ test('the edit screen shows the caption columns for an SQL stat tile and saves t
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: TABLE.columns, rows: TABLE.rows, ms: 1 });
   const tile = parse(statTile({ captions: ['window', 'change'] })).spec.tiles[0];
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
   const view = { saveAndRender: async () => {} };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, 0);
   form.open();

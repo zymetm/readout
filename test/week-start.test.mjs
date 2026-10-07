@@ -64,7 +64,7 @@ test('the plugin keeps the setting, offers it to every render and repairs a bad 
 });
 
 test('the edit form leaves "Week starts on" to the setting unless the widget picks a day', async () => {
-  const tile = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [Object.assign({ title: 'Walks', sql: 'SELECT daily' }, TILE)] })).spec.tiles[0];
+  const tile = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [Object.assign({ title: 'Walks', sql: 'SELECT daily' }, TILE)] })).spec.tiles[0];
   const { form, spec, lib: l } = await makeForm(tile);
   form.open();
   assert.equal(form.state.calWeekStart, '', 'a widget with no weekStart reads back as "the plugin setting"');

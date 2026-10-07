@@ -27,7 +27,7 @@ const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.c
 /* The chart is SVG, which carries its class as an attribute. */
 const byAttrClass = (root, cls) => [...walkEl(root)].filter((e) => e.getAttribute && e.getAttribute('class') === cls);
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sc', title: 'Scatter', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sc', title: 'Scatter', database: '07 Databases/x.db', tiles: [tile] }));
 const tileOf = (extra) => Object.assign({ title: 'Orders against spend', viz: 'scatter', x: 'spend', y: 'orders', unit: 'orders', sql: 'SELECT 1' }, extra);
 const TABLE = {
   columns: ['spend', 'orders', 'channel'],
@@ -246,12 +246,12 @@ test('a scatter chart built from a blank widget in the form matches the hand-wri
   assert.equal(form.previewState, 'ok', form.previewError);
   assert.ok(byAttrClass(form.previewEl, 'icor-sqlv-point').length, 'the preview draws the points');
   await form.save();
-  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
 });
 
 test('a scatter chart reads back into the form, and a save keeps every setting', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   const { form, spec, lib: l } = await makeForm(parsed);
   form.open();
   assert.deepEqual([form.state.scatterColorBy, form.state.scatterTrend, form.state.xMin, form.state.xMax], ['channel', true, '0', '100']);

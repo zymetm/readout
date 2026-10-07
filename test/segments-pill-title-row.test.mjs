@@ -21,7 +21,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'Split', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'Split', database: '07 Databases/x.db', tiles: [tile] }));
 const TABLE = { columns: ['state', 'pct', 'score'], rows: [['Idle', 20, 2], ['Busy', 80, 2]] };
 const LEVELS = [{ id: 'good', name: 'Good', color: 'var(--color-green)' }];
 const tileWith = (extra) => parse(Object.assign({

@@ -1,7 +1,7 @@
 /* THE HELP FILE SHOWS EACH WIDGET, DRAWN BY THE PLUGIN ITSELF.
  *
  * Each widget section of the help file carries a small code block,
- * ```sqlite-viewer-sample with the widget type in it, under a one-line
+ * ```readout-sample with the widget type in it, under a one-line
  * caption. The plugin registers a code block processor for that language
  * and draws a sample widget there with the real renderer and fixed,
  * invented rows: no image file, no query, no network. These gates keep it
@@ -34,12 +34,12 @@ function observerClass(made) {
 
 const { lib, obsidian } = loadPlugin();
 const HELP = lib.DASHBOARD_README;
-const BLOCK_RE = /(^|\n)([^\n]*)\n\n```sqlite-viewer-sample\n([^\n`]*)\n```/g;
+const BLOCK_RE = /(^|\n)([^\n]*)\n\n```readout-sample\n([^\n`]*)\n```/g;
 const blocks = [...HELP.matchAll(BLOCK_RE)].map((m) => ({ caption: m[2], word: m[3] }));
 
 test('every widget type has a sample block in the help file, each under a caption', () => {
-  assert.equal(lib.SAMPLE_BLOCK_LANG, 'sqlite-viewer-sample');
-  assert.equal((HELP.match(/```sqlite-viewer-sample/g) || []).length, blocks.length, 'every block has the expected shape');
+  assert.equal(lib.SAMPLE_BLOCK_LANG, 'readout-sample');
+  assert.equal((HELP.match(/```readout-sample/g) || []).length, blocks.length, 'every block has the expected shape');
   assert.deepEqual(blocks.map((b) => b.word).sort(), [...lib.VIZ_KINDS].sort(), 'one sample per widget type');
   for (const { caption, word } of blocks) {
     assert.match(caption, /^\*Sample: [^*]+\.\*$/, word + ': a one-line caption says what the sample is');
@@ -109,7 +109,7 @@ test('the plugin registers the block, and a block releases its resize observers 
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
-  const handler = plugin.codeBlocks && plugin.codeBlocks['sqlite-viewer-sample'];
+  const handler = plugin.codeBlocks && plugin.codeBlocks['readout-sample'];
   assert.equal(typeof handler, 'function', 'the code block processor is registered');
   const children = [];
   for (const word of ['line', 'combo', 'heatmap', 'stat']) {

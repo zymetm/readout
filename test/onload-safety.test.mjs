@@ -27,7 +27,7 @@ async function boot({ saved = null, throwFor = [] } = {}) {
 }
 
 test('a clash on a code-block word does not abort onload', async () => {
-  for (const clash of [['sqlite-viewer'], ['sqlite-viewer-sample'], ['sqlite-viewer', 'sqlite-viewer-sample']]) {
+  for (const clash of [['readout'], ['readout-sample'], ['readout', 'readout-sample']]) {
     const { plugin } = await boot({ throwFor: clash });
     assert.ok(plugin.viewFactories && plugin.viewFactories['icor-sqlv-browser'] !== undefined || Object.keys(plugin.viewFactories || {}).length >= 3,
       'the views are registered after a clash on ' + clash.join(' and '));

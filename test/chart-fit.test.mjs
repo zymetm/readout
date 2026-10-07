@@ -187,7 +187,7 @@ test('every tile title and the phone cache line are one line, with the full text
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   await view.onOpen();
   await new Promise((r) => setTimeout(r, 20));

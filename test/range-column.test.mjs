@@ -27,7 +27,7 @@ const EXTRAS = { levels: lib.normalizeLevels(undefined), levelLooks: { stat: 'ra
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
 function freshEl() { return new obsidian.Modal({}).contentEl; }
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'rc', title: 'Score', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'rc', title: 'Score', database: '07 Databases/x.db', tiles: [tile] }));
 const pairTile = (extra) => Object.assign({ title: 'Pair', viz: 'stat', unit: 'u', y: 'value', sql: 'SELECT 1 AS value' }, extra);
 const TABLE = (score) => ({ columns: ['value', 'score', 'note'], rows: [['120/70', score, 'as of today']] });
 
@@ -110,7 +110,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }
@@ -136,14 +136,14 @@ test('the desktop caches the score with the result, and a phone judges it at ren
 
 async function makeForm(tile) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['value', 'score'], rows: [['120/70', 2]], ms: 1 });
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, 0);
   return { form, spec };

@@ -30,11 +30,11 @@ test('form numbers and number lists: empty is not set, anything else must read a
 });
 
 test('checkFormTile reads one widget with the dashboard parser and says "This widget" in its reasons', () => {
-  const ok = lib.checkFormTile({ title: 'Orders', viz: 'stat', sql: 'SELECT 1 AS n', y: 'n', hint: ' today ' }, '07 Data/shop.db');
+  const ok = lib.checkFormTile({ title: 'Orders', viz: 'stat', sql: 'SELECT 1 AS n', y: 'n', hint: ' today ' }, '07 Databases/shop.db');
   assert.equal(ok.ok, true);
   assert.equal(ok.tile.hint, 'today');
   assert.equal(ok.tile.layout, undefined);
-  const bad = lib.checkFormTile({ title: 'Orders', viz: 'heatmap', sql: 'SELECT 1' }, '07 Data/shop.db');
+  const bad = lib.checkFormTile({ title: 'Orders', viz: 'heatmap', sql: 'SELECT 1' }, '07 Databases/shop.db');
   assert.equal(bad.ok, false);
   assert.match(bad.reason, /^This widget: a heatmap needs "row", "column" and "value"/);
 });
@@ -331,11 +331,11 @@ test('a segments bar built from a blank widget in the form matches the hand-writ
   assert.equal(form.previewState, 'ok', form.previewError);
   assert.ok(byClass(form.previewEl, 'icor-sqlv-level-pill').length, 'the preview draws the pill');
   await form.save();
-  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0])));
+  assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0])));
 });
 
 test('a segments bar with ranges but no judged column says so; it reads back into the form with its pencil', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [SEG_TARGET] })).spec.tiles[0];
   const { form } = await makeForm(parsed);
   form.open();
   assert.equal(form.state.mode, 'sql');
@@ -376,12 +376,12 @@ test('a heatmap built from a blank widget in the form matches the hand-written o
   assert.equal(form.previewState, 'ok', form.previewError);
   assert.ok(byClass(form.previewEl, 'icor-sqlv-heatmap-cell').length, 'the preview draws the grid');
   await form.save();
-  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
   assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
 });
 
 test('a heatmap reads back into the form; a dot colour without a dot column cannot be left behind', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [HEAT_TARGET] })).spec.tiles[0];
   const { form } = await makeForm(parsed);
   form.open();
   assert.equal(form.state.heatRow, 'day');
@@ -432,12 +432,12 @@ test('a combo chart built from a blank widget in the form matches the hand-writt
   await form.runPreview();
   assert.equal(form.previewState, 'ok', form.previewError);
   await form.save();
-  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
   assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
 });
 
 test('a combo reads back into the form with its series and right axis; stacked bars on two sides are refused', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [COMBO_TARGET] })).spec.tiles[0];
   const { form } = await makeForm(parsed);
   form.open();
   assert.equal(form.state.comboSeries.length, 3);

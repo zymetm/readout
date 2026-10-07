@@ -34,7 +34,7 @@ const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.c
 const byAttrClass = (root, cls) => [...walkEl(root)].filter((e) => e.getAttribute && e.getAttribute('class') === cls);
 const byTag = (root, tag) => [...walkEl(root)].filter((e) => e.tagName === tag.toUpperCase());
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'Sparks', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'Sparks', database: '07 Databases/x.db', tiles: [tile] }));
 const tileOf = (extra) => Object.assign({ title: 'Visits', viz: 'table', sparklines: ['trend'], sql: 'SELECT 1' }, extra);
 const TABLE = {
   columns: ['page', 'visits', 'trend', 'also'],
@@ -180,10 +180,10 @@ test('a real query\'s group_concat reaches the page in the order its subquery ga
   source.run("INSERT INTO sales VALUES ('Web','2026-01-03',9),('Web','2026-01-01',3),('Web','2026-01-02',5),('Shop','2026-01-02',2),('Shop','2026-01-01',2),('Shop','2026-01-03',2)");
   const bytes = source.export();
   source.close();
-  const pluginDir = '.obsidian/plugins/icor-for-life-sqlite-viewer';
+  const pluginDir = '.obsidian/plugins/readout';
   const adapter = makeFakeAdapter(
     { [pluginDir + '/sql-wasm.js']: readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8') },
-    { [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')), '07 Data/shop.db': bytes },
+    { [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')), '07 Databases/shop.db': bytes },
   );
   const fresh = loadPlugin({ desktop: false });
   const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
@@ -191,10 +191,10 @@ test('a real query\'s group_concat reaches the page in the order its subquery ga
   plugin.app = app;
   await plugin.onload();
   const sql = 'SELECT channel, SUM(orders) AS orders, group_concat(orders) AS trend FROM (SELECT channel, day, orders FROM sales ORDER BY day) GROUP BY channel ORDER BY channel';
-  const res = await plugin.query.query('07 Data/shop.db', sql, { cap: 5000 });
+  const res = await plugin.query.query('07 Databases/shop.db', sql, { cap: 5000 });
   assert.deepEqual(unwrap(res.rows), [['Shop', 6, '2,2,2'], ['Web', 17, '3,5,9']]);
   const el = new fresh.obsidian.Modal({}).contentEl;
-  fresh.lib.renderTile(el, fresh.lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'S', database: '07 Data/shop.db', tiles: [{ title: 'Orders', viz: 'table', sql, sparklines: ['trend'] }] })).spec.tiles[0], { columns: res.columns, rows: res.rows }, {});
+  fresh.lib.renderTile(el, fresh.lib.parseDashboardSpec(JSON.stringify({ id: 'sp', title: 'S', database: '07 Databases/shop.db', tiles: [{ title: 'Orders', viz: 'table', sql, sparklines: ['trend'] }] })).spec.tiles[0], { columns: res.columns, rows: res.rows }, {});
   const lines = byAttrClass(el, 'icor-sqlv-spark');
   assert.equal(lines.length, 2);
   const web = byAttrClass(lines[1], 'icor-sqlv-spark-line')[0].getAttribute('points').split(' ').map((p) => Number(p.split(',')[1]));

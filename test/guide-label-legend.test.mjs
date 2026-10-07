@@ -25,7 +25,7 @@ const byTag = (root, tag) => [...walkEl(root)].filter((e) => e.tagName === tag.t
 const byAttrClass = (root, cls) => [...walkEl(root)].filter((e) => e.getAttribute && e.getAttribute('class') === cls);
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'gl', title: 'Guides', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'gl', title: 'Guides', database: '07 Databases/x.db', tiles: [tile] }));
 const TABLE = { columns: ['day', 'a', 'b', 'kcal'], rows: [['01', 20, 10, 1500], ['02', 35, 5, 1800], ['03', 30, 25, 1200]] };
 
 function draw(tile) {

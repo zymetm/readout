@@ -380,9 +380,9 @@ No shared settings.
 
 ## Showing a widget in a note
 
-Any note can show one widget of a dashboard, read-only, so a project page or a journal entry carries the chart itself. Write a code block whose language is `sqlite-viewer` and name the dashboard and the widget. The block below is shown here as plain text; in a note, put three backticks before and after it:
+Any note can show one widget of a dashboard, read-only, so a project page or a journal entry carries the chart itself. Write a code block whose language is `readout` and name the dashboard and the widget. The block below is shown here as plain text; in a note, put three backticks before and after it:
 
-    ```sqlite-viewer
+    ```readout
     dashboard: health-overview
     widget: Heart rate, last 90 days
     ```
@@ -498,4 +498,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint 23d732f2). If you edit this file, the plugin stops updating it. -->
+<!-- Written by ReadOut (revision 8, fingerprint a6160d7d). If you edit this file, ReadOut stops updating it. -->

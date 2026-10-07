@@ -1,6 +1,6 @@
-/* ICOR for Life - SQLite Viewer
+/* ReadOut
  *
- * INKLINE surface per Iris's spec (03 WiP/2026-09-01-sqlite-viewer-inkline-spec).
+ * Drawn on the INKLINE theme tokens when a vault has them, and on Obsidian's own tokens otherwise.
  * The plugin opts out of the theme's element skins (data-ink-plugin) and
  * draws itself from ONE local token layer. Every token is
  * var(--ink-X, obsidian-fallback), so the plugin works in any vault and

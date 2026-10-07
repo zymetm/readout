@@ -58,7 +58,7 @@ test('filter rows chain with AND, and hostile values stay quoted', () => {
 
 test('the legacy single filter still parses and becomes a filter row', () => {
   const spec = {
-    id: 'legacy', title: 'L', database: '07 Data/x.db',
+    id: 'legacy', title: 'L', database: '07 Databases/x.db',
     tiles: [{
       viz: 'bar',
       source: { table: 't', metric: 'v', agg: 'sum', filter: { column: 'kind', value: 'a' }, timeColumn: 'day' },
@@ -162,7 +162,7 @@ test('the debounce runs once per burst of changes, driven with fake timers', () 
 
 test('a form-built widget (filters, compare, favorable, size) round-trips through the spec file', () => {
   const spec = {
-    id: 'formed', title: 'Formed', database: '07 Data/mypka-health.db',
+    id: 'formed', title: 'Formed', database: '07 Databases/mypka-health.db',
     globalTimeframe: { preset: '90d' },
     tiles: [{
       title: 'Weight trend', viz: 'line', unit: 'kg',
@@ -209,7 +209,7 @@ test('compare with a series split is refused; bad compare and favorable values a
 
 test('the one-way conversion: a built widget converted to SQL parses as a raw tile and keeps its query', () => {
   const spec = {
-    id: 'conv', title: 'C', database: '07 Data/x.db', globalTimeframe: { preset: '90d' },
+    id: 'conv', title: 'C', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' },
     tiles: [{
       title: 'Steps', viz: 'bar', unit: 'steps',
       source: { table: 'health_metric', metric: 'qty', agg: 'sum', filters: [{ column: 'metric_name', op: 'eq', value: 'step_count' }], timeColumn: 'local_date', timeframe: 'global' },
@@ -223,7 +223,7 @@ test('the one-way conversion: a built widget converted to SQL parses as a raw ti
   const raw = { title: tile.title, sql, viz: tile.viz, x: 'x', y: 'value', unit: tile.unit };
   parsed.spec.tiles[0] = raw;
   const reparsed = lib.parseDashboardSpec(lib.specToJson({
-    id: 'conv', title: 'C', database: '07 Data/x.db', globalTimeframe: { preset: '90d' },
+    id: 'conv', title: 'C', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' },
     tiles: [Object.assign({ stack: false, y: ['value'] }, raw, { y: ['value'] })],
   }));
   assert.equal(reparsed.ok, true, reparsed.reason);
@@ -241,8 +241,8 @@ function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if 
 
 test('the form gates Save on a green preview and saves a widget that round-trips', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [{ path: '07 Data/x.db', stat: { size: 1 } }] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
+  const app = { vault: { adapter, getFiles: () => [{ path: '07 Databases/x.db', stat: { size: 1 } }] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -250,14 +250,14 @@ test('the form gates Save on a green preview and saves a widget that round-trips
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['x', 'value'], rows: [['d1', 3]], ms: 1 });
 
-  const spec = { id: 'd', title: 'D', database: '', globalTimeframe: { preset: '90d' }, tiles: [], path: '07 Data/Dashboards/d.json' };
+  const spec = { id: 'd', title: 'D', database: '', globalTimeframe: { preset: '90d' }, tiles: [], path: '07 Databases/Dashboards/d.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; }, };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, -1);
   form.open();
   assert.equal(form.saveBtn.disabled, true, 'Save starts locked');
 
   /* Fill the sentence: database, table, value. */
-  form.state.database = '07 Data/x.db';
+  form.state.database = '07 Databases/x.db';
   form.state.table = 'things';
   form.state.metric = 'qty';
   form.state.timeColumn = 'day';
@@ -286,7 +286,7 @@ test('the form gates Save on a green preview and saves a widget that round-trips
 
 test('a failed preview locks Save and shows its error in the form', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -297,7 +297,7 @@ test('a failed preview locks Save and shows its error in the form', async () => 
   const spec = { id: 'd', title: 'D', database: '', globalTimeframe: { preset: '90d' }, tiles: [], path: 'p.json' };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, { saveAndRender: async () => {} }, spec, -1);
   form.open();
-  form.state.database = '07 Data/x.db';
+  form.state.database = '07 Databases/x.db';
   form.state.table = 'things';
   form.state.metric = 'qty';
   form.state.timeColumn = 'day';

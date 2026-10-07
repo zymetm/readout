@@ -13,7 +13,7 @@ const NAMES = {
 export const imageOf = (word, theme) => 'docs/images/widget-' + word + '-' + theme + '.png';
 
 export function helpMirrorOf(text) {
-  return String(text).replace(/```sqlite-viewer-sample\n([a-z]+)\n```/g, (block, word) => {
+  return String(text).replace(/```readout-sample\n([a-z]+)\n```/g, (block, word) => {
     if (!NAMES[word]) return block;
     return '<picture>\n' +
       '  <source media="(prefers-color-scheme: dark)" srcset="' + imageOf(word, 'dark') + '">\n' +

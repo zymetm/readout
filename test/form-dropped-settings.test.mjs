@@ -21,14 +21,14 @@ const RANGES = [{ high: 10, level: 'Good' }, { level: 'Alert' }];
 
 async function makeForm(tile) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/shop.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/shop.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['day', 'value'], rows: [['2026-01-01', 4], ['2026-01-02', 6]], ms: 1 });
-  const spec = { id: 'shop', title: 'Shop', database: '07 Data/shop.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'shop.json' };
+  const spec = { id: 'shop', title: 'Shop', database: '07 Databases/shop.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'shop.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, 0);
   return { form, spec };
@@ -42,7 +42,7 @@ test('droppedSettings lists the settings the saved widget no longer carries, nev
 });
 
 test('changing a stat with value levels to a line chart says the levels are left out, before the save', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'shop', title: 'Shop', database: '07 Data/shop.db', tiles: [{ title: 'Orders', viz: 'stat', sql: 'SELECT day, value FROM t', y: 'value', ranges: RANGES }] }));
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'shop', title: 'Shop', database: '07 Databases/shop.db', tiles: [{ title: 'Orders', viz: 'stat', sql: 'SELECT day, value FROM t', y: 'value', ranges: RANGES }] }));
   assert.equal(parsed.ok, true, parsed.reason);
   const { form, spec } = await makeForm(parsed.spec.tiles[0]);
   form.open();

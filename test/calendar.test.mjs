@@ -29,7 +29,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'cal', title: 'Calendar', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'cal', title: 'Calendar', database: '07 Databases/x.db', tiles: [tile] }));
 const RANGES = [{ high: 9, level: 'Cool', label: 'quiet' }, { low: 10, high: 19, level: 'Mild', label: 'steady' }, { level: 'Hot', label: 'busy' }];
 const LEVELS = [{ id: 'cool', name: 'Cool', color: '#3366cc' }, { id: 'mild', name: 'Mild', color: '#88aa44' }, { id: 'hot', name: 'Hot', color: '#cc5533' }];
 const calTile = (extra) => Object.assign({ title: 'Walks per day', viz: 'calendar', date: 'day', value: 'walks', unit: 'walks', ranges: RANGES, sql: 'SELECT 1' }, extra);
@@ -249,12 +249,12 @@ test('a calendar built from a blank widget in the form matches the hand-written 
   assert.equal(form.previewState, 'ok', form.previewError);
   assert.ok(byClass(form.previewEl, 'icor-sqlv-calendar-cell').length, 'the preview draws the days');
   await form.save();
-  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const want = l.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   assert.deepEqual(unwrap(asFileTile(l, spec.tiles[0])), unwrap(asFileTile(l, want)));
 });
 
 test('a calendar reads back into the form; the year must be a whole number', async () => {
-  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [TARGET] })).spec.tiles[0];
+  const parsed = lib.parseDashboardSpec(JSON.stringify({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [TARGET] })).spec.tiles[0];
   const { form, spec, lib: l } = await makeForm(parsed);
   form.open();
   assert.deepEqual([form.state.calDate, form.state.calValue, form.state.calWeekStart, form.state.calYear], ['day', 'minutes', 'monday', '2025']);

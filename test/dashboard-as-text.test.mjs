@@ -17,8 +17,8 @@ import assert from 'node:assert/strict';
 
 import { loadPlugin, makeFakeAdapter, notices } from './harness.mjs';
 
-const VIEW_JSON = 'icor-sqlite-viewer-json';
-const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
+const VIEW_JSON = 'readout-json';
+const VIEW_DASHBOARDS = 'readout-dashboards';
 const PATH = '07 Databases/Dashboards/shop.json';
 const SPEC = { id: 'shop', title: 'Shop', database: '07 Databases/shop.db', tiles: [{ title: 'Orders', sql: 'SELECT 3 AS n', viz: 'stat', y: 'n' }] };
 

@@ -12,9 +12,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, FIXTURE_DASHBOARD_FILES } from './harness.mjs';
 
-const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
+const VIEW_DASHBOARDS = 'readout-dashboards';
 
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 function collectByClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
@@ -32,21 +32,30 @@ async function makeView(adapter, { desktop = true } = {}) {
 
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
-test('a view opened against an empty folder seeds the starters for existing databases and finds them', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+test('a view opened against an empty folder says so, offers a first dashboard and writes nothing', async () => {
+  const adapter = makeFakeAdapter({}, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const { plugin, view } = await makeView(adapter);
-  /* No engine will answer, but discovery must work. */
   plugin.query.cli = { ok: false, reason: 'gate' };
   await view.onOpen();
   await settle();
-  assert.equal(view.specs.length, 1, 'exactly the starter whose database exists, found ' + view.specs.length);
-  assert.ok(adapter.files.has('07 Data/Dashboards/engagement-overview.json'));
-  assert.equal(adapter.files.has('07 Data/Dashboards/health-overview.json'), false, 'no health database, no health starter');
+  assert.equal(view.specs.length, 0, 'the plugin ships no dashboards of its own');
+  assert.match(textOf(view.contentEl), /No dashboards yet\./);
+  assert.match(textOf(view.contentEl), /Create your first dashboard/);
+  assert.deepEqual(adapter.log.filter(([op]) => op === 'write' || op === 'mkdir'), [], 'opening the view creates nothing');
+});
+
+test('a dashboard that is in the folder is found and shown', async () => {
+  const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
+  const { plugin, view } = await makeView(adapter);
+  plugin.query.cli = { ok: false, reason: 'gate' };
+  await view.onOpen();
+  await settle();
+  assert.equal(view.specs.length, 1);
   assert.equal(view.activeId, view.specs[0].id);
 });
 
 test('a failing tile query renders its error text inside the tile, never an empty tile', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const { plugin, view } = await makeView(adapter);
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => { throw new Error('no such table: nope'); };
@@ -62,7 +71,7 @@ test('a failing tile query renders its error text inside the tile, never an empt
 });
 
 test('a failure of the whole render chain lands in the view as text, never as a blank pane', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const { plugin, view } = await makeView(adapter);
   plugin.query.engineFor = async () => { throw new Error('the engine exploded'); };
   plugin.readDashboardCache = async () => { throw new Error('the engine exploded'); };
@@ -76,14 +85,14 @@ test('a failure of the whole render chain lands in the view as text, never as a 
 });
 
 test('reload() re-reads the folder, so a dashboard added after the first open appears', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const { plugin, view } = await makeView(adapter);
   plugin.query.cli = { ok: false, reason: 'gate' };
   await view.onOpen();
   await settle();
   const before = view.specs.length;
-  await adapter.write('07 Data/Dashboards/extra.json', JSON.stringify({
-    id: 'extra', title: 'Extra', database: '07 Data/x.db',
+  await adapter.write('07 Databases/Dashboards/extra.json', JSON.stringify({
+    id: 'extra', title: 'Extra', database: '07 Databases/x.db',
     tiles: [{ sql: 'SELECT 1 AS one', viz: 'stat', y: 'one' }],
   }));
   await view.reload();

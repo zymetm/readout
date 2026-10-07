@@ -1,4 +1,4 @@
-/* The harness every SQLite Viewer gate loads the real main.js through.
+/* The harness every ReadOut gate loads the real main.js through.
  *
  * An `obsidian` module stub, just enough of the API for main.js to load and
  * for the plugin class to be constructed. The gates measure the pure library
@@ -172,13 +172,40 @@ export function loadPlugin({ desktop = true, sourceOverride = null, globals = {}
     PluginClass,
     lib: PluginClass.lib,
     obsidian,
-    makePlugin(app, saved = null) {
-      const plugin = new PluginClass(app, { id: 'icor-for-life-sqlite-viewer', version: '0.0.0-gate', dir: '.obsidian/plugins/icor-for-life-sqlite-viewer' });
-      plugin.saved = saved;
+    /* `saved` is what data.json holds. Left out, it is the settings of a
+     * vault that has been set up (the ICOR for Life folders, JSON claimed),
+     * which is what most gates draw against. Pass `null` for a true fresh
+     * install, or an object to say exactly what is saved on top of those. */
+    makePlugin(app, saved = undefined) {
+      const plugin = new PluginClass(app, { id: 'readout', version: '0.0.0-gate', dir: '.obsidian/plugins/readout' });
+      plugin.saved = saved === null ? null : Object.assign({}, SET_UP_VAULT, saved || {});
       return plugin;
     },
   };
 }
+
+/* The folders and the JSON claim a set-up vault has saved. */
+export const SET_UP_VAULT = {
+  dataFolder: '07 Databases',
+  dashboardFolder: '07 Databases/Dashboards',
+  cacheFolder: '07 Databases/Dashboard Cache',
+  openJsonFiles: true,
+};
+
+/* A small dashboard file, for the gates that need one to exist (the plugin
+ * ships none of its own). Its place is the set-up vault's dashboards folder. */
+export const FIXTURE_DASHBOARD_PATH = '07 Databases/Dashboards/engagement-overview.json';
+export const FIXTURE_DASHBOARD = {
+  id: 'engagement-overview',
+  title: 'Engagement',
+  database: '07 Databases/engagement.db',
+  tiles: [
+    { title: 'Total', viz: 'stat', y: 'total', sql: 'SELECT COUNT(*) AS total FROM events' },
+    { title: 'Per day', viz: 'line', x: 'day', y: ['n'], sql: 'SELECT day, COUNT(*) AS n FROM events GROUP BY day ORDER BY day' },
+    { title: 'Latest', viz: 'table', sql: 'SELECT * FROM events ORDER BY day DESC LIMIT 10' },
+  ],
+};
+export const FIXTURE_DASHBOARD_FILES = { [FIXTURE_DASHBOARD_PATH]: JSON.stringify(FIXTURE_DASHBOARD, null, 2) + '\n' };
 
 /* Deep-copy a sandbox-realm value into the test realm so deepEqual works. */
 export function unwrap(value) { return JSON.parse(JSON.stringify(value)); }

@@ -30,7 +30,7 @@ function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkE
 function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
 function freshEl() { return new obsidian.Modal({}).contentEl; }
 function specWith(tile) {
-  return { id: 'lv', title: 'Levels', database: '07 Data/x.db', tiles: [tile] };
+  return { id: 'lv', title: 'Levels', database: '07 Databases/x.db', tiles: [tile] };
 }
 const parse = (tile) => lib.parseDashboardSpec(JSON.stringify(specWith(tile)));
 const statTile = (extra) => Object.assign({ title: 'Index', viz: 'stat', sql: 'SELECT 1 AS value' }, extra);
@@ -225,7 +225,7 @@ test('a missing or broken setup draws a neutral tile, never an error', () => {
 
 /* ---------------------------------------------------- the dashboards view -- */
 
-const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
+const VIEW_DASHBOARDS = 'readout-dashboards';
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
 async function makeView(files, binaries, { desktop = true } = {}) {
@@ -275,7 +275,7 @@ test('a phone judges the cached number at render time, from the cached ranges', 
 
 async function makeForm(tile) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -283,7 +283,7 @@ async function makeForm(tile) {
   plugin.schemaFor = async () => ({ live: true, tables: [{ name: 'things', columns: [{ name: 'day', type: 'TEXT' }, { name: 'qty', type: 'REAL' }] }] });
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['value'], rows: [[99]], ms: 1 });
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [tile] : [], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [tile] : [], path: 'd.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, tile ? 0 : -1);
   return { form, spec, view, plugin };
@@ -312,7 +312,7 @@ test('the edit screen shows the ranges for an SQL stat tile and saves them back'
 test('the edit screen shows the ranges for a built stat widget too, and adds rows the right way round', async () => {
   const { form } = await makeForm(null);
   form.open();
-  Object.assign(form.state, { database: '07 Data/x.db', table: 'things', metric: 'qty', agg: 'avg', viz: 'stat' });
+  Object.assign(form.state, { database: '07 Databases/x.db', table: 'things', metric: 'qty', agg: 'avg', viz: 'stat' });
   await form.ensureSchema();
   form.renderForm();
   const buttons = () => [...walkEl(form.formEl)].filter((e) => e.tagName === 'BUTTON');

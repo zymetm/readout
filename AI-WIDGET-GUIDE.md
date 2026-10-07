@@ -7,11 +7,11 @@ tags:
   - dashboards
 ---
 
-# AI widget guide: building a dashboard widget for the SQLite Viewer
+# AI widget guide: building a dashboard widget for ReadOut
 
 This file is for AI assistants (and teams of them) asked to build or change
-a widget on a dashboard of the ICOR for Life - SQLite Viewer plugin for
-Obsidian. It assumes nothing about the vault around it. A person who wants
+a widget on a ReadOut dashboard in an Obsidian vault. It assumes nothing
+about the vault around it. A person who wants
 to build widgets by hand should read `README.md` in this folder instead: it
 says what each widget shows and what each setting of the edit panel does.
 The full field reference for the dashboard file is section 8 of this guide,
@@ -89,7 +89,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 3. The procedure
 
 1. **Read the schema, read-only.** In Obsidian: the plugin's database view
-   ("SQLite Viewer" database browser), tab "Schema", or tab "SQL console"
+   (the ReadOut database browser), tab "Schema", or tab "SQL console"
    with `PRAGMA table_info('sales')`. Outside Obsidian, any read-only SQLite
    client, for example `sqlite3 -readonly <file> ".schema sales"`. Note the
    column types and how dates are stored (text like `2026-01-31` sorts and
@@ -264,7 +264,7 @@ reference.
 {
   "id": "shop",
   "title": "Shop",
-  "database": "07 Databases/shop.db",
+  "database": "Databases/shop.db",
   "globalTimeframe": { "preset": "90d" },
   "tiles": [
     { "title": "Orders per day", "viz": "line", "x": "day", "y": "orders",
@@ -668,10 +668,10 @@ column where a heatmap reads a row and a column.
 ## 9. A widget inside a note
 
 A code block in any note draws one widget, read-only. The language word after
-the three backticks is `sqlite-viewer`. The block below is shown indented; in
+the three backticks is `readout`. The block below is shown indented; in
 a note it is fenced:
 
-    ```sqlite-viewer
+    ```readout
     dashboard: sales
     widget: Orders per day
     ```
@@ -681,7 +681,7 @@ from section 4 plus `database`, the vault path of the database. It is read by
 the same parser as a dashboard file, so every rule above applies and the query
 must be read-only.
 
-    ```sqlite-viewer
+    ```readout
     { "database": "Databases/shop.db", "title": "Orders per day", "viz": "bar",
       "x": "day", "y": "orders", "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day" }
     ```
@@ -697,4 +697,4 @@ must be read-only.
   written by the desktop when the note is shown. A phone writes nothing.
 - A mistake in the block, an unknown dashboard or a failed query is shown as a
   line in the block, never as an error in the note.
-<!-- Written by the SQLite Viewer plugin (revision 8, fingerprint 4a3f5af2). If you edit this file, the plugin stops updating it. -->
+<!-- Written by ReadOut (revision 9, fingerprint e5faa72b). If you edit this file, ReadOut stops updating it. -->

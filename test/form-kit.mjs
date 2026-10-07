@@ -19,7 +19,7 @@ export const RESULTS = {
 
 export async function makeForm(tile, { levels } = {}) {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/shop.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/shop.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -30,7 +30,7 @@ export async function makeForm(tile, { levels } = {}) {
     const key = Object.keys(RESULTS).find((k) => sql.includes(k)) || 'one';
     return Object.assign({ ms: 1 }, RESULTS[key]);
   };
-  const spec = { id: 'shop', title: 'Shop', database: '07 Data/shop.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [tile] : [], path: 'shop.json' };
+  const spec = { id: 'shop', title: 'Shop', database: '07 Databases/shop.db', globalTimeframe: { preset: '90d' }, tiles: tile ? [tile] : [], path: 'shop.json' };
   const view = { saveAndRender: async (s) => { view.saved = s; } };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, view, spec, tile ? 0 : -1);
   return { form, spec, view, plugin, lib: fresh.lib };
@@ -39,7 +39,7 @@ export async function makeForm(tile, { levels } = {}) {
 /* What the dashboard file would hold for a tile: the save path's own
  * serializer, read back. */
 export function asFileTile(lib, tile) {
-  const json = JSON.parse(lib.specToJson({ id: 'x', title: 'X', database: '07 Data/shop.db', tiles: [tile] }));
+  const json = JSON.parse(lib.specToJson({ id: 'x', title: 'X', database: '07 Databases/shop.db', tiles: [tile] }));
   const t = json.tiles[0];
   delete t.layout;
   return t;

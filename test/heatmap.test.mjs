@@ -26,7 +26,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'hm', title: 'Heat', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'hm', title: 'Heat', database: '07 Databases/x.db', tiles: [tile] }));
 const RANGES = [{ high: 9, level: 'Cool', label: 'cool' }, { low: 10, high: 19, level: 'Mild', label: 'mild' }, { level: 'Hot', label: 'hot' }];
 const LEVELS = [{ id: 'cool', name: 'Cool', color: '#3366cc' }, { id: 'mild', name: 'Mild', color: '#88aa44' }, { id: 'hot', name: 'Hot', color: '#cc5533' }];
 const heatTile = (extra) => Object.assign({ title: 'Load by slot', viz: 'heatmap', row: 'week', column: 'slot', value: 'load', unit: 'u', ranges: RANGES, sql: 'SELECT 1' }, extra);
@@ -143,7 +143,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }

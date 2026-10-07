@@ -177,7 +177,7 @@ test('prepareTileForRender: raw tiles pass through, built widgets get generated 
 
 test('a 0.1.x spec still parses, with the global timeframe defaulted', () => {
   const old = {
-    id: 'health-overview', title: 'Health', database: '07 Data/mypka-health.db',
+    id: 'health-overview', title: 'Health', database: '07 Databases/mypka-health.db',
     tiles: [{ title: 'T', sql: 'SELECT 1 AS one', viz: 'stat', y: 'one' }],
   };
   const r = lib.parseDashboardSpec(JSON.stringify(old));
@@ -190,7 +190,7 @@ test('built widgets parse; broken ones are refused with the tile named', () => {
     id: 'built', title: 'Built', globalTimeframe: { preset: '30d' },
     tiles: [{
       title: 'Steps', viz: 'bar', unit: 'steps',
-      source: { database: '07 Data/mypka-health.db', table: 'health_metric', metric: 'qty', agg: 'sum', filter: { column: 'metric_name', value: 'step_count' }, timeColumn: 'local_date' },
+      source: { database: '07 Databases/mypka-health.db', table: 'health_metric', metric: 'qty', agg: 'sum', filter: { column: 'metric_name', value: 'step_count' }, timeColumn: 'local_date' },
     }],
   };
   const r = lib.parseDashboardSpec(JSON.stringify(spec));
@@ -221,11 +221,11 @@ test('an empty dashboard parses (the builder starts from it); SQL tiles still ne
 
 test('specToJson round-trips through the parser without loss', () => {
   const spec = {
-    id: 'round', title: 'Round trip', database: '07 Data/engagement.db',
+    id: 'round', title: 'Round trip', database: '07 Databases/engagement.db',
     globalTimeframe: { from: '2026-01-01', to: '2026-03-01' },
     tiles: [
       { title: 'Raw', sql: 'SELECT batch_id, COUNT(*) AS n FROM engagement_posts GROUP BY batch_id', viz: 'bar', x: 'batch_id', y: ['n'], unit: '', stack: false },
-      { title: 'Built', viz: 'line', unit: 'kg', stack: false, source: { database: '07 Data/mypka-health.db', table: 'health_metric', metric: 'qty', agg: 'avg', filter: { column: 'metric_name', value: 'weight_body_mass' }, timeColumn: 'local_date', timeframe: 'global' } },
+      { title: 'Built', viz: 'line', unit: 'kg', stack: false, source: { database: '07 Databases/mypka-health.db', table: 'health_metric', metric: 'qty', agg: 'avg', filter: { column: 'metric_name', value: 'weight_body_mass' }, timeColumn: 'local_date', timeframe: 'global' } },
     ],
   };
   const first = lib.parseDashboardSpec(JSON.stringify(spec));
@@ -255,7 +255,7 @@ async function makeCatalogPlugin(adapter, { desktop = true } = {}) {
 }
 
 test('the desktop writes a catalog: tables, columns, and the values of small text columns', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const plugin = await makeCatalogPlugin(adapter);
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async (db, sql) => {
@@ -268,8 +268,8 @@ test('the desktop writes a catalog: tables, columns, and the values of small tex
     throw new Error('unexpected: ' + sql);
   };
   plugin.settings.catalogIncludeValues = true; /* values are opt-in since 0.5.1 */
-  await plugin.writeCatalog('07 Data/x.db');
-  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Data/x.db');
+  await plugin.writeCatalog('07 Databases/x.db');
+  const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/x.db');
   assert.equal(adapter.files.has(path), true, 'expected ' + path);
   const catalog = JSON.parse(adapter.files.get(path));
   assert.equal(catalog.tables[0].name, 'health_metric');
@@ -279,39 +279,28 @@ test('the desktop writes a catalog: tables, columns, and the values of small tex
 
 test('the mobile picker reads the catalog when the database cannot be opened', async () => {
   const catalog = {
-    database: '07 Data/big.db', computedAt: '2026-09-01T10:00:00Z',
+    database: '07 Databases/big.db', computedAt: '2026-09-01T10:00:00Z',
     tables: [{ name: 'health_metric', columns: [{ name: 'metric_name', type: 'TEXT' }, { name: 'qty', type: 'REAL' }] }],
     values: { 'health_metric.metric_name': ['step_count'] },
   };
   const adapter = makeFakeAdapter(
-    { '07 Data/Dashboard Cache/catalogs/big.json': JSON.stringify(catalog) },
-    { '07 Data/big.db': new Uint8Array(3 * 1024 * 1024) }
+    { '07 Databases/Dashboard Cache/catalogs/big.json': JSON.stringify(catalog) },
+    { '07 Databases/big.db': new Uint8Array(3 * 1024 * 1024) }
   );
   const plugin = await makeCatalogPlugin(adapter, { desktop: false });
   plugin.settings.mobileCapMb = 1;
-  const schema = await plugin.schemaFor('07 Data/big.db');
+  const schema = await plugin.schemaFor('07 Databases/big.db');
   assert.equal(schema.live, false);
   assert.equal(schema.tables[0].name, 'health_metric');
-  const values = await plugin.distinctValues('07 Data/big.db', 'health_metric', 'metric_name');
+  const values = await plugin.distinctValues('07 Databases/big.db', 'health_metric', 'metric_name');
   assert.deepEqual(unwrap(values.values), ['step_count']);
-  await assert.rejects(plugin.distinctValues('07 Data/big.db', 'health_metric', 'source'), /Type the exact value instead/);
+  await assert.rejects(plugin.distinctValues('07 Databases/big.db', 'health_metric', 'source'), /Type the exact value instead/);
 });
 
 test('without engine and without catalog, the picker says what to do in plain words', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/big.db': new Uint8Array(3 * 1024 * 1024) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/big.db': new Uint8Array(3 * 1024 * 1024) });
   const plugin = await makeCatalogPlugin(adapter, { desktop: false });
   plugin.settings.mobileCapMb = 1;
-  await assert.rejects(plugin.schemaFor('07 Data/big.db'), /Open the database once on the desktop and sync/);
+  await assert.rejects(plugin.schemaFor('07 Databases/big.db'), /Open the database once on the desktop and sync/);
 });
 
-/* ------------------------------------------------- existence-gated seeds -- */
-
-test('starters are seeded only for databases that exist in the vault', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
-  const plugin = await makeCatalogPlugin(adapter);
-  await plugin.ensureStarterFiles();
-  assert.equal(adapter.files.has('07 Data/Dashboards/engagement-overview.json'), true, 'its database exists, so it seeds');
-  assert.equal(adapter.files.has('07 Data/Dashboards/health-overview.json'), false, 'no health database, no health dashboard');
-  assert.equal(adapter.files.has('07 Data/Dashboards/youtube-overview.json'), false);
-  assert.equal(adapter.files.has('07 Data/Dashboards/README.md'), true, 'the README always seeds');
-});

@@ -29,7 +29,7 @@ const textOf = (el) => [...walkEl(el)].map((e) => e.textContent || '').join(' ')
 /* ------------------------------------------------------ reading a block -- */
 
 test('the block language is one constant, and a named widget is read from "dashboard:" and "widget:" lines', () => {
-  assert.equal(lib.WIDGET_BLOCK_LANG, 'sqlite-viewer');
+  assert.equal(lib.WIDGET_BLOCK_LANG, 'readout');
   assert.deepEqual(unwrap(lib.parseWidgetBlock('dashboard: sales\nwidget: Orders per day\n')), { ok: true, kind: 'ref', dashboard: 'sales', widget: 'Orders per day' });
   assert.deepEqual(unwrap(lib.parseWidgetBlock('  Widget : 3\r\n DASHBOARD: sales  ')), { ok: true, kind: 'ref', dashboard: 'sales', widget: 3 }, 'a number counts from 1; case and spaces do not matter');
   assert.equal(lib.parseWidgetBlock('dashboard: a\nwidget: Rate: resting').widget, 'Rate: resting', 'a title may hold a colon');
@@ -127,8 +127,8 @@ async function makeNote(files, { desktop = true, engine = true, globals } = {}) 
 
 test('the plugin registers the block next to the help samples', async () => {
   const { plugin } = await makeNote({});
-  assert.equal(typeof plugin.codeBlocks['sqlite-viewer'], 'function');
-  assert.equal(typeof plugin.codeBlocks['sqlite-viewer-sample'], 'function', 'the help file samples stay');
+  assert.equal(typeof plugin.codeBlocks['readout'], 'function');
+  assert.equal(typeof plugin.codeBlocks['readout-sample'], 'function', 'the help file samples stay');
 });
 
 test('a named widget draws live on the desktop, read-only, and never writes the dashboard cache', async () => {

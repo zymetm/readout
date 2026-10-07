@@ -16,7 +16,7 @@ function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkE
 const byClass = (root, cls) => [...walkEl(root)].filter((e) => e.classSet && e.classSet.has(cls));
 
 test('a text widget keeps its hint and footnote through the spec, the drawing and a save', () => {
-  const r = lib.parseDashboardSpec(JSON.stringify({ id: 'n', title: 'N', database: '07 Data/x.db', tiles: [{ title: 'About', viz: 'text', sql: 'SELECT 1', hint: 'live', footnote: 'More on the other page.' }] }));
+  const r = lib.parseDashboardSpec(JSON.stringify({ id: 'n', title: 'N', database: '07 Databases/x.db', tiles: [{ title: 'About', viz: 'text', sql: 'SELECT 1', hint: 'live', footnote: 'More on the other page.' }] }));
   assert.equal(r.ok, true, r.reason);
   assert.equal(r.spec.tiles[0].footnote, 'More on the other page.');
   const el = new obsidian.Modal({}).contentEl;

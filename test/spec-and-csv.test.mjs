@@ -18,7 +18,7 @@ const { lib } = loadPlugin();
 const goodSpec = () => ({
   id: 'my-dash',
   title: 'My Dash',
-  database: '07 Data/example.db',
+  database: '07 Databases/example.db',
   tiles: [
     { title: 'Trend', sql: 'SELECT day, n FROM t ORDER BY day', viz: 'line', x: 'day', y: 'n', unit: 'rows' },
     { title: 'Total', sql: 'SELECT COUNT(*) AS n FROM t', viz: 'stat', y: 'n' },
@@ -64,25 +64,19 @@ test('a line or bar tile without x or y is refused; a stat without either is fin
   assert.equal(lib.parseDashboardSpec(JSON.stringify(bareStat)).ok, true);
 });
 
+test('the plugin ships no starter dashboards of its own', () => {
+  assert.equal(lib.STARTER_DASHBOARDS, undefined);
+});
+
 test('an unknown viz is refused', () => {
   const bad = goodSpec(); bad.tiles[0].viz = 'radar';
   assert.match(lib.parseDashboardSpec(JSON.stringify(bad)).reason, /line, bar, stat, table or divider/);
 });
 
-test('the three starter dashboards pass their own parser', () => {
-  for (const starter of lib.STARTER_DASHBOARDS) {
-    const r = lib.parseDashboardSpec(JSON.stringify(starter.spec));
-    assert.equal(r.ok, true, starter.file + ': ' + (r.reason || ''));
-    for (const tile of r.spec.tiles) {
-      assert.equal(lib.gateStatement(tile.sql).ok, true, starter.file + ' tile SQL must pass the gate');
-    }
-  }
-});
-
 test('cache paths: cache folder, database stem, dashboard id', () => {
   assert.equal(
-    lib.cachePathFor('07 Data/Dashboard Cache', '07 Data/mypka-health.db', 'health-overview'),
-    '07 Data/Dashboard Cache/mypka-health/health-overview.json'
+    lib.cachePathFor('07 Databases/Dashboard Cache', '07 Databases/mypka-health.db', 'health-overview'),
+    '07 Databases/Dashboard Cache/mypka-health/health-overview.json'
   );
 });
 
@@ -105,10 +99,10 @@ test('CSV of zero rows is just the header', () => {
 
 test('the index finds databases, skips sidecars and the folders nobody means', () => {
   const found = lib.findDatabases([
-    { path: '07 Data/mypka-health.db', size: 1 },
-    { path: '07 Data/engagement.db', size: 2 },
-    { path: '07 Data/engagement.db-wal', size: 3 },
-    { path: '07 Data/engagement.db-shm', size: 4 },
+    { path: '07 Databases/mypka-health.db', size: 1 },
+    { path: '07 Databases/engagement.db', size: 2 },
+    { path: '07 Databases/engagement.db-wal', size: 3 },
+    { path: '07 Databases/engagement.db-shm', size: 4 },
     { path: '06 AI Team/AI Team Knowledge/Data/youtube-analytics.db', size: 5 },
     { path: '.obsidian/plugins/x/cache.db', size: 6 },
     { path: '.git/index.db', size: 7 },
@@ -118,8 +112,8 @@ test('the index finds databases, skips sidecars and the folders nobody means', (
   ]);
   assert.deepEqual(unwrap(found.map((f) => f.path)), [
     '06 AI Team/AI Team Knowledge/Data/youtube-analytics.db',
-    '07 Data/engagement.db',
-    '07 Data/mypka-health.db',
+    '07 Databases/engagement.db',
+    '07 Databases/mypka-health.db',
     'a/data.sqlite3',
   ]);
 });

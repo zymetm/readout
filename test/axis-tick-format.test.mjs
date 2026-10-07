@@ -22,7 +22,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byTag = (root, tag) => [...walkEl(root)].filter((e) => e.tagName === tag.toUpperCase());
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'tf', title: 'Ticks', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'tf', title: 'Ticks', database: '07 Databases/x.db', tiles: [tile] }));
 const ticks = (el, anchor) => byTag(el, 'text').filter((t) => t.getAttribute('class') === 'icor-sqlv-tick' && t.getAttribute('text-anchor') === anchor).map((t) => t.textContent);
 const TABLE = { columns: ['day', 'hours', 'steps', 'cv'], rows: [['01', 7, 4000, 30], ['02', 8.5, 8000, 25], ['03', 6, 6000, 40]] };
 

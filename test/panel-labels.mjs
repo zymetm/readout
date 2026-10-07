@@ -93,10 +93,10 @@ export async function panelLabels() {
     const { form, plugin } = await makeForm(shape.tile, { levels: shape.levels ? LEVELS : undefined });
     if (shape.built) {
       plugin.schemaFor = async () => SCHEMA;
-      plugin.vaultDatabases = () => [{ path: '07 Data/shop.db', size: 1 }];
+      plugin.vaultDatabases = () => [{ path: '07 Databases/shop.db', size: 1 }];
     }
     form.open();
-    if (shape.tile === null) { form.state.database = '07 Data/shop.db'; form.state.table = 'sales'; }
+    if (shape.tile === null) { form.state.database = '07 Databases/shop.db'; form.state.table = 'sales'; }
     if (shape.built) await form.loadSchemaForEdit();
     else await form.runPreview();
     openEverything(form, shape.state);

@@ -21,7 +21,7 @@ const { lib, obsidian } = loadPlugin();
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 const byTag = (root, tag) => [...walkEl(root)].filter((e) => e.tagName === tag.toUpperCase());
 const freshEl = () => new obsidian.Modal({}).contentEl;
-const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'ax', title: 'Axis', database: '07 Data/x.db', tiles: [tile] }));
+const parse = (tile) => lib.parseDashboardSpec(JSON.stringify({ id: 'ax', title: 'Axis', database: '07 Databases/x.db', tiles: [tile] }));
 const lineTile = (extra) => Object.assign({ title: 'Temps', viz: 'line', x: 'slot', y: 'mid', sql: 'SELECT 1 AS slot, 2 AS mid' }, extra);
 
 /* 48 slots, values between 90 and `top`. */
@@ -141,7 +141,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   return { plugin, view, adapter };
 }
@@ -168,7 +168,7 @@ test('a phone draws the same axis from the desktop cache', async () => {
 
 test('editing the widget in the form keeps the fields the form has no field for', async () => {
   const fresh = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/x.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
@@ -177,7 +177,7 @@ test('editing the widget in the form keeps the fields the form has no field for'
   const table = slots(150);
   plugin.query.query = async () => ({ columns: table.columns, rows: table.rows, ms: 1 });
   const tile = parse(lineTile({ yMin: 40, yMax: 200, xLabelEvery: 8 })).spec.tiles[0];
-  const spec = { id: 'd', title: 'D', database: '07 Data/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
+  const spec = { id: 'd', title: 'D', database: '07 Databases/x.db', globalTimeframe: { preset: '90d' }, tiles: [tile], path: 'd.json' };
   const form = new fresh.PluginClass.modals.WidgetFormModal(plugin, { saveAndRender: async () => {} }, spec, 0);
   form.open();
   form.state.title = 'Renamed';

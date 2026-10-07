@@ -83,7 +83,7 @@ async function openDashboards({ win, sourceOverride = null } = {}) {
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   if (win !== undefined) view.contentEl.win = win === 'popout' ? w.popout : win;
   await view.onOpen();

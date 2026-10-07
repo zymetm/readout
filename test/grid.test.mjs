@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, FIXTURE_DASHBOARD_FILES } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -49,7 +49,7 @@ test('a spec-carried layout is respected; only missing ones get defaults', () =>
 
 test('layout persists through the spec round-trip', () => {
   const spec = {
-    id: 'grid', title: 'Grid', database: '07 Data/x.db',
+    id: 'grid', title: 'Grid', database: '07 Databases/x.db',
     globalTimeframe: { preset: '90d' },
     tiles: [{
       title: 'T', sql: 'SELECT 1 AS one', viz: 'stat', x: '', y: ['one'], unit: '', stack: false,
@@ -145,14 +145,14 @@ test('the + tile shows only on an empty dashboard or in edit mode', () => {
 
 test('the dashboards view obeys the visibility rule end to end', async () => {
   const { makePlugin } = loadPlugin();
-  const adapter = makeFakeAdapter({}, { '07 Data/engagement.db': new Uint8Array([1]) });
+  const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
   const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
   plugin.query.query = async () => ({ columns: ['n'], rows: [[1]], ms: 1 });
-  const view = plugin.viewFactories['icor-sqlite-viewer-dashboards']({ app });
+  const view = plugin.viewFactories['readout-dashboards']({ app });
   view.app = app;
   await view.onOpen();
   await new Promise((r) => setTimeout(r, 30));

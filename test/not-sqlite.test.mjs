@@ -89,45 +89,45 @@ function desktopOf(adapter) {
 }
 
 test('the desktop engine reads 16 bytes by file handle and stops a file that is not SQLite before running the query', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/Thumbs.db': THUMBS, '07 Data/list.db': TEXT, '07 Data/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/Thumbs.db': THUMBS, '07 Databases/list.db': TEXT, '07 Databases/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
   const { plugin } = await makePluginWith(adapter);
   const deps = desktopOf(adapter);
   plugin.query.deps = deps;
   plugin.query.cli = { ok: true, version: 'gate' };
   for (const name of ['Thumbs', 'list']) {
-    await assert.rejects(plugin.query.query('07 Data/' + name + '.db', 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
+    await assert.rejects(plugin.query.query('07 Databases/' + name + '.db', 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
   }
   assert.equal(deps.calls.length, 0, 'sqlite3 was never started for a file that is not SQLite');
-  const res = await plugin.query.query('07 Data/tiny.db', 'SELECT 1 AS n');
+  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS n');
   assert.deepEqual(res.rows, [[1]]);
   assert.equal(deps.calls.length, 1);
 });
 
 test('the header is read once per version of a file, and again when the file changes', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
   const { plugin } = await makePluginWith(adapter);
   const deps = desktopOf(adapter);
   plugin.query.deps = deps;
   plugin.query.cli = { ok: true, version: 'gate' };
-  await plugin.query.query('07 Data/tiny.db', 'SELECT 1 AS n');
-  await plugin.query.query('07 Data/tiny.db', 'SELECT 2 AS n');
-  await plugin.query.query('07 Data/tiny.db', 'SELECT 3 AS n');
+  await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS n');
+  await plugin.query.query('07 Databases/tiny.db', 'SELECT 2 AS n');
+  await plugin.query.query('07 Databases/tiny.db', 'SELECT 3 AS n');
   assert.equal(deps.reads.length, 1, 'three queries, one header read');
   /* The file is replaced by a text file: a new size and time, a new check. */
-  adapter.binaries.set('07 Data/tiny.db', TEXT);
-  await assert.rejects(plugin.query.query('07 Data/tiny.db', 'SELECT 4 AS n'), SENTENCE);
+  adapter.binaries.set('07 Databases/tiny.db', TEXT);
+  await assert.rejects(plugin.query.query('07 Databases/tiny.db', 'SELECT 4 AS n'), SENTENCE);
   assert.equal(deps.reads.length, 2);
 });
 
 test('an empty file and an unreadable header are left to the engine, which reads an empty file as an empty database', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Data/empty.db': new Uint8Array(0), '07 Data/locked.db': Uint8Array.from([...HEADER, 0]) });
+  const adapter = makeFakeAdapter({}, { '07 Databases/empty.db': new Uint8Array(0), '07 Databases/locked.db': Uint8Array.from([...HEADER, 0]) });
   const { plugin } = await makePluginWith(adapter);
   const deps = desktopOf(adapter);
   deps.fsx.openSync = (path) => { if (/locked/.test(path)) throw new Error('EBUSY'); return path; };
   plugin.query.deps = deps;
   plugin.query.cli = { ok: true, version: 'gate' };
-  assert.deepEqual((await plugin.query.query('07 Data/empty.db', 'SELECT 1 AS n')).rows, [[1]]);
-  assert.deepEqual((await plugin.query.query('07 Data/locked.db', 'SELECT 1 AS n')).rows, [[1]], 'a file that cannot be opened for the header is not called a non-database');
+  assert.deepEqual((await plugin.query.query('07 Databases/empty.db', 'SELECT 1 AS n')).rows, [[1]]);
+  assert.deepEqual((await plugin.query.query('07 Databases/locked.db', 'SELECT 1 AS n')).rows, [[1]], 'a file that cannot be opened for the header is not called a non-database');
   assert.equal(deps.calls.length, 2);
 });
 
@@ -145,7 +145,7 @@ async function realDatabase() {
 }
 
 async function mobileOf(binaries) {
-  const pluginDir = '.obsidian/plugins/icor-for-life-sqlite-viewer';
+  const pluginDir = '.obsidian/plugins/readout';
   const adapter = makeFakeAdapter(
     { [pluginDir + '/sql-wasm.js']: readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8') },
     Object.assign({ [pluginDir + '/sql-wasm.wasm']: readFileSync(resolve(repo, 'sql-wasm.wasm')) }, binaries),
@@ -155,30 +155,30 @@ async function mobileOf(binaries) {
 }
 
 test('the built-in engine checks the bytes it has loaded: a thumbnail cache and a text file get the sentence, a real database opens', async () => {
-  const { plugin } = await mobileOf({ '07 Data/Thumbs.db': THUMBS, '07 Data/list.sqlite': TEXT, '07 Data/tiny.db': await realDatabase() });
+  const { plugin } = await mobileOf({ '07 Databases/Thumbs.db': THUMBS, '07 Databases/list.sqlite': TEXT, '07 Databases/tiny.db': await realDatabase() });
   assert.equal(plugin.query.deps, null, 'no Node handles off the desktop');
   for (const name of ['Thumbs.db', 'list.sqlite']) {
-    await assert.rejects(plugin.query.query('07 Data/' + name, 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
+    await assert.rejects(plugin.query.query('07 Databases/' + name, 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
   }
   assert.equal(plugin.query.wasm.open.size, 0, 'a file that is not SQLite is never kept open');
-  const res = await plugin.query.query('07 Data/tiny.db', 'SELECT day, n FROM things ORDER BY day');
+  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT day, n FROM things ORDER BY day');
   assert.deepEqual(unwrap(res.rows), [['2026-08-01', 3], ['2026-08-02', 5]]);
 });
 
 test('on the built-in engine a file of fewer than 16 bytes is not SQLite, and an empty one is an empty database', async () => {
-  const { plugin } = await mobileOf({ '07 Data/one.db': Uint8Array.from([1]), '07 Data/empty.db': new Uint8Array(0) });
-  await assert.rejects(plugin.query.query('07 Data/one.db', 'SELECT 1'), SENTENCE);
-  const res = await plugin.query.query('07 Data/empty.db', "SELECT count(*) AS n FROM sqlite_master");
+  const { plugin } = await mobileOf({ '07 Databases/one.db': Uint8Array.from([1]), '07 Databases/empty.db': new Uint8Array(0) });
+  await assert.rejects(plugin.query.query('07 Databases/one.db', 'SELECT 1'), SENTENCE);
+  const res = await plugin.query.query('07 Databases/empty.db', "SELECT count(*) AS n FROM sqlite_master");
   assert.deepEqual(unwrap(res.rows), [[0]]);
 });
 
 /* ------------------------------------- where a member reads it -- */
 
 test('the database browser shows the sentence in place of the tables', async () => {
-  const { plugin } = await mobileOf({ '07 Data/Thumbs.db': THUMBS });
-  const view = plugin.viewFactories['icor-sqlite-viewer-browser']({ app: plugin.app });
+  const { plugin } = await mobileOf({ '07 Databases/Thumbs.db': THUMBS });
+  const view = plugin.viewFactories['readout-browser']({ app: plugin.app });
   view.app = plugin.app;
-  await view.setDatabase('07 Data/Thumbs.db');
+  await view.setDatabase('07 Databases/Thumbs.db');
   const text = [];
   (function walk(el) { if (el.classSet && el.classSet.has('icor-sqlv-error')) text.push(el.textContent); for (const c of el.children || []) walk(c); })(view.contentEl);
   assert.equal(text.length, 1);
@@ -186,7 +186,7 @@ test('the database browser shows the sentence in place of the tables', async () 
 });
 
 test('the schema picker and a dashboard widget read the same sentence', async () => {
-  const { plugin } = await mobileOf({ '07 Data/Thumbs.db': THUMBS });
-  await assert.rejects(plugin.schemaFor('07 Data/Thumbs.db'), SENTENCE);
-  await assert.rejects(plugin.query.query('07 Data/Thumbs.db', 'SELECT 1', { cap: 5000 }), SENTENCE);
+  const { plugin } = await mobileOf({ '07 Databases/Thumbs.db': THUMBS });
+  await assert.rejects(plugin.schemaFor('07 Databases/Thumbs.db'), SENTENCE);
+  await assert.rejects(plugin.query.query('07 Databases/Thumbs.db', 'SELECT 1', { cap: 5000 }), SENTENCE);
 });
