@@ -72,7 +72,7 @@ const SHAPES = [
   { tile: { title: 'Combo', viz: 'combo', sql: 'SELECT * FROM daily', x: 'day', series: [{ column: 'web', kind: 'bar' }, { column: 'shop', kind: 'bar' }, { column: 'rate', kind: 'line', axis: 'right' }], refLines: [{ y: 1 }], zones: [{ from: 0, to: 1, color: 'var(--color-green)' }] } },
   { tile: { title: 'Count', viz: 'stat', sql: 'SELECT * FROM one', y: ['n'], ranges: [{ high: 10, level: 'Good' }, { level: 'Alert' }], levelColors: { Good: '#2a7fff' }, meter: { min: 0, max: 50 } },
     state: { valueSizeCustom: true, valueSize: '40' }, levels: true },
-  { tile: { title: 'Rows', viz: 'table', sql: 'SELECT * FROM one' } },
+  { tile: { title: 'Rows', viz: 'table', sql: 'SELECT * FROM one', sparklines: ['n'] } },
   { tile: { title: 'Tasks', viz: 'segments', sql: 'SELECT * FROM parts', x: 'status', y: ['n'], ranges: [{ high: 1, level: 'Good' }, { level: 'Alert' }], rangeColumn: 'verdict', segmentColors: { Done: 'var(--color-green)' } }, levels: true },
   { tile: { title: 'Grid', viz: 'heatmap', sql: 'SELECT * FROM grid', row: 'day', column: 'hr', value: 'minutes', marker: 'meeting', ranges: [{ high: 20, level: 'Good' }] }, levels: true },
   { tile: { title: 'Days', viz: 'calendar', sql: 'SELECT * FROM grid', date: 'day', value: 'minutes', weekStart: 'monday', year: 2025, ranges: [{ high: 20, level: 'Good' }] }, levels: true },

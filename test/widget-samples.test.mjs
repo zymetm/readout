@@ -79,6 +79,15 @@ test('every sample draws with the real renderer, no error, in the plugin\'s toke
   const heat = new obsidian.Modal({}).contentEl;
   lib.renderWidgetSample(heat, 'heatmap', []);
   assert.ok(byClass(heat, 'icor-sqlv-heatmap-cell').length >= 45, 'the heatmap sample has its cells');
+  /* The 0.7 samples show what is new about their widget. */
+  const attrClass = (root, cls) => [...walkEl(root)].filter((e) => e.getAttribute && e.getAttribute('class') === cls);
+  const draw = (word) => { const el = new obsidian.Modal({}).contentEl; lib.renderWidgetSample(el, word, []); return el; };
+  const scatter = draw('scatter');
+  assert.equal(attrClass(scatter, 'icor-sqlv-point').length, 26, 'the scatter sample has its points');
+  assert.equal(attrClass(scatter, 'icor-sqlv-trend').length, 1, 'and its trend line');
+  assert.equal(byClass(draw('calendar'), 'icor-sqlv-calendar-cell').length, 365, 'the calendar sample is a year of days');
+  assert.equal(byClass(draw('bullet'), 'icor-sqlv-bullet-target').length, 3, 'the bullet sample has its targets');
+  assert.equal(attrClass(draw('table'), 'icor-sqlv-spark').length, 5, 'the table sample has its sparklines');
 });
 
 test('a block with an unknown word, or none, shows a short line instead of failing', () => {

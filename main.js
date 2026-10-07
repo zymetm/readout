@@ -677,6 +677,8 @@ function parseDashboardSpec(text) {
     if (!sqlDelta.ok) return sqlDelta;
     const sqlSize = checkValueSize(t.valueSize, t.viz, at);
     if (!sqlSize.ok) return sqlSize;
+    const sparkCheck = checkSparklines(t.sparklines, t.viz, at);
+    if (!sparkCheck.ok) return sparkCheck;
     const scatterCheck = checkScatter(t, y, at);
     if (!scatterCheck.ok) return scatterCheck;
     const bulletCheck = checkBullet(t, y, at);
@@ -697,7 +699,7 @@ function parseDashboardSpec(text) {
     if (!heatCheck.ok) return heatCheck;
     const calCheck = checkCalendar(t, at);
     if (!calCheck.ok) return calCheck;
-    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withBullet(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withBullet(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withSparklines(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -706,7 +708,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), bulletCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
+    }, levelCheck), sqlDelta), captionCheck), sparkCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), bulletCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -831,6 +833,27 @@ function checkCaptions(raw, viz, at) {
     return { ok: false, reason: at + ': "captions" must be a list of 1 to ' + CAPTIONS_MAX + ' column names, like ["change", "window"].' };
   }
   return { ok: true, captions: raw.map((c) => c.trim()) };
+}
+
+/* Sparklines in a table, opt-in per table widget: "sparklines" names the
+ * columns whose cells each hold a short series of numbers (written 3,5,4,8,
+ * as group_concat makes it) and draws every such cell as a tiny line
+ * chart. A cell that holds no series of two or more numbers shows as the
+ * text it is. Returns { ok, names } or { ok, reason }. */
+const SPARKLINES_MAX = 8;
+
+function checkSparklines(raw, viz, at) {
+  if (raw === undefined) return { ok: true, names: undefined };
+  if (viz !== 'table') return { ok: false, reason: at + ': "sparklines" only works on a table widget.' };
+  if (!Array.isArray(raw) || !raw.length || raw.length > SPARKLINES_MAX || raw.some((c) => typeof c !== 'string' || !c.trim())) {
+    return { ok: false, reason: at + ': "sparklines" must be a list of 1 to ' + SPARKLINES_MAX + ' column names, like ["trend"].' };
+  }
+  return { ok: true, names: [...new Set(raw.map((c) => c.trim()))] };
+}
+
+function withSparklines(tile, check) {
+  if (check.names) tile.sparklines = check.names;
+  return tile;
 }
 
 function withCaptions(tile, check) {
@@ -1520,7 +1543,7 @@ const FORM_UNEDITED_KEYS = [];
 
 /* The option keys the form sets on a line, bar, stat or table widget,
  * copied from its parser check onto the built tile. */
-const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter', 'band'].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
+const FORM_OPTION_KEYS = ['hint', 'footnote', 'meter', 'band', 'sparklines'].concat(CHART_AXIS_KEYS, CHART_MARK_KEYS);
 
 /* A form row's text, each field as typed: numbers stay text until the
  * build reads them. */
@@ -1619,6 +1642,7 @@ function specToJson(spec) {
     }
     if (t.chartCaption) tile.chartCaption = t.chartCaption;
     if (Array.isArray(t.captions) && t.captions.length) tile.captions = t.captions.slice();
+    if (Array.isArray(t.sparklines) && t.sparklines.length) tile.sparklines = t.sparklines.slice();
     if (t.valueSize !== undefined) tile.valueSize = t.valueSize;
     if (t.color) tile.color = t.color;
     if (t.guideColor) tile.guideColor = t.guideColor;
@@ -4330,8 +4354,47 @@ function applyLevel(tileEl, level, kind, tile, extras) {
   tileEl.setAttribute('aria-label', [tile.title, level.shown, 'level ' + level.name, level.label].filter(Boolean).join(', '));
 }
 
-function renderResultTable(parentEl, table, { maxRows } = {}) {
+/* The series a table cell holds, for a sparkline: numbers written
+ * 3,5,4,8 or [3, 5, 4, 8], split on commas, spaces, semicolons or bars. A
+ * word that is not a number is left out. Two numbers make a line; fewer
+ * make none (null), and only the last 200 are kept. Pure. */
+const SPARK_MAX_POINTS = 200;
+
+function sparkValuesOf(cell) {
+  if (cell === null || cell === undefined || typeof cell !== 'string') return null;
+  const out = [];
+  for (const word of cell.replace(/[[\]]/g, ' ').split(/[\s,;|]+/)) {
+    if (!word) continue;
+    const n = Number(word);
+    if (Number.isFinite(n)) out.push(n);
+  }
+  return out.length >= 2 ? out.slice(-SPARK_MAX_POINTS) : null;
+}
+
+/* One sparkline in a table cell: the series as a line on its own scale,
+ * lowest to highest, with a dot on the last value. */
+const SPARK_W = 80;
+const SPARK_H = 20;
+
+function drawSpark(td, values) {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const pad = 2.5;
+  const xOf = (i) => pad + (i / (values.length - 1)) * (SPARK_W - 2 * pad);
+  const yOf = (v) => (hi === lo ? SPARK_H / 2 : SPARK_H - pad - ((v - lo) / (hi - lo)) * (SPARK_H - 2 * pad));
+  const said = 'Trend of ' + values.length + ' values, from ' + formatNumber(values[0]) + ' to ' + formatNumber(values[values.length - 1]) + ', lowest ' + formatNumber(lo) + ', highest ' + formatNumber(hi);
+  const svg = svgEl('svg', { viewBox: '0 0 ' + SPARK_W + ' ' + SPARK_H, width: SPARK_W, height: SPARK_H, class: 'icor-sqlv-spark', role: 'img', 'aria-label': said });
+  const tip = svgEl('title', {});
+  tip.textContent = said;
+  svg.appendChild(tip);
+  svg.appendChild(svgEl('polyline', { points: values.map((v, i) => xOf(i).toFixed(1) + ',' + yOf(v).toFixed(1)).join(' '), class: 'icor-sqlv-spark-line' }));
+  svg.appendChild(svgEl('circle', { cx: xOf(values.length - 1).toFixed(1), cy: yOf(values[values.length - 1]).toFixed(1), r: 2, class: 'icor-sqlv-spark-end' }));
+  td.appendChild(svg);
+}
+
+function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
   const cap = maxRows || 200;
+  const sparks = new Set(Array.isArray(sparklines) ? sparklines : []);
   const scroller = parentEl.createDiv({ cls: 'icor-sqlv-table-scroll' });
   const t = scroller.createEl('table', { cls: 'icor-sqlv-table' });
   const head = t.createEl('thead').createEl('tr');
@@ -4340,8 +4403,10 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
   for (const row of table.rows.slice(0, cap)) {
     const tr = body.createEl('tr');
     row.forEach((v, i) => {
-      const td = tr.createEl('td', { text: v === null || v === undefined ? '' : String(v) });
-      if (typeof v === 'number') td.addClass('icor-sqlv-num');
+      const series = sparks.has(table.columns[i]) ? sparkValuesOf(v) : null;
+      const td = tr.createEl('td', { text: series ? '' : (v === null || v === undefined ? '' : String(v)) });
+      if (series) { td.addClass('icor-sqlv-spark-cell'); drawSpark(td, series); }
+      else if (typeof v === 'number') td.addClass('icor-sqlv-num');
     });
   }
   if (table.rows.length > cap) {
@@ -4508,7 +4573,7 @@ function drawTile(tileEl, tileSpec, table, extras) {
   else if (tileSpec.viz === 'heatmap') renderHeatmap(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'calendar') renderCalendar(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'bullet') renderBullet(body, table, tileSpec, extras);
-  else renderResultTable(body, table, { maxRows: 50 });
+  else renderResultTable(body, table, { maxRows: 50, sparklines: tileSpec.sparklines });
 }
 
 /* ---------------------------------------------------- the browser view -- */
@@ -5648,6 +5713,7 @@ class WidgetFormModal extends Modal {
       chartCaption: (existing && existing.chartCaption) || '',
       rangeColumn: existing && existing.rangeColumn ? existing.rangeColumn : '',
       captions: existing && Array.isArray(existing.captions) ? existing.captions.join(', ') : '',
+      sparklines: existing && Array.isArray(existing.sparklines) ? existing.sparklines.join(', ') : '',
       valueSize: existing && existing.valueSize !== undefined ? String(existing.valueSize) : '',
       valueSizeCustom: !!(existing && typeof existing.valueSize === 'number' && !VALUE_SIZE_PRESETS.some(([px]) => px === existing.valueSize)),
       color: existing && existing.color ? existing.color : '',
@@ -5805,6 +5871,10 @@ class WidgetFormModal extends Modal {
     if (viz !== 'divider') {
       if (s.hint.trim()) raw.hint = s.hint;
       if (s.footnote.trim()) raw.footnote = s.footnote;
+    }
+    if (viz === 'table' && !built) {
+      const names = s.sparklines.split(',').map((v) => v.trim()).filter(Boolean);
+      if (names.length) raw.sparklines = names;
     }
     if (viz === 'stat' && (s.meterMin.trim() || s.meterMax.trim() || s.meterTarget.trim())) {
       const min = formNumber(s.meterMin, 'Meter: the lowest value');
@@ -7505,6 +7575,13 @@ class WidgetFormModal extends Modal {
       });
       this.renderValueSizeField(form, s.viz);
     }
+    if (s.viz === 'table') {
+      this.textInput(form, {
+        label: 'Sparkline columns (comma-separated)', optional: true, value: s.sparklines,
+        placeholder: 'empty: no sparklines',
+        onInput: (v) => { s.sparklines = v; this.touch(); },
+      });
+    }
     if (s.viz === 'segments') {
       this.columnField(form, { label: 'Judge the ranges on column', optional: true, noneLabel: 'None (needed when there are ranges)', value: s.rangeColumn, onChange: (v) => { s.rangeColumn = v; this.touch(); } });
       this.renderSegmentColors(form);
@@ -8352,23 +8429,27 @@ Shared: number size, value levels, meter, hint and footnote.
 
 ## Table
 
-*Sample: a table of the latest orders.*
+*Sample: a table of orders by channel, with a sparkline column for the last 14 days.*
 
 \`\`\`sqlite-viewer-sample
 table
 \`\`\`
 
-**What it shows:** the query's rows, as written.
+**What it shows:** the query's rows, as written. A column can show as a sparkline: a tiny line chart in each row, one line to a cell.
 
 **Good for:**
 - The last ten orders.
 - Overdue tasks with their projects.
 - Books in progress and the page you are on.
-- The top pages on a site this week.
+- The top pages on a site this week, each with its visits per day as a sparkline.
 
-**What the query returns:** any rows and columns.
+**What the query returns:** any rows and columns. A sparkline column holds a short series of numbers in each cell, written like 3,5,4,8: the query builds it with \`group_concat\` (the AI guide has the pattern).
 
-No settings of its own. Shared: hint and footnote.
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Sparkline columns (comma-separated)" | The columns to draw as a tiny line chart, up to 8. Each line has its own scale, lowest to highest, with a dot on the last value. A cell with fewer than two numbers shows as the text it is. | "empty: no sparklines" |
+
+Shared: hint and footnote.
 
 ## Part-to-whole bar (segments)
 
@@ -8525,6 +8606,7 @@ No shared settings.
 | Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
 | Change and roll-up | One series | One series | | | | | | | | | |
 | Meter | | | | | | Yes | | | | | |
+| Sparklines | | | | | | | Yes | | | | |
 | Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
 | Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
 | Band | SQL only | | | | | | | | | | |
@@ -8765,7 +8847,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`line\` | \`sql\`, \`x\` (column), \`y\` (column or list of columns) | \`color\` (theme), \`guideColor\` (theme), \`headerDelta\` (false), \`chartCaption\` (\`"range"\` or \`"change"\`, none), \`headerDeltaAverageDays\` (1 to 365, none), axis fields, \`refLines\`, \`zones\`, \`band\` (\`{low, high, opacity 0.2}\`, SQL only) |
 | \`bar\` | \`sql\`, \`x\`, \`y\` | \`stack\` (false, needs two or more \`y\`), \`color\`, \`headerDelta\`, \`chartCaption\`, \`headerDeltaAverageDays\`, axis fields, \`refLines\`, \`zones\` |
 | \`stat\` | \`sql\` | \`y\` (the column shown, default the first), \`captions\` (up to 4 columns, default the next column), \`valueSize\` (12 to 120 or \`"fit"\`, theme default), \`meter\` (\`{min, max, target}\`), \`ranges\`, \`levelColors\`, \`rangeColumn\` |
-| \`table\` | \`sql\` | none beyond the common fields |
+| \`table\` | \`sql\` | \`sparklines\` (1 to 8 column names whose cells draw as tiny line charts) |
 | \`combo\` | \`sql\`, \`x\`, \`series\` (1 to 8) | \`stack\` (false), right axis \`y2Min\`, \`y2Max\`, \`y2MaxLimit\`, \`y2Ticks\`, \`y2TickSuffix\`, \`y2TickCompact\`, \`y2Unit\`, left axis fields, \`refLines\`, \`zones\` (each with \`axis\`), \`guideColor\`; never \`y\`, \`color\`, \`band\`, \`headerDelta\`, \`chartCaption\` |
 | \`scatter\` | \`sql\`, \`x\` (number column), \`y\` (one number column) | \`colorBy\` (column), \`trend\` (false), \`color\` (theme; one colour only, so not with \`colorBy\`), \`xMin\`, \`xMax\`, \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\`, \`refLines\`, \`zones\`; never \`xLabelEvery\`, \`band\`, \`headerDelta\`, \`chartCaption\`, built \`source\` |
 | \`bullet\` | \`sql\`, \`y\` (one number column: the actual value) | \`x\` (column naming each bar), \`target\` (column of targets), \`scaleMin\`, \`scaleMax\` (default zero up to the largest value, target or range end), \`ranges\` (the bands behind the bars), \`levelColors\`; never \`color\`, \`rangeColumn\`, built \`source\` |
@@ -8811,7 +8893,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | --- | --- |
 | \`line\`, \`bar\` | One row per point, in drawing order (end with ORDER BY the x column). The \`x\` column (a date like \`2026-01-31\` or a label) and one number column per \`y\`. A missing value (NULL) is a gap. "Average the ends over N days" needs real dates in \`x\`. |
 | \`stat\` | The first row only. The \`y\` column (or the first column) is the number; the next columns (or \`captions\`) are lines under it; \`rangeColumn\`, if set, is the number the ranges judge. Return one row (ORDER BY ... LIMIT 1 for "the latest"). |
-| \`table\` | Any columns; the rows as returned, up to the row cap. Name the columns well (\`AS\`), they are the headings. |
+| \`table\` | Any columns; the rows as returned, up to the row cap. Name the columns well (\`AS\`), they are the headings. A \`sparklines\` column holds a short series of numbers in each cell, comma-separated and oldest first, like \`3,5,4,8\`: build it with \`group_concat(value)\` over a subquery that has the ORDER BY. A cell with fewer than two numbers shows as text. |
 | \`combo\` | One row per x value, the \`x\` column and one column per series. An empty cell is a gap, never zero. |
 | \`scatter\` | One row per point: \`x\` and \`y\` are number columns, and \`colorBy\`, if set, names the group of the point. A row with no number in \`x\` or \`y\` is left out, never drawn at zero. Dates and text in \`x\` are not numbers: turn a date into one in SQL, like \`julianday(day) - julianday('2026-01-01')\`. |
 | \`segments\` | One row per part, in order, up to 12: the \`x\` column names it, the \`y\` column (a number, 0 or more) sizes it. With ranges, \`rangeColumn\` is read from the first row. |
@@ -8944,6 +9026,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Guide lines" | \`refLines\` |
 | "Zones" | \`zones\` |
 | "Band" | \`band\` |
+| "Sparkline columns (comma-separated)" | \`sparklines\` |
 | "Hint by the title" | \`hint\` |
 | "Footnote under the widget" | \`footnote\` |
 | "Series" | \`series\` |
@@ -9099,6 +9182,18 @@ same look as "One big number").
 ### Table
 
 \`"viz": "table"\`: the query's rows. SQL only.
+
+\`\`\`json
+{ "title": "Orders by channel", "viz": "table", "sparklines": ["trend"],
+  "sql": "SELECT channel, SUM(orders) AS orders, group_concat(orders) AS trend FROM (SELECT channel, day, orders FROM sales ORDER BY day) GROUP BY channel" }
+\`\`\`
+
+- \`sparklines\`: 1 to 8 column names. Each cell of such a column is drawn as a
+  tiny line chart, on its own scale from lowest to highest, with a dot on the
+  last value. The cell holds the series as numbers separated by commas, oldest
+  first (a JSON list like \`[3,5,4,8]\` also reads); a cell with fewer than two
+  numbers shows as the text it is. Read the series from a subquery that has
+  its ORDER BY, as above: \`group_concat\` does not promise an order of its own.
 
 ### Section divider
 
@@ -9335,8 +9430,14 @@ const WIDGET_SAMPLES = {
   },
   table: {
     size: 'chart',
-    spec: { title: 'Latest orders', viz: 'table' },
-    table: { columns: ['order', 'day', 'channel', 'total'], rows: [['1048', '2026-01-18', 'Web', 64.5], ['1047', '2026-01-18', 'Shop', 22], ['1046', '2026-01-17', 'Web', 118.9], ['1045', '2026-01-17', 'Web', 41.25], ['1044', '2026-01-16', 'Shop', 9.5]] },
+    spec: { title: 'Orders by channel', viz: 'table', sparklines: ['last 14 days'] },
+    table: { columns: ['channel', 'orders', 'last 14 days'], rows: [
+      ['Web', 1240, '31,35,33,38,44,41,29,34,39,42,40,47,45,36'],
+      ['Shop', 612, '22,18,25,21,19,30,33,20,17,24,26,22,28,31'],
+      ['Phone', 238, '9,12,10,8,7,11,14,9,12,15,13,10,8,6'],
+      ['Email', 96, '2,3,2,5,4,6,5,4,7,6,8,9,7,10'],
+      ['Market', 54, '8,7,7,6,5,5,4,6,4,3,4,2,3,2'],
+    ] },
   },
   segments: {
     size: 'short',
@@ -10028,6 +10129,7 @@ IcorSqliteViewerPlugin.lib = {
   checkScatter, scatterOf, leastSquares, scatterXScale, renderScatterChart,
   checkCalendar, calendarOf, calendarDayOf, renderCalendar,
   checkBullet, bulletRowsOf, bulletScaleOf, bulletBands, renderBullet,
+  checkSparklines, sparkValuesOf, renderResultTable,
   SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
 };
 

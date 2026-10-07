@@ -1959,6 +1959,20 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-legend-chip.is-target { width: 2px; height: 12px; border-radius: 0; background: var(--sqlv-fg); margin: 0 4px; }
 
+/* A sparkline in a table cell: a tiny line on its own scale, a dot on the
+ * last value, in the ink of the line chart. */
+.icor-sqlv-spark { display: block; width: 80px; height: 20px; overflow: visible; }
+
+.icor-sqlv-spark-line {
+  fill: none;
+  stroke: var(--sqlv-series-1);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icor-sqlv-spark-end { fill: var(--sqlv-fg); }
+
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at

@@ -124,6 +124,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Guide lines" | `refLines` |
 | "Zones" | `zones` |
 | "Band" | `band` |
+| "Sparkline columns (comma-separated)" | `sparklines` |
 | "Hint by the title" | `hint` |
 | "Footnote under the widget" | `footnote` |
 | "Series" | `series` |
@@ -279,6 +280,18 @@ same look as "One big number").
 ### Table
 
 `"viz": "table"`: the query's rows. SQL only.
+
+```json
+{ "title": "Orders by channel", "viz": "table", "sparklines": ["trend"],
+  "sql": "SELECT channel, SUM(orders) AS orders, group_concat(orders) AS trend FROM (SELECT channel, day, orders FROM sales ORDER BY day) GROUP BY channel" }
+```
+
+- `sparklines`: 1 to 8 column names. Each cell of such a column is drawn as a
+  tiny line chart, on its own scale from lowest to highest, with a dot on the
+  last value. The cell holds the series as numbers separated by commas, oldest
+  first (a JSON list like `[3,5,4,8]` also reads); a cell with fewer than two
+  numbers shows as the text it is. Read the series from a subquery that has
+  its ORDER BY, as above: `group_concat` does not promise an order of its own.
 
 ### Section divider
 

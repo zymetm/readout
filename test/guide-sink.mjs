@@ -13,7 +13,7 @@ export const SINK = [
   { title: 'Split', viz: 'line', source: { table: 'sales', metric: 'orders', agg: 'avg', series: 'channel', groupBy: 'day' } },
   { title: 'Stat', viz: 'stat', sql: 'SELECT 1', y: ['v'], valueSize: 'fit', meter: { min: 0, max: 10, target: 5 }, captions: ['c'],
     ranges: [{ low: 0, high: 5, level: 'Good', label: 'ok' }, { level: 'Alert' }], levelColors: { Good: '#2a7fff' }, rangeColumn: 'r' },
-  { title: 'Table', viz: 'table', sql: 'SELECT 1' },
+  { title: 'Table', viz: 'table', sql: 'SELECT 1', sparklines: ['trend'] },
   { title: 'Divider', viz: 'divider' },
   { title: 'Combo', viz: 'combo', sql: 'SELECT 1', x: 'day', stack: true,
     series: [{ column: 'a', kind: 'bar', axis: 'left', color: '#2a7fff', opacity: 0.5, label: 'A' }, { column: 'b', kind: 'line', axis: 'right', dash: '4 3', connect: true }],

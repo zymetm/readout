@@ -177,24 +177,28 @@ Shared: number size, value levels, meter, hint and footnote.
 
 ## Table
 
-*Sample: a table of the latest orders.*
+*Sample: a table of orders by channel, with a sparkline column for the last 14 days.*
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-table-dark.png">
   <img alt="A table, drawn by the plugin with invented numbers" src="docs/images/widget-table-light.png" width="600">
 </picture>
 
-**What it shows:** the query's rows, as written.
+**What it shows:** the query's rows, as written. A column can show as a sparkline: a tiny line chart in each row, one line to a cell.
 
 **Good for:**
 - The last ten orders.
 - Overdue tasks with their projects.
 - Books in progress and the page you are on.
-- The top pages on a site this week.
+- The top pages on a site this week, each with its visits per day as a sparkline.
 
-**What the query returns:** any rows and columns.
+**What the query returns:** any rows and columns. A sparkline column holds a short series of numbers in each cell, written like 3,5,4,8: the query builds it with `group_concat` (the AI guide has the pattern).
 
-No settings of its own. Shared: hint and footnote.
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Sparkline columns (comma-separated)" | The columns to draw as a tiny line chart, up to 8. Each line has its own scale, lowest to highest, with a dot on the last value. A cell with fewer than two numbers shows as the text it is. | "empty: no sparklines" |
+
+Shared: hint and footnote.
 
 ## Part-to-whole bar (segments)
 
@@ -356,6 +360,7 @@ No shared settings.
 | Value levels | | | | | Bands | Yes | | Yes | Yes | Yes | |
 | Change and roll-up | One series | One series | | | | | | | | | |
 | Meter | | | | | | Yes | | | | | |
+| Sparklines | | | | | | | Yes | | | | |
 | Axis | Yes | Yes | Left and right | Side and bottom | | | | | | | |
 | Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | | |
 | Band | SQL only | | | | | | | | | | |
@@ -451,4 +456,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 7751d7e1). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 71995de0). If you edit this file, the plugin stops updating it. -->

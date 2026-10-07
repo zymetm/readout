@@ -139,7 +139,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `line` | `sql`, `x` (column), `y` (column or list of columns) | `color` (theme), `guideColor` (theme), `headerDelta` (false), `chartCaption` (`"range"` or `"change"`, none), `headerDeltaAverageDays` (1 to 365, none), axis fields, `refLines`, `zones`, `band` (`{low, high, opacity 0.2}`, SQL only) |
 | `bar` | `sql`, `x`, `y` | `stack` (false, needs two or more `y`), `color`, `headerDelta`, `chartCaption`, `headerDeltaAverageDays`, axis fields, `refLines`, `zones` |
 | `stat` | `sql` | `y` (the column shown, default the first), `captions` (up to 4 columns, default the next column), `valueSize` (12 to 120 or `"fit"`, theme default), `meter` (`{min, max, target}`), `ranges`, `levelColors`, `rangeColumn` |
-| `table` | `sql` | none beyond the common fields |
+| `table` | `sql` | `sparklines` (1 to 8 column names whose cells draw as tiny line charts) |
 | `combo` | `sql`, `x`, `series` (1 to 8) | `stack` (false), right axis `y2Min`, `y2Max`, `y2MaxLimit`, `y2Ticks`, `y2TickSuffix`, `y2TickCompact`, `y2Unit`, left axis fields, `refLines`, `zones` (each with `axis`), `guideColor`; never `y`, `color`, `band`, `headerDelta`, `chartCaption` |
 | `scatter` | `sql`, `x` (number column), `y` (one number column) | `colorBy` (column), `trend` (false), `color` (theme; one colour only, so not with `colorBy`), `xMin`, `xMax`, `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact`, `refLines`, `zones`; never `xLabelEvery`, `band`, `headerDelta`, `chartCaption`, built `source` |
 | `bullet` | `sql`, `y` (one number column: the actual value) | `x` (column naming each bar), `target` (column of targets), `scaleMin`, `scaleMax` (default zero up to the largest value, target or range end), `ranges` (the bands behind the bars), `levelColors`; never `color`, `rangeColumn`, built `source` |
@@ -185,7 +185,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | --- | --- |
 | `line`, `bar` | One row per point, in drawing order (end with ORDER BY the x column). The `x` column (a date like `2026-01-31` or a label) and one number column per `y`. A missing value (NULL) is a gap. "Average the ends over N days" needs real dates in `x`. |
 | `stat` | The first row only. The `y` column (or the first column) is the number; the next columns (or `captions`) are lines under it; `rangeColumn`, if set, is the number the ranges judge. Return one row (ORDER BY ... LIMIT 1 for "the latest"). |
-| `table` | Any columns; the rows as returned, up to the row cap. Name the columns well (`AS`), they are the headings. |
+| `table` | Any columns; the rows as returned, up to the row cap. Name the columns well (`AS`), they are the headings. A `sparklines` column holds a short series of numbers in each cell, comma-separated and oldest first, like `3,5,4,8`: build it with `group_concat(value)` over a subquery that has the ORDER BY. A cell with fewer than two numbers shows as text. |
 | `combo` | One row per x value, the `x` column and one column per series. An empty cell is a gap, never zero. |
 | `scatter` | One row per point: `x` and `y` are number columns, and `colorBy`, if set, names the group of the point. A row with no number in `x` or `y` is left out, never drawn at zero. Dates and text in `x` are not numbers: turn a date into one in SQL, like `julianday(day) - julianday('2026-01-01')`. |
 | `segments` | One row per part, in order, up to 12: the `x` column names it, the `y` column (a number, 0 or more) sizes it. With ranges, `rangeColumn` is read from the first row. |
@@ -318,6 +318,7 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Guide lines" | `refLines` |
 | "Zones" | `zones` |
 | "Band" | `band` |
+| "Sparkline columns (comma-separated)" | `sparklines` |
 | "Hint by the title" | `hint` |
 | "Footnote under the widget" | `footnote` |
 | "Series" | `series` |
@@ -474,6 +475,18 @@ same look as "One big number").
 
 `"viz": "table"`: the query's rows. SQL only.
 
+```json
+{ "title": "Orders by channel", "viz": "table", "sparklines": ["trend"],
+  "sql": "SELECT channel, SUM(orders) AS orders, group_concat(orders) AS trend FROM (SELECT channel, day, orders FROM sales ORDER BY day) GROUP BY channel" }
+```
+
+- `sparklines`: 1 to 8 column names. Each cell of such a column is drawn as a
+  tiny line chart, on its own scale from lowest to highest, with a dot on the
+  last value. The cell holds the series as numbers separated by commas, oldest
+  first (a JSON list like `[3,5,4,8]` also reads); a cell with fewer than two
+  numbers shows as the text it is. Read the series from a subquery that has
+  its ORDER BY, as above: `group_concat` does not promise an order of its own.
+
 ### Section divider
 
 `"viz": "divider"`: a thin line with an optional heading (`title`). No query;
@@ -627,4 +640,4 @@ column where a heatmap reads a row and a column.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 9b3ec7fa). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint a9f38dd4). If you edit this file, the plugin stops updating it. -->
