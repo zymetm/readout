@@ -230,6 +230,34 @@ The group "Dots, highlight, cells and labels":
 
 Shared: value levels, hint and footnote.
 
+## Year calendar
+
+*Sample: a year calendar of orders per day, coloured by value levels.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/widget-calendar-dark.png">
+  <img alt="A year calendar, drawn by the plugin with invented numbers" src="docs/images/widget-calendar-light.png" width="600">
+</picture>
+
+**What it shows:** a year at a glance: one square for each day, a week to a column, each coloured by its value.
+
+**Good for:**
+- Days a habit was kept, like a contribution graph.
+- Orders or visits per day across a year.
+- Sleep hours per night, coloured by how restful.
+- Days with a workout, a purchase or a headache.
+
+**What the query returns:** one row per day: a date written like 2026-01-31 and a number. A day with no row stays empty. Without value levels every day with data is grey.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Date column" | The day of each row, written like 2026-01-31 (a time after it is ignored). | |
+| "Day value column" | The number that colours the day. | |
+| "Week starts on" | "Sunday (default)" or "Monday": the day each column of weeks starts on. | "Sunday (default)" |
+| "Year" | Shows that whole calendar year, like 2026. | "empty: the last 53 weeks up to the newest day" |
+
+Shared: value levels, hint and footnote.
+
 ## Text
 
 *Sample: a text widget with two short paragraphs.*
@@ -290,17 +318,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | |
-| Number size | | | | | Yes | | | | |
-| Value levels | | | | | Yes | | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | |
-| Meter | | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | |
-| Band | SQL only | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | |
+| Number size | | | | | Yes | | | | | |
+| Value levels | | | | | Yes | | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | |
+| Meter | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | |
+| Band | SQL only | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -392,4 +420,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 557b900a). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint 29e1eb39). If you edit this file, the plugin stops updating it. -->

@@ -130,13 +130,14 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Row labels column", "Column labels column", "Cell value column" | `row`, `column`, `value` |
 | "Dot column", "Dot colour", "Dot label in the legend" | `marker`, `markerColor`, `markerLabel` |
 | "Highlight", "Cells", "Label every Nth column" | `highlight`, `cells`, `columnLabelEvery` |
+| "Date column", "Day value column", "Week starts on", "Year" | `date`, `value`, `weekStart`, `year` |
 | "The words come from", "Text" | `sql` or `text` |
 | "One thin line, like a section divider (no title)" | `line` |
 
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `scatter`, `segments`, `heatmap` or `text`.
+  `divider`, `combo`, `scatter`, `segments`, `heatmap`, `calendar` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -252,7 +253,7 @@ first column); a built stat its one value.
   unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
-### Value levels (stat, segments, heatmap)
+### Value levels (stat, segments, heatmap, calendar)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -370,6 +371,28 @@ the value levels.
 - `cells`: `"square"` for square cells, `"fill"` to stretch the rows over
   the tile's height; unset, thin rows.
 - `columnLabelEvery`: label every Nth column.
+
+### Year calendar
+
+`"viz": "calendar"`: one square for each day, a week to a column, coloured by
+the value levels. A separate type from the heatmap because it reads one date
+column where a heatmap reads a row and a column.
+
+```json
+{ "title": "Orders per day", "viz": "calendar", "date": "day", "value": "orders",
+  "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day",
+  "ranges": [{ "low": 40, "level": "Good" }, { "low": 20, "level": "Watch" }, { "level": "Alert" }],
+  "weekStart": "monday" }
+```
+
+- `date`, `value`: the columns of days (written `2026-01-31`) and numbers. A
+  day with no row stays empty; a day twice takes the later row.
+- `ranges`, `levelColors`: the colours, as on a heatmap; without ranges every
+  day with data is grey.
+- `weekStart`: `"sunday"` (the default) or `"monday"`, the day each column of
+  weeks starts on.
+- `year`: a whole calendar year like `2026`. Left out, the calendar shows the
+  last 53 weeks up to the newest day in the data, never "today".
 
 ### Text
 

@@ -74,6 +74,7 @@ const SHAPES = [
   { tile: { title: 'Rows', viz: 'table', sql: 'SELECT * FROM one' } },
   { tile: { title: 'Tasks', viz: 'segments', sql: 'SELECT * FROM parts', x: 'status', y: ['n'], ranges: [{ high: 1, level: 'Good' }, { level: 'Alert' }], rangeColumn: 'verdict', segmentColors: { Done: 'var(--color-green)' } }, levels: true },
   { tile: { title: 'Grid', viz: 'heatmap', sql: 'SELECT * FROM grid', row: 'day', column: 'hr', value: 'minutes', marker: 'meeting', ranges: [{ high: 20, level: 'Good' }] }, levels: true },
+  { tile: { title: 'Days', viz: 'calendar', sql: 'SELECT * FROM grid', date: 'day', value: 'minutes', weekStart: 'monday', year: 2025, ranges: [{ high: 20, level: 'Good' }] }, levels: true },
   { tile: { title: 'Note', viz: 'text', text: 'Words.' } },
   { tile: { viz: 'text', line: true, sql: 'SELECT * FROM words' } },
   { tile: { title: 'Part', viz: 'divider' } },

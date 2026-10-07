@@ -91,7 +91,7 @@ const READ_PRAGMA_FUNCS = new Set([
   'table_info', 'table_xinfo', 'table_list', 'index_list', 'index_info', 'index_xinfo',
   'foreign_key_list', 'integrity_check', 'quick_check',
 ]);
-const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'segments', 'heatmap', 'text']);
+const VIZ_KINDS = new Set(['line', 'bar', 'stat', 'table', 'divider', 'combo', 'scatter', 'segments', 'heatmap', 'calendar', 'text']);
 const VIEW_BROWSER = 'icor-sqlite-viewer-browser';
 const VIEW_DASHBOARDS = 'icor-sqlite-viewer-dashboards';
 const VIEW_JSON = 'icor-sqlite-viewer-json';
@@ -540,7 +540,7 @@ function parseDashboardSpec(text) {
     const t = raw.tiles[i];
     const at = 'Tile ' + (i + 1);
     if (!t || typeof t !== 'object') return { ok: false, reason: at + ' must be a JSON object.' };
-    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, segments, heatmap, text.' };
+    if (!VIZ_KINDS.has(t.viz)) return { ok: false, reason: at + ' needs a "viz" of line, bar, stat, table or divider, or one of combo, scatter, segments, heatmap, calendar, text.' };
 
     let layout;
     if (t.layout !== undefined) {
@@ -588,6 +588,7 @@ function parseDashboardSpec(text) {
       if (t.viz === 'segments') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a segments bar.' };
       if (t.viz === 'heatmap') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a heatmap.' };
       if (t.viz === 'scatter') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a scatter chart.' };
+      if (t.viz === 'calendar') return { ok: false, reason: at + ': a built widget draws a line, bar or stat; use an SQL tile for a calendar.' };
       const check = checkWidgetSource(t.source, t.viz, at);
       if (!check.ok) return check;
       if (!t.source.database && !database) return { ok: false, reason: at + ' needs a database, on the widget or on the dashboard.' };
@@ -691,7 +692,9 @@ function parseDashboardSpec(text) {
     if (!sqlMeter.ok) return sqlMeter;
     const heatCheck = checkHeatmap(t, at);
     if (!heatCheck.ok) return heatCheck;
-    tiles.push(withTileNotes(withHeatmap(withMeter(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
+    const calCheck = checkCalendar(t, at);
+    if (!calCheck.ok) return calCheck;
+    tiles.push(withTileNotes(withCalendar(withHeatmap(withMeter(withScatter(withSegments(withCombo(withBand(withChartMarks(withChartAxis(withChartColors(withValueSize(withCaptions(withHeaderDelta(withLevels({
       title: typeof t.title === 'string' ? t.title : '',
       sql: t.sql,
       viz: t.viz,
@@ -700,7 +703,7 @@ function parseDashboardSpec(text) {
       unit: typeof t.unit === 'string' ? t.unit : '',
       stack: t.stack === true,
       layout,
-    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), sqlMeter), heatCheck), sqlNotes));
+    }, levelCheck), sqlDelta), captionCheck), sqlSize), sqlColors), sqlAxis), sqlMarks), sqlBand), sqlCombo), segCheck), scatterCheck), sqlMeter), heatCheck), calCheck), sqlNotes));
   }
   return {
     ok: true,
@@ -1537,16 +1540,19 @@ const FORM_AXIS_FIELDS = [
 ];
 
 /* Widget types the form builds whole through the parser. */
-const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'combo', 'scatter']);
+const FORM_WHOLE_VIZ = new Set(['text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter']);
 
 /* The chart types the SQL form offers, in the order of its list. */
-const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['text', 'Text'], ['divider', 'Section divider']];
+const SQL_FORM_VIZ = [['line', 'Line chart'], ['bar', 'Bar chart'], ['combo', 'Bars and lines (combo)'], ['scatter', 'Scatter chart'], ['stat', 'One big number'], ['table', 'Table'], ['segments', 'Part-to-whole bar (segments)'], ['heatmap', 'Heatmap'], ['calendar', 'Year calendar'], ['text', 'Text'], ['divider', 'Section divider']];
 
 /* Widget types that judge values against ranges of levels. */
-const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap']);
+const LEVEL_VIZ = new Set(['stat', 'segments', 'heatmap', 'calendar']);
 
 /* The heatmap fields the form keeps, by state key and file key. */
 const FORM_HEAT_FIELDS = [['heatRow', 'row'], ['heatColumn', 'column'], ['heatValue', 'value'], ['heatMarker', 'marker'], ['heatMarkerColor', 'markerColor'], ['heatMarkerLabel', 'markerLabel'], ['heatHighlight', 'highlight'], ['heatColumnLabelEvery', 'columnLabelEvery'], ['heatCells', 'cells']];
+
+/* The calendar fields the form keeps, by state key and file key. */
+const FORM_CAL_FIELDS = [['calDate', 'date'], ['calValue', 'value'], ['calWeekStart', 'weekStart'], ['calYear', 'year']];
 
 function keepUneditedKeys(tile, existing) {
   if (!tile || !existing || existing.viz !== tile.viz) return tile;
@@ -1644,6 +1650,7 @@ function specToJson(spec) {
       if (t.band) tile.band = Object.assign({}, t.band);
       if (t.viz === 'heatmap') for (const key of HEAT_KEYS) if (t[key] !== undefined) tile[key] = t[key];
       if (t.viz === 'scatter') for (const key of SCATTER_KEYS) if (t[key] !== undefined) tile[key] = t[key];
+      if (t.viz === 'calendar') for (const key of ['date', 'value', 'weekStart', 'year']) if (t[key] !== undefined) tile[key] = t[key];
     }
     return tile;
   });
@@ -2209,7 +2216,8 @@ const HEAT_LABEL_MAX = 40;
 function checkHeatmap(t, at) {
   if (t.viz !== 'heatmap') {
     for (const key of HEAT_KEYS) {
-      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a heatmap.' };
+      /* A calendar colours its days by a "value" column too. */
+      if (t[key] !== undefined && !(key === 'value' && t.viz === 'calendar')) return { ok: false, reason: at + ': "' + key + '" only works on a heatmap.' };
     }
     return { ok: true, heat: undefined };
   }
@@ -2278,6 +2286,23 @@ function heatmapGrid(table, tile) {
   return { rows, cols, cell: (rk, ck) => cells.get(rk + '\u0000' + ck) || null };
 }
 
+/* The legend of a coloured grid: a chip for each range, in its level's
+ * colour, and one for a day or cell with no data. */
+function renderRangeLegend(legend, tile, levels) {
+  for (const range of tile.ranges || []) {
+    const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
+    const own = tile.levelColors && Object.prototype.hasOwnProperty.call(tile.levelColors, range.level) ? tile.levelColors[range.level] : undefined;
+    const color = level ? (isLevelColor(own) ? own : level.color) : '';
+    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' });
+    if (isLevelColor(color)) chip.style.setProperty('background', color);
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: range.label || range.level });
+  }
+  const none = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
+  none.createSpan({ cls: 'icor-sqlv-legend-chip is-empty' });
+  none.createSpan({ cls: 'icor-sqlv-legend-name', text: 'no data' });
+}
+
 function renderHeatmap(parentEl, table, tile, extras) {
   const grid = heatmapGrid(table, tile);
   if (!grid || !grid.rows.length) {
@@ -2327,24 +2352,170 @@ function renderHeatmap(parentEl, table, tile, extras) {
     });
   });
   const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend' });
-  for (const range of tile.ranges || []) {
-    const level = Array.isArray(levels) ? levels.find((l) => l && l.name === range.level) : null;
-    const own = tile.levelColors && Object.prototype.hasOwnProperty.call(tile.levelColors, range.level) ? tile.levelColors[range.level] : undefined;
-    const color = level ? (isLevelColor(own) ? own : level.color) : '';
-    const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
-    const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip' });
-    if (isLevelColor(color)) chip.style.setProperty('background', color);
-    item.createSpan({ cls: 'icor-sqlv-legend-name', text: range.label || range.level });
-  }
-  const none = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
-  none.createSpan({ cls: 'icor-sqlv-legend-chip is-empty' });
-  none.createSpan({ cls: 'icor-sqlv-legend-name', text: 'no data' });
+  renderRangeLegend(legend, tile, levels);
   if (tile.marker) {
     const m = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
     const dot = m.createSpan({ cls: 'icor-sqlv-heatmap-dot is-legend' });
     if (tile.markerColor) dot.style.setProperty('background', tile.markerColor);
     m.createSpan({ cls: 'icor-sqlv-legend-name', text: tile.markerLabel || tile.marker });
   }
+}
+
+/* A year calendar: one square for each day, a week to a column and the
+ * days of the week down the side, the way a contribution graph reads. Each
+ * row of the query is a day: "date" names the column of days (written
+ * 2026-01-31, a time after the day is ignored) and "value" the column that
+ * colours it, by the value levels of "ranges", as in a heatmap. A day the
+ * query has no row for is an empty square; a day twice takes the later
+ * row. The view is the last 53 weeks up to the newest day in the data (the
+ * data's own end, never today, so data that lags still fills the grid), or
+ * the whole of "year" when it is set. "weekStart" is the day a column of
+ * weeks starts on, "sunday" (the default) or "monday". It is its own
+ * widget, not a heatmap setting: it reads one date column where a heatmap
+ * reads a row and a column, so no row or column is named. Returns
+ * { ok, cal } or { ok, reason }. */
+const CAL_KEYS = ['date', 'weekStart', 'year'];
+const CAL_WEEK_STARTS = ['sunday', 'monday'];
+const CAL_WEEKS = 53;
+const CAL_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const DAY_MS = 86400000;
+
+function checkCalendar(t, at) {
+  if (t.viz !== 'calendar') {
+    for (const key of CAL_KEYS) {
+      if (t[key] !== undefined) return { ok: false, reason: at + ': "' + key + '" only works on a calendar.' };
+    }
+    return { ok: true, cal: undefined };
+  }
+  const name = (v) => typeof v === 'string' && v.trim();
+  if (!name(t.date) || !name(t.value)) {
+    return { ok: false, reason: at + ': a calendar needs "date" and "value": the column of days (like 2026-01-31) and the column that colours each day.' };
+  }
+  const cal = { date: t.date.trim(), value: t.value.trim() };
+  if (t.weekStart !== undefined) {
+    if (!CAL_WEEK_STARTS.includes(t.weekStart)) return { ok: false, reason: at + ': "weekStart" must be "sunday" or "monday": the day each column of weeks starts on.' };
+    cal.weekStart = t.weekStart;
+  }
+  if (t.year !== undefined) {
+    if (!Number.isInteger(t.year) || t.year < 1000 || t.year > 9999) return { ok: false, reason: at + ': "year" must be a four-digit year like 2026; left out, the calendar shows the last 53 weeks up to the newest day.' };
+    cal.year = t.year;
+  }
+  return { ok: true, cal };
+}
+
+function withCalendar(tile, check) {
+  if (check.cal) Object.assign(tile, check.cal);
+  return tile;
+}
+
+/* A day written 2026-01-31 (anything after it is ignored) as a UTC
+ * midnight in milliseconds, or NaN when it is not a real day. */
+function calendarDayOf(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v === null || v === undefined ? '' : v).trim());
+  if (!m || Number(m[1]) < 1000) return NaN;
+  const ms = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  const d = new Date(ms);
+  return d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]) ? ms : NaN;
+}
+
+function calendarIsoOf(ms) {
+  const d = new Date(ms);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+/* The grid of a calendar: { weeks, startDay, cells, months }. Each cell is
+ * a day in view with its column, its row (0 at the top, the weekStart day),
+ * its weekday (0 for Sunday) and its value from the query, or undefined.
+ * `months` are the labels along the top, as { col, name }, one where a month
+ * starts, with at least three columns between two. Null when there is no
+ * day to draw. Pure, in UTC, so no time zone moves a day. */
+function calendarOf(table, tile) {
+  const di = columnIndex(table.columns, tile.date);
+  const vi = columnIndex(table.columns, tile.value);
+  if (di < 0 || vi < 0) return null;
+  const values = new Map();
+  let newest = -Infinity;
+  for (const row of table.rows) {
+    const ms = calendarDayOf(row[di]);
+    if (!Number.isFinite(ms)) continue;
+    values.set(ms, row[vi]);
+    if (ms > newest) newest = ms;
+  }
+  if (!values.size && !tile.year) return null;
+  const startDay = tile.weekStart === 'monday' ? 1 : 0;
+  const weekStartOf = (ms) => ms - ((new Date(ms).getUTCDay() - startDay + 7) % 7) * DAY_MS;
+  let from;
+  let to;
+  if (tile.year) {
+    from = Date.UTC(tile.year, 0, 1);
+    to = Date.UTC(tile.year, 11, 31);
+  } else {
+    to = newest;
+    from = weekStartOf(to) - (CAL_WEEKS - 1) * 7 * DAY_MS;
+  }
+  const firstWeek = weekStartOf(from);
+  const weeks = Math.round((weekStartOf(to) - firstWeek) / (7 * DAY_MS)) + 1;
+  const cells = [];
+  for (let ms = from; ms <= to; ms += DAY_MS) {
+    const d = new Date(ms);
+    cells.push({
+      iso: calendarIsoOf(ms), col: Math.round((weekStartOf(ms) - firstWeek) / (7 * DAY_MS)),
+      row: (d.getUTCDay() - startDay + 7) % 7, weekday: d.getUTCDay(), day: d.getUTCDate(), month: d.getUTCMonth(),
+      value: values.get(ms),
+    });
+  }
+  const starts = cells.filter((c, i) => c.day === 1 || i === 0).map((c) => ({ col: c.col, name: CAL_MONTHS[c.month] }));
+  const months = [];
+  starts.forEach((m, i) => {
+    const next = starts[i + 1];
+    if (next && next.col - m.col < 3) return;
+    if (months.length && m.col - months[months.length - 1].col < 3) return;
+    months.push(m);
+  });
+  return { weeks, startDay, cells, months };
+}
+
+function renderCalendar(parentEl, table, tile, extras) {
+  const cal = calendarOf(table, tile);
+  if (!cal) {
+    parentEl.createDiv({ cls: 'icor-sqlv-empty', text: 'No rows to draw.' });
+    return;
+  }
+  const levels = extras && extras.levels;
+  const unit = tile.unit ? ' ' + tile.unit : '';
+  const wrap = parentEl.createDiv({ cls: 'icor-sqlv-calendar' });
+  const scroll = wrap.createDiv({ cls: 'icor-sqlv-calendar-scroll' });
+  const el = scroll.createDiv({ cls: 'icor-sqlv-calendar-grid' });
+  el.style.setProperty('grid-template-columns', 'max-content repeat(' + cal.weeks + ', minmax(8px, 1fr))');
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', 'Calendar, ' + cal.cells.length + ' days from ' + cal.cells[0].iso + ' to ' + cal.cells[cal.cells.length - 1].iso + '. Hover a day for its value.');
+  for (const m of cal.months) {
+    const label = el.createDiv({ cls: 'icor-sqlv-calendar-month', text: m.name });
+    label.style.setProperty('grid-row', '1');
+    label.style.setProperty('grid-column', (m.col + 2) + ' / span 3');
+  }
+  /* The rows the weekday names sit on: Monday, Wednesday and Friday. */
+  for (let row = 0; row < 7; row++) {
+    const weekday = (cal.startDay + row) % 7;
+    if (![1, 3, 5].includes(weekday)) continue;
+    const label = el.createDiv({ cls: 'icor-sqlv-calendar-day', text: WEEKDAYS[weekday].slice(0, 3).replace(/^./, (c) => c.toUpperCase()) });
+    label.style.setProperty('grid-row', String(row + 2));
+    label.style.setProperty('grid-column', '1');
+  }
+  for (const c of cal.cells) {
+    const box = el.createDiv({ cls: 'icor-sqlv-calendar-cell' });
+    box.style.setProperty('grid-row', String(c.row + 2));
+    box.style.setProperty('grid-column', String(c.col + 2));
+    const empty = c.value === null || c.value === undefined || c.value === '';
+    const level = empty ? null : resolveLevel(c.value, tile, levels);
+    if (empty) box.addClass('is-empty');
+    else if (level && level.known && level.color) box.style.setProperty('background', level.color);
+    const parts = [c.iso, WEEKDAYS[c.weekday].replace(/^./, (ch) => ch.toUpperCase())];
+    parts.push(empty ? 'no data' : formatNumber(Number(c.value)) + unit);
+    if (level && (level.label || level.name)) parts.push(level.label || level.name);
+    box.setAttribute('title', parts.join(' · '));
+  }
+  renderRangeLegend(wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-calendar-legend' }), tile, levels);
 }
 
 /* The span a widget gets when its spec carries none (a 0.2.x file):
@@ -2356,6 +2527,7 @@ function defaultSpanFor(tile) {
   if (tile.viz === 'table') return { w: 3, h: 2 };
   if (tile.viz === 'segments') return { w: 3, h: 1 };
   if (tile.viz === 'heatmap') return { w: 4, h: 2 };
+  if (tile.viz === 'calendar') return { w: 4, h: 2 };
   return { w: 2, h: 2 };
 }
 
@@ -2730,7 +2902,7 @@ function normalizeLevelLooks(raw) {
 /* Validate a tile's "ranges". Returns { ok, ranges } or { ok, reason }. */
 function checkRanges(raw, viz, at) {
   if (raw === undefined) return { ok: true, ranges: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar or a heatmap.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar') return { ok: false, reason: at + ': "ranges" only work on a stat widget (One big number), a segments bar, a heatmap or a calendar.' };
   if (!Array.isArray(raw)) return { ok: false, reason: at + ': "ranges" must be a list like [{"low": 18.5, "high": 24.9, "level": "Good"}].' };
   if (raw.length > RANGES_MAX) return { ok: false, reason: at + ': "ranges" can hold at most ' + RANGES_MAX + ' ranges.' };
   const out = [];
@@ -2777,7 +2949,7 @@ function checkRanges(raw, viz, at) {
  * override keeps the level's name and changes only its colour. */
 function checkLevelColors(raw, viz, at) {
   if (raw === undefined) return { ok: true, colors: undefined };
-  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar or a heatmap.' };
+  if (viz !== 'stat' && viz !== 'segments' && viz !== 'heatmap' && viz !== 'calendar') return { ok: false, reason: at + ': "levelColors" only work on a stat widget (One big number), a segments bar, a heatmap or a calendar.' };
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, reason: at + ': "levelColors" must be an object like {"Alert": "#cc3311"}.' };
   }
@@ -2876,7 +3048,7 @@ function canSave(previewState) { return previewState === 'ok'; }
 /* What a widget type is called in the form, for the plain sentences. */
 const VIZ_NAMES = {
   line: 'a line chart', bar: 'a bar chart', scatter: 'a scatter chart', stat: 'one big number', table: 'a table', divider: 'a section divider',
-  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', text: 'a text widget',
+  combo: 'a combo chart', segments: 'a segments bar', heatmap: 'a heatmap', calendar: 'a year calendar', text: 'a text widget',
 };
 
 /* A form field's text as a number: empty is "not set", anything else must
@@ -4030,7 +4202,7 @@ function renderResultTable(parentEl, table, { maxRows } = {}) {
 const TEXT_MAX = 2000;
 
 /* The widget types the edit form can build. */
-const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'combo', 'scatter']);
+const FORM_VIZ = new Set(['line', 'bar', 'stat', 'table', 'divider', 'text', 'segments', 'heatmap', 'calendar', 'combo', 'scatter']);
 
 function checkTextTile(t, layout, at) {
   const hasText = t.text !== undefined;
@@ -4177,6 +4349,7 @@ function drawTile(tileEl, tileSpec, table, extras) {
   else if (tileSpec.viz === 'combo') renderComboChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'scatter') renderScatterChart(body, table, tileSpec, extras);
   else if (tileSpec.viz === 'heatmap') renderHeatmap(body, table, tileSpec, extras);
+  else if (tileSpec.viz === 'calendar') renderCalendar(body, table, tileSpec, extras);
   else renderResultTable(body, table, { maxRows: 50 });
 }
 
@@ -5347,6 +5520,7 @@ class WidgetFormModal extends Modal {
     }
     this.state.refLines = formRowsOf(existing && existing.refLines, ['y', 'label', 'color', 'dash', 'axis']);
     for (const [key, file] of FORM_HEAT_FIELDS) this.state[key] = existing && existing.viz === 'heatmap' && existing[file] !== undefined ? String(existing[file]) : '';
+    for (const [key, file] of FORM_CAL_FIELDS) this.state[key] = existing && existing.viz === 'calendar' && existing[file] !== undefined ? String(existing[file]) : '';
     this.state.comboSeries = formRowsOf(existing && existing.viz === 'combo' && existing.series, ['column', 'kind', 'axis', 'color', 'label', 'opacity', 'dash', 'connect']);
     this.state.y2Unit = existing && existing.y2Unit ? existing.y2Unit : '';
     this.state.segmentColors = existing && existing.segmentColors ? Object.entries(existing.segmentColors).map(([name, color]) => ({ name, color })) : [];
@@ -5453,7 +5627,7 @@ class WidgetFormModal extends Modal {
     const opts = this.optionsFromForm(tile.viz, !!tile.source);
     if (!opts.ok) return opts;
     const raw = Object.assign({}, tile, opts.raw);
-    if (tile.viz === 'heatmap') { delete raw.x; delete raw.y; }
+    if (tile.viz === 'heatmap' || tile.viz === 'calendar') { delete raw.x; delete raw.y; }
     if (tile.viz === 'combo') { delete raw.y; raw.stack = this.state.stack === true; }
     const check = checkFormTile(raw, this.spec.database);
     if (!check.ok) return check;
@@ -5528,6 +5702,19 @@ class WidgetFormModal extends Modal {
         if (file === 'columnLabelEvery') {
           const n = Number(v);
           if (!Number.isInteger(n)) return { ok: false, reason: 'Label every Nth column must be a whole number.' };
+          raw[file] = n;
+        } else {
+          raw[file] = v;
+        }
+      }
+    }
+    if (viz === 'calendar') {
+      for (const [key, file] of FORM_CAL_FIELDS) {
+        const v = String(s[key] || '').trim();
+        if (!v) continue;
+        if (file === 'year') {
+          const n = Number(v);
+          if (!Number.isInteger(n)) return { ok: false, reason: 'Year must be a whole number like 2026, or left empty.' };
           raw[file] = n;
         } else {
           raw[file] = v;
@@ -5625,6 +5812,23 @@ class WidgetFormModal extends Modal {
     const lbl = row.createEl('label', { text: 'Draw a trend line through the points' });
     lbl.setAttribute('for', 'icor-sqlv-scatter-trend');
     cb.addEventListener('change', () => { s.scatterTrend = cb.checked; this.touch(); });
+  }
+
+  /* A year calendar: the column of days, the column that colours each day,
+   * which day a week starts on, and which year to show. */
+  renderCalendarFields(form) {
+    const s = this.state;
+    form.createDiv({ cls: 'icor-sqlv-note', text: 'One square for each day, a week to a column, coloured by the value levels below. A day the query has no row for stays empty.' });
+    this.columnField(form, { label: 'Date column', value: s.calDate, onChange: (v) => { s.calDate = v; this.touch(); } });
+    this.columnField(form, { label: 'Day value column', value: s.calValue, onChange: (v) => { s.calValue = v; this.touch(); } });
+    this.nativeSelect(form, {
+      label: 'Week starts on', optional: true,
+      options: [['', 'Sunday (default)'], ['monday', 'Monday']],
+      value: s.calWeekStart,
+      onChange: (v) => { s.calWeekStart = v; this.touch(); },
+    });
+    const year = this.textInput(form, { label: 'Year', optional: true, value: s.calYear, placeholder: 'empty: the last 53 weeks up to the newest day', onInput: (v) => { s.calYear = v; this.touch(); } });
+    year.setAttribute('inputmode', 'numeric');
   }
 
   /* A heatmap: which columns place a cell (row, column) and colour it
@@ -6778,6 +6982,7 @@ class WidgetFormModal extends Modal {
     const wrap = this.field(form, { label: 'Value levels', optional: true });
     const what = viz === 'segments' ? 'Mark the whole bar, and show a pill, by where the judged value lands.'
       : viz === 'heatmap' ? 'Colour each cell by where its value lands.'
+      : viz === 'calendar' ? 'Colour each day by where its value lands.'
       : 'Colour the number by where it lands.';
     wrap.createDiv({ cls: 'icor-sqlv-note', text: what + ' The first range that holds it wins; leave low or high empty for no limit. The levels and their colours live in the plugin settings.' });
     const rows = wrap.createDiv({ cls: 'icor-sqlv-filter-rows icor-sqlv-range-rows' });
@@ -7069,6 +7274,7 @@ class WidgetFormModal extends Modal {
     });
     if (s.viz === 'segments') this.renderSegmentsFields(form);
     if (s.viz === 'heatmap') this.renderHeatmapFields(form);
+    if (s.viz === 'calendar') this.renderCalendarFields(form);
     if (s.viz === 'combo') this.renderComboFields(form);
     if (s.viz === 'scatter') this.renderScatterFields(form);
     if (s.viz === 'line' || s.viz === 'bar') {
@@ -8009,6 +8215,33 @@ The group "Dots, highlight, cells and labels":
 
 Shared: value levels, hint and footnote.
 
+## Year calendar
+
+*Sample: a year calendar of orders per day, coloured by value levels.*
+
+\`\`\`sqlite-viewer-sample
+calendar
+\`\`\`
+
+**What it shows:** a year at a glance: one square for each day, a week to a column, each coloured by its value.
+
+**Good for:**
+- Days a habit was kept, like a contribution graph.
+- Orders or visits per day across a year.
+- Sleep hours per night, coloured by how restful.
+- Days with a workout, a purchase or a headache.
+
+**What the query returns:** one row per day: a date written like 2026-01-31 and a number. A day with no row stays empty. Without value levels every day with data is grey.
+
+| Panel label | What it does | Default |
+| --- | --- | --- |
+| "Date column" | The day of each row, written like 2026-01-31 (a time after it is ignored). | |
+| "Day value column" | The number that colours the day. | |
+| "Week starts on" | "Sunday (default)" or "Monday": the day each column of weeks starts on. | "Sunday (default)" |
+| "Year" | Shows that whole calendar year, like 2026. | "empty: the last 53 weeks up to the newest day" |
+
+Shared: value levels, hint and footnote.
+
 ## Text
 
 *Sample: a text widget with two short paragraphs.*
@@ -8067,17 +8300,17 @@ No shared settings.
 
 ## Settings shared by several widgets
 
-| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Text |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | |
-| Number size | | | | | Yes | | | | |
-| Value levels | | | | | Yes | | Yes | Yes | |
-| Change and roll-up | One series | One series | | | | | | | |
-| Meter | | | | | Yes | | | | |
-| Axis | Yes | Yes | Left and right | Side and bottom | | | | | |
-| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | |
-| Band | SQL only | | | | | | | | |
-| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
+| Setting | Line | Bar | Combo | Scatter | One big number | Table | Segments | Heatmap | Calendar | Text |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Colours and scrub line | Yes | Bar colour | Scrub line | Point colour | | | | | | |
+| Number size | | | | | Yes | | | | | |
+| Value levels | | | | | Yes | | Yes | Yes | Yes | |
+| Change and roll-up | One series | One series | | | | | | | | |
+| Meter | | | | | Yes | | | | | |
+| Axis | Yes | Yes | Left and right | Side and bottom | | | | | | |
+| Guide lines and zones | Yes | Yes | Yes | Yes | | | | | | |
+| Band | SQL only | | | | | | | | | |
+| Hint and footnote | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes | Yes |
 
 ### Colours and scrub line
 
@@ -8298,7 +8531,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes \`title\` (text), \`viz\` (one of \`line\`, \`bar\`, \`stat\`,
-\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`text\`), \`layout\`
+\`table\`, \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`calendar\`, \`text\`), \`layout\`
 (\`{x, y, w, h}\`, whole cells, \`w\` and \`h\` 1 to 12), and, all but \`divider\`,
 \`unit\` (text), \`hint\` (text, up to 60 characters) and \`footnote\` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -8319,6 +8552,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`scatter\` | \`sql\`, \`x\` (number column), \`y\` (one number column) | \`colorBy\` (column), \`trend\` (false), \`color\` (theme; one colour only, so not with \`colorBy\`), \`xMin\`, \`xMax\`, \`yMin\`, \`yMax\`, \`yMaxLimit\`, \`yTicks\`, \`yTickSuffix\`, \`yTickCompact\`, \`refLines\`, \`zones\`; never \`xLabelEvery\`, \`band\`, \`headerDelta\`, \`chartCaption\`, built \`source\` |
 | \`segments\` | \`sql\`, \`x\` (part name), \`y\` (part size) | \`segmentColors\` (\`{"Part name": colour}\`), \`ranges\` with \`rangeColumn\` (needed when there are ranges), \`levelColors\` |
 | \`heatmap\` | \`sql\`, \`row\`, \`column\`, \`value\` | \`ranges\` (without them every cell is grey), \`levelColors\`, \`marker\`, \`markerColor\`, \`markerLabel\`, \`highlight\` (\`"hour"\`, \`"day"\`, \`"weekday"\`), \`cells\` (\`"square"\`, \`"fill"\`; default thin rows), \`columnLabelEvery\` (whole number) |
+| \`calendar\` | \`sql\`, \`date\` (column of days), \`value\` (column) | \`ranges\` (without them every day with data is grey), \`levelColors\`, \`weekStart\` (\`"sunday"\` default, \`"monday"\`), \`year\` (a four-digit year; default the last 53 weeks up to the newest day) |
 | \`text\` | \`text\` (up to 2,000 characters) or \`sql\`, never both | \`line\` (true: one thin strip, no title) |
 | \`divider\` | nothing | \`title\` (the heading); \`layout.h\` must be 1; no \`sql\` or \`source\` |
 
@@ -8362,6 +8596,7 @@ A widget is either SQL (\`sql\`, plus the columns its type needs) or built
 | \`combo\` | One row per x value, the \`x\` column and one column per series. An empty cell is a gap, never zero. |
 | \`scatter\` | One row per point: \`x\` and \`y\` are number columns, and \`colorBy\`, if set, names the group of the point. A row with no number in \`x\` or \`y\` is left out, never drawn at zero. Dates and text in \`x\` are not numbers: turn a date into one in SQL, like \`julianday(day) - julianday('2026-01-01')\`. |
 | \`segments\` | One row per part, in order, up to 12: the \`x\` column names it, the \`y\` column (a number, 0 or more) sizes it. With ranges, \`rangeColumn\` is read from the first row. |
+| \`calendar\` | One row per day: \`date\` (written \`YYYY-MM-DD\`, a time after it is ignored) and \`value\` (a number). A day with no row stays empty; a day twice takes the later row. The view ends at the newest \`date\`, not at today, so a lagging sync still fills the grid. |
 | \`heatmap\` | One row per cell: \`row\`, \`column\`, \`value\` (a number), and the \`marker\` column if used. Rows and columns appear in the order the query returns them. For \`highlight\`, name columns 0 to 23 (hours), dates as \`YYYY-MM-DD\`, or weekdays like \`Monday\` or \`Mon\`. |
 | \`text\` (from SQL) | The first column of the first row, as plain text (not Markdown). |
 
@@ -8406,6 +8641,8 @@ build widgets the panel can show in full:
 - A scatter chart with a date or text in \`x\`: those rows are left out and the
   chart says "No numeric x and y values to draw." when none is left. Make \`x\`
   a number in the query.
+- A calendar whose \`date\` is not \`YYYY-MM-DD\` (\`31/01/2026\`, a name): those
+  rows are skipped. Convert the date in SQL.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in \`tiles\`.
 - Pointing \`database\` at a file that is not SQLite (a renamed text file, a
@@ -8490,13 +8727,14 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Row labels column", "Column labels column", "Cell value column" | \`row\`, \`column\`, \`value\` |
 | "Dot column", "Dot colour", "Dot label in the legend" | \`marker\`, \`markerColor\`, \`markerLabel\` |
 | "Highlight", "Cells", "Label every Nth column" | \`highlight\`, \`cells\`, \`columnLabelEvery\` |
+| "Date column", "Day value column", "Week starts on", "Year" | \`date\`, \`value\`, \`weekStart\`, \`year\` |
 | "The words come from", "Text" | \`sql\` or \`text\` |
 | "One thin line, like a section divider (no title)" | \`line\` |
 
 ### Every widget
 
 - \`viz\`: the type. \`line\`, \`bar\`, \`stat\` (one big number), \`table\`,
-  \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\` or \`text\`.
+  \`divider\`, \`combo\`, \`scatter\`, \`segments\`, \`heatmap\`, \`calendar\` or \`text\`.
 - \`title\`: the name on top of the widget.
 - \`unit\`: shown with the values, like "orders" or "%".
 - \`layout\`: the widget's place on the grid, \`{"x":0,"y":0,"w":2,"h":2}\` in
@@ -8612,7 +8850,7 @@ first column); a built stat its one value.
   unset, the next column.
 - \`ranges\`, \`levelColors\`, \`rangeColumn\`: value levels, below.
 
-### Value levels (stat, segments, heatmap)
+### Value levels (stat, segments, heatmap, calendar)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -8731,6 +8969,28 @@ the value levels.
   the tile's height; unset, thin rows.
 - \`columnLabelEvery\`: label every Nth column.
 
+### Year calendar
+
+\`"viz": "calendar"\`: one square for each day, a week to a column, coloured by
+the value levels. A separate type from the heatmap because it reads one date
+column where a heatmap reads a row and a column.
+
+\`\`\`json
+{ "title": "Orders per day", "viz": "calendar", "date": "day", "value": "orders",
+  "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day",
+  "ranges": [{ "low": 40, "level": "Good" }, { "low": 20, "level": "Watch" }, { "level": "Alert" }],
+  "weekStart": "monday" }
+\`\`\`
+
+- \`date\`, \`value\`: the columns of days (written \`2026-01-31\`) and numbers. A
+  day with no row stays empty; a day twice takes the later row.
+- \`ranges\`, \`levelColors\`: the colours, as on a heatmap; without ranges every
+  day with data is grey.
+- \`weekStart\`: \`"sunday"\` (the default) or \`"monday"\`, the day each column of
+  weeks starts on.
+- \`year\`: a whole calendar year like \`2026\`. Left out, the calendar shows the
+  last 53 weeks up to the newest day in the data, never "today".
+
 ### Text
 
 \`"viz": "text"\`: plain words. Either \`text\` (up to 2,000 characters) or \`sql\`
@@ -8787,6 +9047,17 @@ for (let i = 0; i < 26; i++) {
   SAMPLE_SCATTER_ROWS.push([spend, Math.round(0.9 * spend + 12 + ((i * 13) % 11) - 5), i % 3 === 0 ? 'Shop' : 'Web']);
 }
 
+/* A made-up year of orders per day, ending 2026-01-18: quieter weekends, a
+ * busy spring and autumn, a few days with no row. */
+const SAMPLE_CALENDAR_ROWS = [];
+for (let i = 0; i < 365; i++) {
+  const ms = Date.UTC(2026, 0, 18) - (364 - i) * 86400000;
+  const weekday = new Date(ms).getUTCDay();
+  if (i % 23 === 11) continue;
+  const season = 18 + Math.round(14 * Math.sin((i / 365) * 2 * Math.PI * 2));
+  SAMPLE_CALENDAR_ROWS.push([calendarIsoOf(ms), Math.max(0, season + (weekday === 0 || weekday === 6 ? -12 : 6) + ((i * 37) % 17) - 8)]);
+}
+
 const WIDGET_SAMPLES = {
   line: {
     size: 'chart',
@@ -8830,6 +9101,12 @@ const WIDGET_SAMPLES = {
     spec: { title: 'Orders by weekday and hour', viz: 'heatmap', row: 'day', column: 'hour', value: 'orders', unit: 'orders', cells: 'fill',
       ranges: [{ low: 8, level: 'Good' }, { low: 4, level: 'Watch' }, { level: 'Alert' }] },
     table: { columns: ['day', 'hour', 'orders'], rows: SAMPLE_HEAT_ROWS },
+  },
+  calendar: {
+    size: 'short',
+    spec: { title: 'Orders per day', viz: 'calendar', date: 'day', value: 'orders', unit: 'orders',
+      ranges: [{ low: 30, level: 'Good', label: '30 or more' }, { low: 15, level: 'Watch', label: '15 to 29' }, { level: 'Alert', label: 'under 15' }] },
+    table: { columns: ['day', 'orders'], rows: SAMPLE_CALENDAR_ROWS },
   },
   text: {
     size: 'short',
@@ -9496,6 +9773,7 @@ IcorSqliteViewerPlugin.lib = {
   checkBand, bandPaths, cellNumber,
   checkCombo,
   checkScatter, scatterOf, leastSquares, scatterXScale, renderScatterChart,
+  checkCalendar, calendarOf, calendarDayOf, renderCalendar,
   SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
 };
 

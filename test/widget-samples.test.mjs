@@ -59,7 +59,7 @@ test('every sample draws with the real renderer, no error, in the plugin\'s toke
   const expect = {
     line: 'icor-sqlv-chart-box', bar: 'icor-sqlv-chart-box', combo: 'icor-sqlv-chart-box', scatter: 'icor-sqlv-chart-box',
     stat: 'icor-sqlv-meter', table: 'icor-sqlv-table', segments: 'icor-sqlv-segments-bar',
-    heatmap: 'icor-sqlv-heatmap-cell', text: 'icor-sqlv-text-para', divider: 'icor-sqlv-divider-heading',
+    heatmap: 'icor-sqlv-heatmap-cell', calendar: 'icor-sqlv-calendar-cell', text: 'icor-sqlv-text-para', divider: 'icor-sqlv-divider-heading',
   };
   for (const word of lib.VIZ_KINDS) {
     const el = new obsidian.Modal({}).contentEl;

@@ -1860,6 +1860,39 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-heatmap-legend .icor-sqlv-legend-chip.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline); }
 
+/* A year calendar: one square for each day, a week to a column, month
+ * names along the top and Mon, Wed and Fri down the side. Its legend is the
+ * heatmap's. It scrolls inside its tile when it is wider or taller. */
+.icor-sqlv-calendar { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
+
+.icor-sqlv-calendar-scroll { overflow: auto; min-height: 0; flex: 1 1 auto; }
+
+.icor-sqlv-calendar-grid { display: grid; gap: 2px; min-width: 440px; }
+
+.icor-sqlv-calendar-month,
+.icor-sqlv-calendar-day {
+  font-family: var(--sqlv-font-mono);
+  font-size: 9px;
+  color: var(--sqlv-fg-faint);
+  white-space: nowrap;
+}
+
+.icor-sqlv-calendar-month { line-height: 12px; }
+
+/* A weekday name is no taller than a square, so a row that carries one is
+ * no taller than the rows without. */
+.icor-sqlv-calendar-day { line-height: 8px; text-align: right; padding-right: var(--sqlv-s2); align-self: center; }
+
+.icor-sqlv-calendar-cell {
+  box-sizing: border-box;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-calendar-cell.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline-subtle); }
+
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at

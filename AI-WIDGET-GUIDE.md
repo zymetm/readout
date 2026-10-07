@@ -123,7 +123,7 @@ newest text; it is written again on the next load or on "New dashboard".
 ## 4. The widget schema, per type
 
 Every type takes `title` (text), `viz` (one of `line`, `bar`, `stat`,
-`table`, `divider`, `combo`, `scatter`, `segments`, `heatmap`, `text`), `layout`
+`table`, `divider`, `combo`, `scatter`, `segments`, `heatmap`, `calendar`, `text`), `layout`
 (`{x, y, w, h}`, whole cells, `w` and `h` 1 to 12), and, all but `divider`,
 `unit` (text), `hint` (text, up to 60 characters) and `footnote` (text, up
 to 300). Unset means the default. Colours are a theme colour like
@@ -144,6 +144,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `scatter` | `sql`, `x` (number column), `y` (one number column) | `colorBy` (column), `trend` (false), `color` (theme; one colour only, so not with `colorBy`), `xMin`, `xMax`, `yMin`, `yMax`, `yMaxLimit`, `yTicks`, `yTickSuffix`, `yTickCompact`, `refLines`, `zones`; never `xLabelEvery`, `band`, `headerDelta`, `chartCaption`, built `source` |
 | `segments` | `sql`, `x` (part name), `y` (part size) | `segmentColors` (`{"Part name": colour}`), `ranges` with `rangeColumn` (needed when there are ranges), `levelColors` |
 | `heatmap` | `sql`, `row`, `column`, `value` | `ranges` (without them every cell is grey), `levelColors`, `marker`, `markerColor`, `markerLabel`, `highlight` (`"hour"`, `"day"`, `"weekday"`), `cells` (`"square"`, `"fill"`; default thin rows), `columnLabelEvery` (whole number) |
+| `calendar` | `sql`, `date` (column of days), `value` (column) | `ranges` (without them every day with data is grey), `levelColors`, `weekStart` (`"sunday"` default, `"monday"`), `year` (a four-digit year; default the last 53 weeks up to the newest day) |
 | `text` | `text` (up to 2,000 characters) or `sql`, never both | `line` (true: one thin strip, no title) |
 | `divider` | nothing | `title` (the heading); `layout.h` must be 1; no `sql` or `source` |
 
@@ -187,6 +188,7 @@ A widget is either SQL (`sql`, plus the columns its type needs) or built
 | `combo` | One row per x value, the `x` column and one column per series. An empty cell is a gap, never zero. |
 | `scatter` | One row per point: `x` and `y` are number columns, and `colorBy`, if set, names the group of the point. A row with no number in `x` or `y` is left out, never drawn at zero. Dates and text in `x` are not numbers: turn a date into one in SQL, like `julianday(day) - julianday('2026-01-01')`. |
 | `segments` | One row per part, in order, up to 12: the `x` column names it, the `y` column (a number, 0 or more) sizes it. With ranges, `rangeColumn` is read from the first row. |
+| `calendar` | One row per day: `date` (written `YYYY-MM-DD`, a time after it is ignored) and `value` (a number). A day with no row stays empty; a day twice takes the later row. The view ends at the newest `date`, not at today, so a lagging sync still fills the grid. |
 | `heatmap` | One row per cell: `row`, `column`, `value` (a number), and the `marker` column if used. Rows and columns appear in the order the query returns them. For `highlight`, name columns 0 to 23 (hours), dates as `YYYY-MM-DD`, or weekdays like `Monday` or `Mon`. |
 | `text` (from SQL) | The first column of the first row, as plain text (not Markdown). |
 
@@ -231,6 +233,8 @@ build widgets the panel can show in full:
 - A scatter chart with a date or text in `x`: those rows are left out and the
   chart says "No numeric x and y values to draw." when none is left. Make `x`
   a number in the query.
+- A calendar whose `date` is not `YYYY-MM-DD` (`31/01/2026`, a name): those
+  rows are skipped. Convert the date in SQL.
 - Writing a whole new file when one widget was asked for: other widgets'
   settings and places get lost. Add or change one object in `tiles`.
 - Pointing `database` at a file that is not SQLite (a renamed text file, a
@@ -315,13 +319,14 @@ plugin does not know is dropped the next time the panel saves the file.
 | "Row labels column", "Column labels column", "Cell value column" | `row`, `column`, `value` |
 | "Dot column", "Dot colour", "Dot label in the legend" | `marker`, `markerColor`, `markerLabel` |
 | "Highlight", "Cells", "Label every Nth column" | `highlight`, `cells`, `columnLabelEvery` |
+| "Date column", "Day value column", "Week starts on", "Year" | `date`, `value`, `weekStart`, `year` |
 | "The words come from", "Text" | `sql` or `text` |
 | "One thin line, like a section divider (no title)" | `line` |
 
 ### Every widget
 
 - `viz`: the type. `line`, `bar`, `stat` (one big number), `table`,
-  `divider`, `combo`, `scatter`, `segments`, `heatmap` or `text`.
+  `divider`, `combo`, `scatter`, `segments`, `heatmap`, `calendar` or `text`.
 - `title`: the name on top of the widget.
 - `unit`: shown with the values, like "orders" or "%".
 - `layout`: the widget's place on the grid, `{"x":0,"y":0,"w":2,"h":2}` in
@@ -437,7 +442,7 @@ first column); a built stat its one value.
   unset, the next column.
 - `ranges`, `levelColors`, `rangeColumn`: value levels, below.
 
-### Value levels (stat, segments, heatmap)
+### Value levels (stat, segments, heatmap, calendar)
 
 The levels themselves (Good, Watch, Alert by default, each with a colour)
 live in the plugin settings, not in the file. A widget lists its own steps:
@@ -556,6 +561,28 @@ the value levels.
   the tile's height; unset, thin rows.
 - `columnLabelEvery`: label every Nth column.
 
+### Year calendar
+
+`"viz": "calendar"`: one square for each day, a week to a column, coloured by
+the value levels. A separate type from the heatmap because it reads one date
+column where a heatmap reads a row and a column.
+
+```json
+{ "title": "Orders per day", "viz": "calendar", "date": "day", "value": "orders",
+  "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day",
+  "ranges": [{ "low": 40, "level": "Good" }, { "low": 20, "level": "Watch" }, { "level": "Alert" }],
+  "weekStart": "monday" }
+```
+
+- `date`, `value`: the columns of days (written `2026-01-31`) and numbers. A
+  day with no row stays empty; a day twice takes the later row.
+- `ranges`, `levelColors`: the colours, as on a heatmap; without ranges every
+  day with data is grey.
+- `weekStart`: `"sunday"` (the default) or `"monday"`, the day each column of
+  weeks starts on.
+- `year`: a whole calendar year like `2026`. Left out, the calendar shows the
+  last 53 weeks up to the newest day in the data, never "today".
+
 ### Text
 
 `"viz": "text"`: plain words. Either `text` (up to 2,000 characters) or `sql`
@@ -571,4 +598,4 @@ the value levels.
 - `line: true`: one thin strip in a thin row, like a divider, with no title.
 - Written text runs no query on any device.
 <!-- /field reference -->
-<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint e33df188). If you edit this file, the plugin stops updating it. -->
+<!-- Written by the SQLite Viewer plugin (revision 4, fingerprint ae3434f1). If you edit this file, the plugin stops updating it. -->

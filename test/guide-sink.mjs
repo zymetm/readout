@@ -24,6 +24,7 @@ export const SINK = [
   { title: 'Segments', viz: 'segments', sql: 'SELECT 1', x: 'status', y: ['n'], segmentColors: { Done: '#228833' }, ranges: [{ level: 'Good' }], rangeColumn: 'v', levelColors: { Good: '#2a7fff' } },
   { title: 'Heatmap', viz: 'heatmap', sql: 'SELECT 1', row: 'day', column: 'hr', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' },
     marker: 'k', markerColor: '#33bbee', markerLabel: 'k', highlight: 'weekday', columnLabelEvery: 3, cells: 'fill' },
+  { title: 'Calendar', viz: 'calendar', sql: 'SELECT 1', date: 'day', value: 'm', ranges: [{ level: 'Good' }], levelColors: { Good: '#2a7fff' }, weekStart: 'monday', year: 2026 },
   { title: 'Text', viz: 'text', text: 'Words.', hint: 'h', footnote: 'f' },
   { viz: 'text', line: true, sql: 'SELECT 1', layout: { x: 0, y: 4, w: 6, h: 1 } },
 ];
