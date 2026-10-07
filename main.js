@@ -3005,6 +3005,12 @@ function normalizeLayout(tiles, cols) {
  * widget (or the add tile), and an empty row, stay a full cell. So the
  * layout, the packing and the saved {x, y, w, h} are unchanged; only the
  * track heights differ. rects: [{ l: {x,y,w,h}, thin }]. */
+/* A full row is at least its set height and grows to hold what is in it, so
+ * a narrow pane never squeezes a chart out of its tile. */
+function growingRow(px) {
+  return 'minmax(' + px + 'px, auto)';
+}
+
 function rowTracks(rects, cellH) {
   let rows = 0;
   for (const { l } of rects) rows = Math.max(rows, l.y + l.h);
@@ -5391,7 +5397,7 @@ class SqliteDashboardsView extends ItemView {
     gs.cols = colsForWidth(width);
     gs.cellH = Math.max(90, Math.floor((width - (gs.cols - 1) * GRID_GAP_PX) / gs.cols));
     gs.grid.style.gridTemplateColumns = 'repeat(' + gs.cols + ', minmax(0, 1fr))';
-    gs.grid.style.gridAutoRows = gs.cellH + 'px';
+    gs.grid.style.gridAutoRows = growingRow(gs.cellH);
   }
 
   watchGridWidth() {
@@ -5427,7 +5433,7 @@ class SqliteDashboardsView extends ItemView {
     if (!gs || !gs.grid) return;
     const rects = (layouts || []).map((l, i) => ({ l, thin: isThinTile(gs.spec.tiles[i]) }));
     if (gs.addSpot) rects.push({ l: gs.addSpot, thin: false });
-    gs.grid.style.gridTemplateRows = rowTracks(rects, gs.cellH).map((px) => px + 'px').join(' ');
+    gs.grid.style.gridTemplateRows = rowTracks(rects, gs.cellH).map((px) => (px === DIVIDER_ROW_PX ? px + 'px' : growingRow(px))).join(' ');
   }
 
   applyGridDisplay(preview) {

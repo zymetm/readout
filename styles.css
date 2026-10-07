@@ -669,7 +669,7 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 .icor-sqlv-chart-host {
   position: relative;
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 80px;
   min-width: 0;
   overflow: hidden;
 }
@@ -830,17 +830,23 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 /* A pie chart: a square drawing that CSS scales to the tile, a legend
  * beside it (under it on a phone). The slices are separated by a hairline
  * in the card's own colour. */
-.icor-sqlv-pie { display: flex; align-items: center; gap: var(--sqlv-s4); height: 100%; min-height: 0; min-width: 0; }
-.icor-sqlv-pie-svg { flex: 0 1 auto; height: 100%; max-height: 100%; width: auto; aspect-ratio: 1; min-width: 0; min-height: 0; }
+.icor-sqlv-pie { display: flex; align-items: center; gap: var(--sqlv-s4); height: 100%; min-height: 96px; min-width: 0; }
+.icor-sqlv-pie-svg { flex: 0 1 auto; height: 100%; max-height: 100%; width: auto; aspect-ratio: 1; min-width: 0; min-height: 96px; }
 .icor-sqlv-pie-slice { stroke: var(--sqlv-card); stroke-width: 0.8; stroke-linejoin: round; }
 .icor-sqlv-pie-total { fill: var(--sqlv-fg); font-family: var(--sqlv-font-mono); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.icor-sqlv-pie-legend { flex: 1 1 auto; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: var(--sqlv-s1); overflow: auto; max-height: 100%; }
-.icor-sqlv-pie-legend .icor-sqlv-legend-item { gap: var(--sqlv-s2); }
+.icor-sqlv-pie-legend { flex: 1 1 auto; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: var(--sqlv-s1); overflow: auto; max-height: 100%; min-width: 0; }
+.icor-sqlv-pie-legend .icor-sqlv-legend-item { gap: var(--sqlv-s2); max-width: 100%; }
+/* A long part name gives way (ellipsis); its dot and its numbers stay whole. */
+.icor-sqlv-pie-legend .icor-sqlv-legend-name { flex: 0 1 auto; }
+.icor-sqlv-pie-legend .icor-sqlv-segments-value { flex: 0 0 auto; white-space: nowrap; }
 
 @media (max-width: 600px) {
   .icor-sqlv-pie { flex-direction: column; gap: var(--sqlv-s2); }
-  .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; }
-  .icor-sqlv-pie-legend { flex: 0 0 auto; max-height: 45%; }
+  .icor-sqlv-pie { height: auto; }
+  .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; min-height: 96px; }
+  /* Under the pie the legend is as wide as the tile (never centred past
+   * its edge) and shows every row; the tile grows to hold them. */
+  .icor-sqlv-pie-legend { flex: 0 0 auto; align-self: stretch; max-height: none; overflow: visible; }
 }
 
 .icor-sqlv-legend-chip.is-round { border-radius: 50%; width: 8px; height: 8px; }
@@ -1817,7 +1823,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
  * wider than the tile. */
 .icor-sqlv-heatmap { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
 
-.icor-sqlv-heatmap-scroll { overflow: auto; min-height: 0; flex: 1 1 auto; }
+.icor-sqlv-heatmap-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
 
 .icor-sqlv-heatmap-grid { display: grid; gap: 2px; align-items: center; min-width: 360px; }
 
@@ -1893,7 +1899,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
  * heatmap's. It scrolls inside its tile when it is wider or taller. */
 .icor-sqlv-calendar { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
 
-.icor-sqlv-calendar-scroll { overflow: auto; min-height: 0; flex: 1 1 auto; }
+.icor-sqlv-calendar-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
 
 .icor-sqlv-calendar-grid { display: grid; gap: 2px; min-width: 440px; }
 
@@ -1936,7 +1942,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   align-items: center;
   gap: var(--sqlv-s3);
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 28px;
   overflow: auto;
 }
 
@@ -2110,15 +2116,36 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   margin: var(--sqlv-s2) 0 var(--sqlv-s4);
 }
 
-.icor-sqlv-block.is-chart { height: 260px; }
-
-.icor-sqlv-block.is-short { height: 180px; }
-
-.icor-sqlv-block.is-thin { height: 32px; }
-
+/* A block sizes to its content: the chart or grid keeps a floor and the
+ * block grows around it, so notes and hints never squeeze it out. */
 .icor-sqlv-block > .icor-sqlv-tile {
-  height: 100%;
+  height: auto;
   box-sizing: border-box;
+  min-height: 120px;
 }
 
+.icor-sqlv-block.is-thin > .icor-sqlv-tile { min-height: 32px; height: 100%; }
+.icor-sqlv-block.is-thin { height: 32px; }
+
+.icor-sqlv-block .icor-sqlv-tile-body { overflow: visible; flex: 0 0 auto; }
+.icor-sqlv-block .icor-sqlv-chart-box { height: auto; }
+.icor-sqlv-block .icor-sqlv-chart-host { flex: none; height: 180px; }
+.icor-sqlv-block .icor-sqlv-heatmap,
+.icor-sqlv-block .icor-sqlv-calendar,
+.icor-sqlv-block .icor-sqlv-bullet,
+.icor-sqlv-block .icor-sqlv-segments,
+.icor-sqlv-block .icor-sqlv-pie { height: auto; }
+.icor-sqlv-block .icor-sqlv-heatmap-scroll,
+.icor-sqlv-block .icor-sqlv-calendar-scroll,
+.icor-sqlv-block .icor-sqlv-bullet-rows { flex: none; min-height: 0; }
+.icor-sqlv-block .icor-sqlv-pie-svg { flex: none; height: 160px; width: 160px; }
+.icor-sqlv-block .icor-sqlv-pie-legend { max-height: none; overflow: visible; }
+
 .icor-sqlv-block-note { margin: var(--sqlv-s2) 0; }
+
+/* The muted words of a widget drawn in a note (a help sample or a block)
+ * lean a step toward the full ink so they read at 4.5 to 1 on the card. */
+.icor-sqlv-sample,
+.icor-sqlv-block {
+  --sqlv-fg-faint: color-mix(in srgb, var(--ink-paper-faint, var(--text-faint)) 55%, var(--sqlv-fg));
+}

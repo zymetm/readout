@@ -140,7 +140,7 @@ test('the desktop draws a divider without a query, keeps its cache slot, and giv
   const divider = byClass(view.contentEl, 'is-divider')[0];
   assert.ok(divider, 'the divider tile is drawn');
   assert.equal(byClass(divider, 'icor-sqlv-error').length, 0, 'no "names no database" error');
-  assert.equal(view.gridState.grid.style.gridTemplateRows, '24px 170px', 'thin row, then a full one');
+  assert.equal(view.gridState.grid.style.gridTemplateRows, '24px minmax(170px, auto)', 'thin row, then a full one that grows to hold its content');
   assert.match(byClass(view.contentEl, 'icor-sqlv-dash-status')[0].textContent, /^1 query in/);
   const cache = JSON.parse(adapter.files.get(CACHE));
   assert.equal(cache.tiles[0].viz, 'divider', 'the divider keeps index 0 in the cache');
