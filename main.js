@@ -562,6 +562,13 @@ function hasSqliteHeader(bytes) {
   return true;
 }
 
+/* A table whose engine module the built-in SQLite build does not have (an
+ * FTS5 search index, for one) cannot be read, and says "no such module".
+ * It is listed without columns and a plain note, never as a failure. */
+const UNREADABLE_TABLE_NOTE = "This table can't be read by the built-in engine (it needs a SQLite module the engine doesn't have, for example FTS5).";
+function isMissingModuleError(e) { return /no such module/i.test(String((e && e.message) || e)); }
+function friendlyTableError(e) { return isMissingModuleError(e) ? UNREADABLE_TABLE_NOTE : (e && e.message) || String(e); }
+
 function notSqliteError() {
   const e = new Error(NOT_SQLITE_TEXT);
   e.notSqlite = true;
@@ -4790,6 +4797,7 @@ class SqliteBrowserView extends FileView {
     this.dbPath = null;
     this.tables = [];
     this.counts = new Map();
+    this.unreadable = new Set();
     this.active = null;
     this.tab = 'data';
     this.page = 0;
@@ -4817,6 +4825,7 @@ class SqliteBrowserView extends FileView {
     this.dbPath = null;
     this.tables = [];
     this.counts.clear();
+    this.unreadable.clear();
     this.active = null;
   }
 
@@ -4824,6 +4833,7 @@ class SqliteBrowserView extends FileView {
     this.dbPath = dbPath;
     this.tables = [];
     this.counts.clear();
+    this.unreadable.clear();
     this.active = null;
     this.page = 0;
     this.sortCol = null;
@@ -4854,6 +4864,7 @@ class SqliteBrowserView extends FileView {
         this.counts.set(t.name, res.rows.length ? Number(res.rows[0][0]) : 0);
       } catch (e) {
         this.counts.set(t.name, null);
+        if (isMissingModuleError(e)) this.unreadable.add(t.name);
       }
       this.renderRailCounts();
     }
@@ -4912,6 +4923,7 @@ class SqliteBrowserView extends FileView {
       row.createSpan({ cls: 'icor-sqlv-rail-name', text: t.name + (t.type === 'view' ? ' (view)' : '') });
       const count = row.createSpan({ cls: 'icor-sqlv-rail-count', text: this.countLabel(t.name) });
       this.rowEls.set(t.name, count);
+      if (this.unreadable.has(t.name)) row.setAttribute('title', UNREADABLE_TABLE_NOTE);
       row.addEventListener('click', () => {
         this.active = t.name;
         this.page = 0;
@@ -4935,12 +4947,16 @@ class SqliteBrowserView extends FileView {
   countLabel(name) {
     if (!this.counts.has(name)) return '…';
     const n = this.counts.get(name);
-    return n === null ? '?' : formatNumber(n);
+    if (n === null) return this.unreadable.has(name) ? '–' : '?';
+    return formatNumber(n);
   }
 
   renderRailCounts() {
     if (!this.rowEls) return;
-    for (const [name, el] of this.rowEls) el.setText(this.countLabel(name));
+    for (const [name, el] of this.rowEls) {
+      el.setText(this.countLabel(name));
+      if (this.unreadable.has(name) && el.parentElement) el.parentElement.setAttribute('title', UNREADABLE_TABLE_NOTE);
+    }
   }
 
   async openDb(path) {
@@ -5006,7 +5022,7 @@ class SqliteBrowserView extends FileView {
     try {
       res = await this.plugin.query.query(this.dbPath, sql);
     } catch (e) {
-      body.createDiv({ cls: 'icor-sqlv-error', text: e.message });
+      body.createDiv({ cls: isMissingModuleError(e) ? 'icor-sqlv-note' : 'icor-sqlv-error', text: friendlyTableError(e) });
       return;
     }
     if (this.tab !== 'data') return;
@@ -5108,7 +5124,8 @@ class SqliteBrowserView extends FileView {
         renderResultTable(body, listing, { maxRows: 200 });
       }
     } catch (e) {
-      body.createDiv({ cls: 'icor-sqlv-error', text: e.message });
+      body.empty();
+      body.createDiv({ cls: isMissingModuleError(e) ? 'icor-sqlv-note' : 'icor-sqlv-error', text: friendlyTableError(e) });
     }
   }
 
@@ -7248,7 +7265,7 @@ class WidgetFormModal extends Modal {
         key: 'table', label: 'Table', required: true,
         valueText: s.table, placeholder: 'Pick a table',
         getItems: async () => (await this.ensureSchema()).tables.map((t) => ({
-          label: t.name, detail: t.columns.length + ' columns',
+          label: t.name, detail: t.unreadable ? "can't be read by the built-in engine (needs a SQLite module it doesn't have, e.g. FTS5)" : t.columns.length + ' columns',
           selected: t.name === s.table,
           onPick: () => this.pick(() => {
             if (s.table !== t.name) {
@@ -10565,10 +10582,16 @@ class ReadOutPlugin extends Plugin {
       const tables = [];
       const res = await this.query.query(dbPath, "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
       for (const [name] of res.rows) {
-        const info = await this.query.query(dbPath, 'PRAGMA table_info(' + quoteIdent(name) + ')');
-        const nameIdx = columnIndex(info.columns, 'name');
-        const typeIdx = columnIndex(info.columns, 'type');
-        tables.push({ name, columns: info.rows.map((r) => ({ name: r[nameIdx], type: r[typeIdx] })) });
+        /* One table that cannot be read (an FTS5 index, say) never takes the
+         * others with it: it is listed with no columns and marked. */
+        try {
+          const info = await this.query.query(dbPath, 'PRAGMA table_info(' + quoteIdent(name) + ')');
+          const nameIdx = columnIndex(info.columns, 'name');
+          const typeIdx = columnIndex(info.columns, 'type');
+          tables.push({ name, columns: info.rows.map((r) => ({ name: r[nameIdx], type: r[typeIdx] })) });
+        } catch (e) {
+          tables.push({ name, columns: [], unreadable: true });
+        }
       }
       return { live: true, tables };
     }
@@ -10721,7 +10744,7 @@ ReadOutPlugin.lib = {
   checkCalendar, calendarOf, calendarDayOf, renderCalendar,
   checkBullet, bulletRowsOf, bulletScaleOf, bulletBands, renderBullet,
   checkSparklines, sparkValuesOf, renderResultTable,
-  SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader,
+  SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader, UNREADABLE_TABLE_NOTE,
 };
 
 /* The form modal, exposed for the gates only. */

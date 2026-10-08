@@ -35,6 +35,13 @@ Changes from the Obsidian community plugin scan of 1.0.3.
   The look is unchanged: the computed style and the position of every button,
   the filter box, the sort headers and the dashboard tiles were compared with
   1.0.3 and match.
+- **A table the built-in engine cannot read no longer breaks the rest.** A database
+  can hold a table that needs a SQLite module the built-in engine does not have
+  (an FTS5 search index, for one). Reading its columns failed, which stopped the
+  mobile catalog from being written (the console logged "the catalog write
+  failed"), and the widget editor's table picker with it. Such a table is now
+  listed with no columns and a plain note ("can't be read by the built-in
+  engine"), its row count shows a dash, and every other table works as before.
 
 ### Added
 - **A README section, "What ReadOut can access, and why"**, for the scan's
