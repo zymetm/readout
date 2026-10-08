@@ -10669,7 +10669,7 @@ class ReadOutPlugin extends Plugin {
  * The WebAssembly binary is base64 (it is data, not code). Regenerate it
  * after a sql.js bump from the repo root with:
  *
- *   node -e "const f=require('fs');const b=(p)=>f.readFileSync(p).toString('base64');let m=f.readFileSync('main.js','utf8');m=m.replace(/^const EMBEDDED_SQL_WASM_B64 = '[^']*';$/m,()=>\"const EMBEDDED_SQL_WASM_B64 = '\"+b('sql-wasm.wasm')+\"';\");f.writeFileSync('main.js',m)"
+ *   node --input-type=module -e "import f from 'node:fs';const b=(p)=>f.readFileSync(p).toString('base64');let m=f.readFileSync('main.js','utf8');m=m.replace(/^const EMBEDDED_SQL_WASM_B64 = '[^']*';$/m,()=>\"const EMBEDDED_SQL_WASM_B64 = '\"+b('sql-wasm.wasm')+\"';\");f.writeFileSync('main.js',m)"
  *
  * The JavaScript half is pasted below as plain source inside a function,
  * between the two BEGIN and END marker comments, so it is reviewable and
@@ -10738,10 +10738,11 @@ module.exports = ReadOutPlugin;
  * What this code can reach in this plugin: initSqlJs is always called with
  * `wasmBinary` (the bytes are already in hand), so its fetch and
  * XMLHttpRequest paths, its document.currentScript lookup and its
- * require("fs"), require("path") and require("crypto") calls (taken only
- * when it detects Node, and given Electron's require) never fetch or read
- * a file here: the binary is never requested by URL. They are dead code in
- * this plugin, left as vendored so the file stays byte-identical. */
+ * calls that load Node's file, path and crypto modules (taken only when it
+ * detects Node outside a renderer; Obsidian's window is a renderer) never
+ * fetch or read a file here: the binary is never requested by URL. They are
+ * dead code in this plugin, left as vendored so the file stays
+ * byte-identical. */
 /* BEGIN vendored sql-wasm.js */
 function vendoredSqlJs(module, exports, require, __dirname, __filename) {
 
