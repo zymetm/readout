@@ -63,76 +63,6 @@ async function makePluginWith(adapter, { desktop = true } = {}) {
   return { plugin, fresh };
 }
 
-/* A desktop with a sqlite3 that records its calls, and a file system whose
- * files are the vault's own bytes. `reads` counts the 16-byte header reads. */
-function desktopOf(adapter) {
-  const calls = [];
-  const reads = [];
-  adapter.getBasePath = () => '/vault';
-  const deps = {
-    calls,
-    reads,
-    childProcess: { execFile(bin, args, options, cb) { calls.push(args); setImmediate(() => cb(null, '[{"n":1}]', '')); } },
-    pathx: nodeRequire('path').posix,
-    fsx: {
-      openSync(path) { reads.push(path); return path; },
-      readSync(fd, buf, offset, length, position) {
-        const file = adapter.binaries.get(fd.replace('/vault/', ''));
-        const slice = file.subarray(position, position + length);
-        buf.set(slice, offset);
-        return slice.length;
-      },
-      closeSync() {},
-    },
-  };
-  return deps;
-}
-
-test('the desktop engine reads 16 bytes by file handle and stops a file that is not SQLite before running the query', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Databases/Thumbs.db': THUMBS, '07 Databases/list.db': TEXT, '07 Databases/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
-  const { plugin } = await makePluginWith(adapter);
-  const deps = desktopOf(adapter);
-  plugin.query.deps = deps;
-  plugin.query.cli = { ok: true, version: 'gate' };
-  for (const name of ['Thumbs', 'list']) {
-    await assert.rejects(plugin.query.query('07 Databases/' + name + '.db', 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
-  }
-  assert.equal(deps.calls.length, 0, 'sqlite3 was never started for a file that is not SQLite');
-  const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS n');
-  assert.deepEqual(res.rows, [[1]]);
-  assert.equal(deps.calls.length, 1);
-});
-
-test('the header is read once per version of a file, and again when the file changes', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Databases/tiny.db': Uint8Array.from([...HEADER, ...new Array(100).fill(0)]) });
-  const { plugin } = await makePluginWith(adapter);
-  const deps = desktopOf(adapter);
-  plugin.query.deps = deps;
-  plugin.query.cli = { ok: true, version: 'gate' };
-  await plugin.query.query('07 Databases/tiny.db', 'SELECT 1 AS n');
-  await plugin.query.query('07 Databases/tiny.db', 'SELECT 2 AS n');
-  await plugin.query.query('07 Databases/tiny.db', 'SELECT 3 AS n');
-  assert.equal(deps.reads.length, 1, 'three queries, one header read');
-  /* The file is replaced by a text file: a new size and time, a new check. */
-  adapter.binaries.set('07 Databases/tiny.db', TEXT);
-  await assert.rejects(plugin.query.query('07 Databases/tiny.db', 'SELECT 4 AS n'), SENTENCE);
-  assert.equal(deps.reads.length, 2);
-});
-
-test('an empty file and an unreadable header are left to the engine, which reads an empty file as an empty database', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Databases/empty.db': new Uint8Array(0), '07 Databases/locked.db': Uint8Array.from([...HEADER, 0]) });
-  const { plugin } = await makePluginWith(adapter);
-  const deps = desktopOf(adapter);
-  deps.fsx.openSync = (path) => { if (/locked/.test(path)) throw new Error('EBUSY'); return path; };
-  plugin.query.deps = deps;
-  plugin.query.cli = { ok: true, version: 'gate' };
-  assert.deepEqual((await plugin.query.query('07 Databases/empty.db', 'SELECT 1 AS n')).rows, [[1]]);
-  assert.deepEqual((await plugin.query.query('07 Databases/locked.db', 'SELECT 1 AS n')).rows, [[1]], 'a file that cannot be opened for the header is not called a non-database');
-  assert.equal(deps.calls.length, 2);
-});
-
-/* ------------------------------------------- the built-in engine -- */
-
 async function realDatabase() {
   const initSqlJs = nodeRequire(resolve(repo, 'sql-wasm.js'));
   const SQL = await initSqlJs({ wasmBinary: readFileSync(resolve(repo, 'sql-wasm.wasm')) });
@@ -156,7 +86,6 @@ async function mobileOf(binaries) {
 
 test('the built-in engine checks the bytes it has loaded: a thumbnail cache and a text file get the sentence, a real database opens', async () => {
   const { plugin } = await mobileOf({ '07 Databases/Thumbs.db': THUMBS, '07 Databases/list.sqlite': TEXT, '07 Databases/tiny.db': await realDatabase() });
-  assert.equal(plugin.query.deps, null, 'no Node handles off the desktop');
   for (const name of ['Thumbs.db', 'list.sqlite']) {
     await assert.rejects(plugin.query.query('07 Databases/' + name, 'SELECT 1'), (e) => SENTENCE.test(e.message) && e.notSqlite === true, name);
   }

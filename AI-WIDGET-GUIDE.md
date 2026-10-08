@@ -54,23 +54,19 @@ newest text; it is written again on the next load or on "New dashboard".
 3. **No ATTACH.** ATTACH and DETACH are refused. A query cannot join two
    database files; if the data is in two files, it is two dashboards, or a
    built widget with its own `source.database`.
-4. **The query must run in the plugin's engine.** On the desktop the
-   plugin uses the sqlite3 command-line tool when it is installed (read-only,
-   whatever version is on that computer); otherwise, and on phones and
-   tablets, its built-in engine, sql.js 1.13.0 (SQLite compiled to
+4. **The query must run in the plugin's engine.** On every device the
+   plugin uses its built-in engine, sql.js 1.13.0 (SQLite compiled to
    WebAssembly), which loads the whole database into memory up to the
-   setting "Size cap for the built-in engine (MB)" (200 by default). Write
-   plain SQLite that both run. Do not rely on a loadable extension or a
-   function only a very new SQLite has. Test with the plugin's own engine,
-   not only with another tool (see the procedure).
+   setting "Size cap for the built-in engine (MB)" (1500 by default on a
+   desktop, 200 on a phone or tablet). Write plain SQLite. Do not rely on a
+   loadable extension or a function only a very new SQLite has. Test with
+   the plugin's own engine, not only with another tool (see the procedure).
 5. **Row cap.** A widget on a dashboard gets at most 5,000 rows (the panel's
    preview 500): a query without a LIMIT gets one added. Aggregate in SQL
    (GROUP BY a day or a week) instead of returning raw rows.
-6. **Timeouts.** With the sqlite3 tool, a query that runs longer than the
-   setting "Query timeout (seconds)" (30 by default) is stopped. The
-   built-in engine has no timeout and blocks while it works, so a slow
-   query freezes the view. Keep every query fast: filter early, use indexed
-   columns, avoid correlated subqueries over big tables.
+6. **Timeouts.** The built-in engine has no timeout and blocks while it
+   works, so a slow query freezes the view. Keep every query fast: filter
+   early, use indexed columns, avoid correlated subqueries over big tables.
 7. **Window from the newest data row, not from "now".** Data often lags
    (a sync that runs nightly, a device that uploads late). A window written
    as `date('now', '-30 day')` empties the chart when the data is a few
@@ -720,4 +716,4 @@ such a thing, the shape is the same:
 A prompt to give an agent:
 
     Read Databases/Dashboards/AI-WIDGET-GUIDE.md and make a skill that follows its procedure. Link to the guide, don't copy it, and add my preferences.
-<!-- Written by ReadOut (revision 10, fingerprint 673e7e43). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 11, fingerprint c5e2e6fe). If you edit this file, ReadOut stops updating it. -->

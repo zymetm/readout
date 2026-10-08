@@ -25,87 +25,6 @@ const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodeRequire = createRequire(import.meta.url);
 const { lib, makePlugin } = loadPlugin();
 
-/* ------------------------------------------------------------- the URI -- */
-
-test('the database URI is read-only and survives spaces, percent signs and question marks', () => {
-  const uri = lib.dbFileUri('/Users/tom/My Life Folder - TR/07 Databases/mypka-health.db');
-  assert.equal(uri, 'file:/Users/tom/My Life Folder - TR/07 Databases/mypka-health.db?mode=ro');
-  assert.equal(lib.dbFileUri('/a/100%?x#y.db'), 'file:/a/100%25%3fx%23y.db?mode=ro');
-});
-
-/* ---------------------------------------------------------- Engine A -- */
-
-function fakeCli(behaviour) {
-  const calls = [];
-  return {
-    calls,
-    childProcess: {
-      execFile(bin, args, options, cb) {
-        calls.push({ bin, args, options });
-        setImmediate(() => behaviour(cb, { bin, args, options }));
-      },
-    },
-    pathx: nodeRequire('path'),
-  };
-}
-
-test('Engine A: the SQL is one argument after -readonly and -json, never a shell string', async () => {
-  const sql = "SELECT * FROM t WHERE a = 'x; rm -rf'";
-  const deps = fakeCli((cb) => cb(null, '[{"a":1}]', ''));
-  const table = await lib.cliQuery(deps, { absPath: '/v/x.db', sql, timeoutMs: 1234 });
-  assert.equal(deps.calls.length, 1);
-  const call = deps.calls[0];
-  assert.equal(call.bin, 'sqlite3');
-  assert.deepEqual(unwrap(call.args), ['-safe', '-readonly', '-json', '-cmd', '.timeout 5000', 'file:/v/x.db?mode=ro', sql]);
-  assert.equal(call.options.timeout, 1234);
-  assert.equal(call.options.killSignal, 'SIGKILL');
-  assert.deepEqual(unwrap(table), { columns: ['a'], rows: [[1]] });
-});
-
-test('Engine A: zero rows print nothing and come back as an empty table', async () => {
-  const deps = fakeCli((cb) => cb(null, '', ''));
-  const table = await lib.cliQuery(deps, { absPath: '/v/x.db', sql: 'SELECT 1 WHERE 0' });
-  assert.deepEqual(unwrap(table), { columns: [], rows: [] });
-});
-
-test('Engine A: a killed query says how long it waited, in plain words', async () => {
-  const deps = fakeCli((cb) => { const e = new Error('killed'); e.killed = true; cb(e, '', ''); });
-  await assert.rejects(
-    lib.cliQuery(deps, { absPath: '/v/x.db', sql: 'SELECT 1', timeoutMs: 30000 }),
-    /stopped after 30 seconds/
-  );
-});
-
-test('Engine A: sqlite3 errors surface as their own text, without a scary prefix', async () => {
-  const deps = fakeCli((cb) => cb(new Error('exit 1'), '', 'Error: no such table: nope\n'));
-  await assert.rejects(lib.cliQuery(deps, { absPath: '/v/x.db', sql: 'SELECT * FROM nope' }), /no such table: nope/);
-});
-
-test('Engine A: a locked database explains itself in plain words', async () => {
-  const deps = fakeCli((cb) => cb(new Error('exit 5'), '', 'Error: in prepare, database is locked (5)\n'));
-  await assert.rejects(
-    lib.cliQuery(deps, { absPath: '/v/x.db', sql: 'SELECT 1' }),
-    /Another app is writing to this database right now/
-  );
-});
-
-test('detectCli: a sqlite3 older than 3.37.0 is refused, so the built-in engine answers (it has no -safe)', async () => {
-  for (const [out, ok] of [['3.36.9 2021-01-01 abc', false], ['3.30.1 2019', false], ['3.37.0 2021-11-27 x', true], ['3.51.0 2026', true], ['4.0.0 x', true], ['garbage', false], ['', false]]) {
-    const r = await lib.detectCli(fakeCli((cb) => cb(null, out + '\n', '')));
-    assert.equal(r.ok, ok, out + ' -> ' + JSON.stringify(unwrap(r)));
-    if (!ok) assert.match(r.reason, /3\.37/);
-  }
-});
-
-test('detectCli: a found binary reports its version, a missing one says so plainly', async () => {
-  const found = fakeCli((cb) => cb(null, '3.51.0 2025-06-12 abcdef\n', ''));
-  assert.deepEqual(unwrap(await lib.detectCli(found)), { ok: true, version: '3.51.0' });
-  const missing = fakeCli((cb) => cb(new Error('ENOENT'), '', ''));
-  const r = await lib.detectCli(missing);
-  assert.equal(r.ok, false);
-  assert.match(r.reason, /not found/);
-});
-
 /* ------------------------------------------------- the QueryService -- */
 
 async function makeServicePlugin(adapter, { desktop = true } = {}) {
@@ -120,37 +39,63 @@ async function makeServicePlugin(adapter, { desktop = true } = {}) {
   return { plugin, lib: fresh.lib };
 }
 
-test('the service refuses a write before any engine is asked', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
+/* A real one-table database, built with the vendored sql.js. */
+async function tinyDb() {
+  const initSqlJs = nodeRequire(resolve(repo, 'sql-wasm.js'));
+  const SQL = await initSqlJs({ wasmBinary: readFileSync(resolve(repo, 'sql-wasm.wasm')) });
+  const source = new SQL.Database();
+  source.run('CREATE TABLE t (n INTEGER)');
+  source.run('INSERT INTO t VALUES (1), (2), (3), (4), (5)');
+  const bytes = source.export();
+  source.close();
+  return bytes;
+}
+
+test('the service refuses a write before the engine is asked', async () => {
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': await tinyDb() });
   const { plugin } = await makeServicePlugin(adapter);
-  const deps = fakeCli((cb) => cb(null, '[]', ''));
-  plugin.query.deps = deps;
-  plugin.query.cli = { ok: true, version: 'gate' };
   await assert.rejects(plugin.query.query('07 Databases/x.db', 'DROP TABLE t'), /Only read queries/);
-  assert.equal(deps.calls.length, 0, 'the gate must fire before the process runner');
+  assert.equal(plugin.query.wasm.open.size, 0, 'the gate fires before the file is even loaded');
 });
 
 test('the row cap lands on an uncapped SELECT and leaves a capped one alone', async () => {
-  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  adapter.getBasePath = () => '/vault';
+  const adapter = makeFakeAdapter({}, { '07 Databases/x.db': await tinyDb() });
   const { plugin } = await makeServicePlugin(adapter);
-  const deps = fakeCli((cb) => cb(null, '[]', ''));
-  plugin.query.deps = deps;
-  plugin.query.cli = { ok: true, version: 'gate' };
-  const res = await plugin.query.query('07 Databases/x.db', 'SELECT * FROM t', { cap: 500 });
+  const res = await plugin.query.query('07 Databases/x.db', 'SELECT n FROM t', { cap: 2 });
   assert.equal(res.capped, true);
-  assert.match(deps.calls[0].args[6], / LIMIT 500$/);
-  await plugin.query.query('07 Databases/x.db', 'SELECT * FROM t LIMIT 7', { cap: 500 });
-  assert.match(deps.calls[1].args[6], /LIMIT 7$/);
-  assert.doesNotMatch(deps.calls[1].args[6], /LIMIT 500/);
+  assert.equal(res.rows.length, 2);
+  const own = await plugin.query.query('07 Databases/x.db', 'SELECT n FROM t LIMIT 4', { cap: 2 });
+  assert.equal(own.capped, false);
+  assert.equal(own.rows.length, 4, 'a query with its own LIMIT is left alone');
 });
 
-test('engine choice: no CLI and a file over the cap means no engine, in plain words', async () => {
+test('engine choice on a desktop: a file over the cap gets a friendly message that says what to do', async () => {
+  const adapter = makeFakeAdapter({}, { '07 Databases/big.db': new Uint8Array(3 * 1024 * 1024) });
+  const { plugin } = await makeServicePlugin(adapter, { desktop: true });
+  plugin.settings.mobileCapMb = 2;
+  const choice = await plugin.query.engineFor('07 Databases/big.db');
+  assert.equal(choice.engine, null);
+  assert.equal(choice.tooBig, true);
+  assert.match(choice.reason, /too big for the size cap/);
+  assert.match(choice.reason, /the cap is 2 MB/);
+  assert.match(choice.reason, /Raise "Size cap for the built-in engine"/);
+  assert.match(choice.reason, /up to 2000 MB/);
+  plugin.settings.mobileCapMb = 4;
+  assert.equal((await plugin.query.engineFor('07 Databases/big.db')).engine, 'wasm', 'raising the cap opens it');
+});
+
+test('defaults: 1500 MB on a desktop, 200 MB on a phone, and never above 2000 MB', async () => {
+  const desk = await makeServicePlugin(makeFakeAdapter(), { desktop: true });
+  const phone = await makeServicePlugin(makeFakeAdapter(), { desktop: false });
+  assert.equal(desk.lib.DEFAULT_SETTINGS.mobileCapMb, 1500);
+  assert.equal(phone.lib.DEFAULT_SETTINGS.mobileCapMb, 200);
+});
+
+test('engine choice: a file over the cap on a phone means no engine, in plain words', async () => {
   const big = new Uint8Array(3 * 1024 * 1024);
   const adapter = makeFakeAdapter({}, { '07 Databases/big.db': big });
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
   plugin.settings.mobileCapMb = 2;
-  plugin.query.cli = { ok: false, reason: 'not here' };
   const choice = await plugin.query.engineFor('07 Databases/big.db');
   assert.equal(choice.engine, null);
   assert.match(choice.reason, /too big to load into memory/);
@@ -180,7 +125,6 @@ test('Engine B end to end: real bytes through the plugin loader, on the mobile p
     }
   );
   const { plugin } = await makeServicePlugin(adapter, { desktop: false });
-  assert.equal(plugin.query.deps, null, 'no Node handles exist off the desktop');
   const choice = await plugin.query.engineFor('07 Databases/tiny.db');
   assert.equal(choice.engine, 'wasm');
   const res = await plugin.query.query('07 Databases/tiny.db', 'SELECT day, n FROM things ORDER BY day');

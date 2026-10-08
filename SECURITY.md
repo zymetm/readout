@@ -58,22 +58,16 @@ EXPLAIN; ATTACH refused; write verbs (INSERT, UPDATE, DELETE, REPLACE,
 CREATE, DROP, ALTER, VACUUM, REINDEX, ANALYZE) refused wherever they
 appear as statement verbs, including behind a WITH clause; and PRAGMA
 limited to a read-only introspection allowlist, with every assignment
-form refused. On the desktop, only if the member switched on the optional sqlite3 helper
-(off by default), the database is opened by the system
-`sqlite3` tool in safe mode (`-safe`, so version 3.37.0 or newer; an older
-program is not used) with the `-readonly` flag AND a `mode=ro` file URI;
-otherwise by the bundled sql.js engine on an in-memory copy of the file,
-which cannot reach the original at all. The gate is the first test in
+form refused. The database is then opened by the bundled sql.js engine on an in-memory
+copy of the file, which cannot reach the original at all. The gate is the first test in
 the repo, and the tests include mutation runs that watched it fail.
 
-**Processes.** Only when the optional sqlite3 helper is switched on (desktop,
-off by default; with it off the plugin starts no process and loads no Node
-module), the plugin runs `sqlite3` with a fixed
-argument list; the SQL and the database path travel as arguments, never
-through a shell. A query is killed after the configured timeout. No other
-process is started. The statement gate also refuses the names readfile,
+**Processes.** None. ReadOut starts no program and loads no Node module
+(no child_process, no fs): it reads files only through Obsidian's vault
+API. (The vendored sql.js keeps a dormant Node branch that Obsidian's
+window never takes.) The statement gate also refuses the names readfile,
 writefile, edit, load_extension, fsdir, lsdir, zipfile and fts3_tokenizer,
-because `-safe` does not close them all, and every database path passes one
+as a second line of defence (the built-in engine does not have them), and every database path passes one
 guard that refuses `..`, absolute paths and drive letters, hidden and
 configuration folders, and anything the vault does not know as a file.
 
@@ -99,8 +93,8 @@ file.
 - **Gate bypass.** A statement the gate should refuse (a write verb, a
   second statement, ATTACH) that gets through, including through comments,
   string literals, unusual whitespace or encodings.
-- **Shell injection** through the sqlite3 invocation, or an argument that
-  makes sqlite3 do something other than run the given SQL read-only.
+- **Process or file access.** Any way to make ReadOut start a program or
+  read or write a file outside the vault.
 - **Path escape.** A dashboard file, a settings value or a database path
   that makes the plugin read or write outside the vault.
 - **Migration data loss.** Any path by which the migration button
@@ -121,7 +115,7 @@ These are not vulnerabilities and we will close them as such:
   files there.
 - Memory use of the built-in engine on files under the size cap. The cap
   exists for exactly this; tune it in the settings.
-- Bugs in Obsidian, sqlite3 or sql.js themselves. Report those upstream.
+- Bugs in Obsidian or sql.js themselves. Report those upstream.
 - Interactions with third-party plugins. Report those as normal issues.
 - Missing hardening with no demonstrated impact, or the output of an
   automated scanner with no working proof of concept.

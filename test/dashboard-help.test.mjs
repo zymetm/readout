@@ -148,7 +148,7 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [9, 'beeaea95'], 'AI-WIDGET-GUIDE.md': [10, '5f42e240'] };
+  const pinned = { 'README.md': [9, 'beeaea95'], 'AI-WIDGET-GUIDE.md': [11, '64b0533f'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
@@ -411,7 +411,7 @@ test('the GitHub help file shows a light and a dark picture for every sample, an
 /* ------------------------------------------------------- the AI guide -- */
 
 test('the AI guide carries the rules and the procedure', () => {
-  for (const rule of [/`dashboardFolder`/, /Read-only/, /One database per dashboard/, /No ATTACH/, /plugin's engine/, /5,000 rows/, /Query timeout \(seconds\)/,
+  for (const rule of [/`dashboardFolder`/, /Read-only/, /One database per dashboard/, /No ATTACH/, /plugin's engine/, /5,000 rows/, /Timeouts\./,
     /newest data row/, /SELECT MAX\(day\) FROM sales/, /Never leave test widgets/, /"Open as text"/, /The dashboard reads fine: N widgets\./, /`Good`, `Watch` and `Alert`/, /pencil/]) {
     assert.match(AI, rule);
   }
@@ -446,5 +446,5 @@ test('the AI guide ends with a short section on turning it into a skill: point a
   assert.match(section, /Add only the user's own preferences/);
   assert.match(section, /Read 07 Databases\/Dashboards\/AI-WIDGET-GUIDE\.md and make a skill that follows its procedure\. Link to the guide, don't copy it, and add my preferences\./);
   assert.doesNotMatch(section, /SKILL\.md|Claude|Codex|Gemini|Cursor/, 'no one vendor\'s format');
-  assert.equal(lib.GUIDE_FILES.find((g) => g.file === 'AI-WIDGET-GUIDE.md').revision, 10);
+  assert.equal(lib.GUIDE_FILES.find((g) => g.file === 'AI-WIDGET-GUIDE.md').revision, 11);
 });

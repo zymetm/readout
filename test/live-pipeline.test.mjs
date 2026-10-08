@@ -75,9 +75,8 @@ test('the full dashboard pipeline against the real vault, on the GUI PATH', { sk
     const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
     const plugin = makePlugin(app);
     await plugin.onload();
+    plugin.settings.mobileCapMb = 2000;
 
-    const cli = await plugin.query.detect();
-    assert.equal(cli.ok, true, 'sqlite3 must be found on the GUI PATH: ' + JSON.stringify(cli));
 
     const { specs, errors } = await plugin.loadDashboardSpecs();
     assert.equal(errors.length, 0, 'every spec on disk must parse: ' + JSON.stringify(errors));
@@ -85,7 +84,7 @@ test('the full dashboard pipeline against the real vault, on the GUI PATH', { sk
 
     for (const spec of specs) {
       const choice = await plugin.query.engineFor(spec.database);
-      assert.equal(choice.engine, 'cli', spec.id + ' must get the CLI engine on this desktop: ' + (choice.reason || ''));
+      assert.equal(choice.engine, 'wasm', spec.id + ' must get the built-in engine, size cap raised: ' + (choice.reason || ''));
       const cachedTiles = [];
       for (const tile of spec.tiles) {
         const res = await plugin.query.query(spec.database, tile.sql, { cap: 5000 });
@@ -123,7 +122,7 @@ test('the dashboards view renders every tile or its error, never nothing', { ski
     const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
     const plugin = makePlugin(app);
     await plugin.onload();
-    await plugin.query.detect();
+    plugin.settings.mobileCapMb = 2000;
 
     const factory = plugin.viewFactories['readout-dashboards'];
     assert.ok(factory, 'the dashboards view must be registered');

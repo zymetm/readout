@@ -13,8 +13,7 @@ ReadOut bundles one third-party component.
 `sql-wasm.js` and `sql-wasm.wasm` are sql.js version 1.13.0, a WebAssembly
 build of SQLite, vendored unmodified from
 https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/. It is the engine
-that reads databases on phones and tablets, and on desktops without the
-sqlite3 command line tool. The files ship two ways, and nothing is ever downloaded:
+that reads databases on every device. The files ship two ways, and nothing is ever downloaded:
 
 - `sql-wasm.js` is pasted into `main.js` as plain, readable source inside
   one function (between two marker comments), unmodified. It runs as
@@ -65,11 +64,6 @@ SQLite itself, which sql.js compiles, is public domain
 (https://sqlite.org/copyright.html).
 
 ## Not bundled
-
-The desktop engine is the `sqlite3` command line tool the member's own
-system already has (it ships with macOS). It is not bundled, not
-downloaded and not required; the plugin looks for it and works without
-it, within the size cap of the built-in engine.
 
 Icons are the Lucide icons Obsidian itself ships, drawn at runtime through
 Obsidian's `setIcon()`. Lucide is licensed under the ISC License by Lucide

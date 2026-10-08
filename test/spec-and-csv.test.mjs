@@ -118,10 +118,7 @@ test('the index finds databases, skips sidecars and the folders nobody means', (
   ]);
 });
 
-test('result shaping: sqlite3 -json text and sql.js results become one table shape', () => {
-  const cli = lib.cliTable('[{"a":1,"b":"x"},{"a":2,"b":null}]\n');
-  assert.deepEqual(unwrap(cli), { columns: ['a', 'b'], rows: [[1, 'x'], [2, null]] });
-  assert.deepEqual(unwrap(lib.cliTable('')), { columns: [], rows: [] }, 'zero rows print nothing at all');
+test("result shaping: sql.js results become one table shape", () => {
   const wasm = lib.wasmTable([{ columns: ['a'], values: [[1], [2]] }]);
   assert.deepEqual(unwrap(wasm), { columns: ['a'], rows: [[1], [2]] });
   assert.deepEqual(unwrap(lib.wasmTable([])), { columns: [], rows: [] });

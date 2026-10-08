@@ -151,7 +151,7 @@ export function loadPlugin({ desktop = true, sourceOverride = null, globals = {}
     createElementNS: (ns, tag) => makeEl(tag),
   };
   const sandbox = {
-    require: (name) => (name === 'obsidian' ? obsidian : nodeRequire(name)),
+    require: (name) => (name === 'obsidian' ? obsidian : (sandbox.requireHook ? sandbox.requireHook(name) : nodeRequire(name))),
     module: { exports: {} },
     document: doc,
     window: { setTimeout, clearTimeout },

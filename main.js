@@ -13,23 +13,20 @@
  * a database, by design and by a tested gate.
  *
  * THE ONE RULE: read, never write. Enforced twice. Every database is opened
- * read-only (the `-readonly` flag plus a `mode=ro` file URI on the desktop,
- * an in-memory copy on mobile), and every statement passes a gate first:
+ * read-only (the engine works on an in-memory copy, which cannot reach the
+ * original file at all), and every statement passes a gate first:
  * exactly one statement, starting with SELECT, WITH, PRAGMA or EXPLAIN,
  * with ATTACH refused outright. The gate lives in the pure library and is
  * measured in test/gate.test.mjs.
  *
- * Two engines, chosen per database:
+ * One engine, on every device:
  *
- *   ENGINE A (desktop): the system `sqlite3` command line tool, one process
- *   per query, results as JSON. This is how a 6 GB database answers in
- *   milliseconds: the file is never loaded, the indexes do the work. The
- *   SQL travels as an argument to execFile, never through a shell.
- *
- *   ENGINE B (mobile, and desktop fallback): sql.js, a WebAssembly build of
- *   SQLite vendored into the plugin folder. It loads the whole file into
- *   memory, so a size cap (default 200 MB) guards it, with a plain
- *   explanation when a database is over the cap.
+ *   sql.js, a WebAssembly build of SQLite
+ *   vendored into the plugin (pinned in THIRD-PARTY-NOTICES.md). It loads
+ *   the whole file into memory, so a size cap guards it (200 MB on a phone,
+ *   1500 MB on a desktop, never above 2000 MB, the most a file read can
+ *   return), with a plain explanation when a database is over the cap.
+ *   ReadOut starts no program and opens no file outside Obsidian.
  *
  * Databases over the cap still reach the phone through the DASHBOARD CACHE:
  * when a dashboard renders on the desktop, its query results are written as
@@ -43,11 +40,7 @@
  *      the browser, CSV export, dashboard spec parsing, migration planning,
  *      chart scales. No Obsidian, no fs. Exposed as
  *      `ReadOutPlugin.lib` for the gates.
- *   2. The engines: the sqlite3 process runner and the sql.js loader. Every
- *      child_process and path handle arrives through a `deps` object built
- *      inside a function behind `Platform.isDesktopApp`, so the module
- *      loads clean on a phone and the gates can hand in a fake process
- *      runner and watch the arguments.
+ *   2. The engine: the sql.js loader, with the query gate in front of it.
  *   3. The Obsidian surface: the database browser view, the dashboards
  *      view, the database index, the settings tab and the migration modal.
  *
@@ -67,6 +60,11 @@ const {
 /* ------------------------------------------------------------ constants -- */
 
 const MB = 1024 * 1024;
+/* The built-in engine's size cap: 200 MB where memory is tight, 1500 MB on a
+ * desktop, and never more than 2000 MB, the most a single file read returns. */
+const PHONE_CAP_MB = 200;
+const DESKTOP_CAP_MB = 1500;
+const MAX_CAP_MB = 2000;
 const DB_EXTS = new Set(['db', 'sqlite', 'sqlite3']);
 const SIDECAR_RE = /\.(db|sqlite|sqlite3)-(wal|shm)$/i;
 /* Folders nobody means, besides the vault's own config folder (which the
@@ -100,7 +98,6 @@ const VIEW_JSON = 'readout-json';
 /* A JSON file bigger than this is shown in part, never fully rendered. */
 const JSON_RENDER_CAP = 2 * MB;
 const JSON_SLICE = 200 * 1024;
-const CLI_MAX_BUFFER = 64 * MB;
 /* Every SQLite database starts with these 16 bytes. A file with a
  * database-style name that does not (a Thumbs.db, a renamed text file) is
  * told apart before an engine is asked, so it reaches a member as a plain
@@ -221,12 +218,10 @@ function folderDefaultsFor(isIcorVault) {
 const DEFAULT_SETTINGS = {
   pageSize: 50,
   rowCap: 500,
-  queryTimeoutSec: 30,
-  mobileCapMb: 200,
+  mobileCapMb: Platform.isDesktopApp ? DESKTOP_CAP_MB : PHONE_CAP_MB,
   dashboardFolder: PLAIN_FOLDERS.dashboardFolder,
   cacheFolder: PLAIN_FOLDERS.cacheFolder,
   dataFolder: PLAIN_FOLDERS.dataFolder,
-  sqlite3Path: '',
   /* The mobile catalog carries structure only unless this is on. */
   catalogIncludeValues: false,
   /* Off until the member turns it on: ReadOut then opens .json files in its
@@ -485,17 +480,6 @@ function applyRowCap(sql, cap) {
 }
 
 /* ------------------------------------------------------- result shaping -- */
-
-/* `sqlite3 -json` prints an array of objects, or nothing at all for zero
- * rows. Key order follows column order, which JSON.parse preserves. */
-function cliTable(stdout) {
-  const text = String(stdout || '').trim();
-  if (text === '') return { columns: [], rows: [] };
-  const parsed = JSON.parse(text);
-  if (!Array.isArray(parsed) || parsed.length === 0) return { columns: [], rows: [] };
-  const columns = Object.keys(parsed[0]);
-  return { columns, rows: parsed.map((o) => columns.map((c) => o[c])) };
-}
 
 /* sql.js `exec` returns [{ columns, values }], or [] for zero rows. */
 function wasmTable(result) {
@@ -3142,18 +3126,6 @@ function safeLogLine(context, e) {
   return 'ReadOut: ' + context + ' (' + ((e && e.name) || 'Error') + ')';
 }
 
-/* The sqlite3 path setting runs whatever it points to, so its shape is
- * checked before it is saved: absolute, and the file name says sqlite3. */
-function checkSqlite3Path(path) {
-  const p = String(path || '').trim();
-  if (!p) return { ok: true, empty: true };
-  const absolute = p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p);
-  if (!absolute) return { ok: false, reason: 'Use a full path, for example /usr/bin/sqlite3.' };
-  const base = p.split(/[\\/]/).pop().toLowerCase();
-  if (!base.includes('sqlite3')) return { ok: false, reason: 'The file name should contain sqlite3. The plugin runs whatever this points to, so it only accepts a binary that at least says it is sqlite3.' };
-  return { ok: true, path: p };
-}
-
 /* --------------------------------------------------- comparison rules -- */
 
 const COMPARE_LABELS = { none: 'No comparison', previous: 'Previous period', last_year: 'Same period last year' };
@@ -3595,99 +3567,7 @@ function sizePresetOf(layout) {
  * 2. THE ENGINES
  * ====================================================================== */
 
-/* Every Node handle the desktop engine needs, gathered in one place behind
- * the platform check, so the module loads clean on a phone and the gates
- * can hand in fakes. */
-function makeDesktopDeps() {
-  if (!Platform.isDesktopApp) return null;
-  return {
-    childProcess: require('child_process'),
-    pathx: require('path'),
-    fsx: require('fs'),
-  };
-}
-
-/* SQLite accepts a file: URI; percent, question mark and hash are the only
- * characters that would change its meaning, so only those are encoded. */
-function dbFileUri(absPath) {
-  return 'file:' + String(absPath).replace(/[%?#]/g, (c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')) + '?mode=ro';
-}
-
-function cliVersionAtLeast(version, min) {
-  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(version));
-  if (!m) return false;
-  for (let i = 0; i < 3; i++) {
-    const v = Number(m[i + 1]);
-    if (v !== min[i]) return v > min[i];
-  }
-  return true;
-}
-
-function detectCli(deps, bin) {
-  return new Promise((resolve) => {
-    let done = false;
-    try {
-      deps.childProcess.execFile(bin || 'sqlite3', ['--version'], { timeout: 5000 }, (err, stdout) => {
-        if (done) return;
-        done = true;
-        if (err) resolve({ ok: false, reason: 'The sqlite3 command line tool was not found.' });
-        else {
-          const version = String(stdout).trim().split(' ')[0];
-          /* `-safe` (no file, shell or code functions) arrived in 3.37.0. An
-           * older program cannot be made safe, so it is not used: the
-           * built-in engine answers instead. */
-          if (!cliVersionAtLeast(version, [3, 37, 0])) {
-            resolve({ ok: false, version, reason: 'The sqlite3 command line tool is older than 3.37.0 and has no safe mode, so the built-in engine is used instead.' });
-          } else {
-            resolve({ ok: true, version });
-          }
-        }
-      });
-    } catch (e) {
-      if (!done) { done = true; resolve({ ok: false, reason: 'The sqlite3 command line tool was not found.' }); }
-    }
-  });
-}
-
-/* ENGINE A: one sqlite3 process per query. The SQL is an argument, never a
- * shell string. `-safe` comes first: the program then refuses its file,
- * shell and code-loading commands and functions (detectCli only accepts a
- * version that has it; the gate also names what -safe leaves). Read-only twice over: the -readonly flag and mode=ro in the
- * URI. A busy timeout retries for a few seconds when another app is
- * writing to the database at that moment (live gate: the engagement loop
- * held a write lock and every tile failed with "database is locked").
- * A query that runs too long is killed, and says so in plain words. */
-function cliQuery(deps, { bin, absPath, sql, timeoutMs, maxBuffer }) {
-  return new Promise((resolve, reject) => {
-    const args = ['-safe', '-readonly', '-json', '-cmd', '.timeout 5000', dbFileUri(absPath), sql];
-    deps.childProcess.execFile(
-      bin || 'sqlite3',
-      args,
-      { timeout: timeoutMs || 30000, maxBuffer: maxBuffer || CLI_MAX_BUFFER, killSignal: 'SIGKILL', windowsHide: true },
-      (err, stdout, stderr) => {
-        if (err) {
-          if (err.killed) {
-            reject(new Error('The query was stopped after ' + Math.round((timeoutMs || 30000) / 1000) + ' seconds. Narrow it down, for example with a date range or a LIMIT.'));
-            return;
-          }
-          let detail = String(stderr || err.message || '').trim().replace(/^Error:\s*/i, '');
-          if (/database is locked|database table is locked/i.test(detail)) {
-            detail += '. Another app is writing to this database right now; try again in a moment.';
-          }
-          reject(new Error(detail || 'The query failed.'));
-          return;
-        }
-        try {
-          resolve(cliTable(stdout));
-        } catch (e) {
-          reject(new Error('The result could not be read as JSON. ' + e.message));
-        }
-      }
-    );
-  });
-}
-
-/* ENGINE B: sql.js. The whole database file is loaded into memory, so the
+/* The engine: sql.js. The whole database file is loaded into memory, so the
  * caller checks the size cap first. The wasm module loads once per session;
  * an open database is kept until the file on disk changes. */
 class WasmEngine {
@@ -3765,26 +3645,14 @@ class WasmEngine {
 
 /* The one place a query happens. Gate first, cap second, engine third. */
 class QueryService {
-  constructor(plugin, deps) {
+  constructor(plugin) {
     this.plugin = plugin;
-    this.deps = deps === undefined ? makeDesktopDeps() : deps;
-    this.cli = null; /* { ok, version | reason } after detect() */
     this.wasm = new WasmEngine(plugin);
-    /* dbPath -> "mtime:size" of the last file the desktop header check passed. */
-    this.headerOk = new Map();
   }
-
-  async detect() {
-    if (!this.deps) { this.cli = { ok: false, reason: 'Not on a desktop.' }; return this.cli; }
-    this.cli = await detectCli(this.deps, this.plugin.settings.sqlite3Path || 'sqlite3');
-    return this.cli;
-  }
-
-  cliReady() { return !!(this.deps && this.cli && this.cli.ok); }
 
   /* THE PATH GUARD. A database path is untrusted text (a console box, a
-   * dashboard file, a note block), and the desktop engine turns it into an
-   * absolute path on the computer. So the only paths that pass are real
+   * dashboard file, a note block), and it is handed to the vault to read.
+   * So the only paths that pass are real
    * vault files: no `..` segment, no absolute path or drive letter, nothing
    * inside a dot folder or the vault's config folder, and the vault itself
    * must know a file there. Returns a plain reason, or null when it is fine. */
@@ -3815,49 +3683,17 @@ class QueryService {
     const adapter = this.plugin.app.vault.adapter;
     const stat = await adapter.stat(dbPath);
     if (!stat) return { engine: null, reason: 'The database file was not found at ' + dbPath + '.' };
-    if (this.cliReady()) return { engine: 'cli', size: stat.size, mtime: stat.mtime };
-    const capBytes = this.plugin.settings.mobileCapMb * MB;
-    if (stat.size <= capBytes) return { engine: 'wasm', size: stat.size };
-    const where = this.deps
-      ? 'The sqlite3 command line tool was not found, and this database is too big to load into memory'
-      : 'This database is too big to load into memory on this device';
-    return {
-      engine: null,
-      size: stat.size,
-      reason: where + ' (' + formatBytes(stat.size) + ', the cap is ' + this.plugin.settings.mobileCapMb + ' MB). Dashboards for it still work from the desktop cache.',
-    };
-  }
-
-  /* The desktop engine opens the file by path and has the bytes nowhere, so
-   * its first 16 are read here, once per version of the file. A fake or odd
-   * setup with no file system handle is not judged; the engine then speaks
-   * for itself. The other engine checks the bytes it loads. */
-  checkHeader(dbPath, choice) {
-    const fsx = this.deps && this.deps.fsx;
-    if (!fsx || !choice.size) return;
-    const key = choice.mtime + ':' + choice.size;
-    if (this.headerOk.get(dbPath) === key) return;
-    let head = null;
-    try {
-      const fd = fsx.openSync(this.absPathOf(dbPath), 'r');
-      try {
-        head = new Uint8Array(SQLITE_MAGIC.length);
-        const n = fsx.readSync(fd, head, 0, head.length, 0);
-        head = head.subarray(0, n);
-      } finally {
-        fsx.closeSync(fd);
-      }
-    } catch (e) {
-      return;
+    const capMb = this.plugin.settings.mobileCapMb;
+    if (stat.size <= capMb * MB) return { engine: 'wasm', size: stat.size };
+    let reason;
+    if (!Platform.isDesktopApp) {
+      reason = 'This database is too big to load into memory on this device (' + formatBytes(stat.size) + ', the cap is ' + capMb + ' MB). Dashboards for it still work from the desktop cache.';
+    } else if (stat.size > MAX_CAP_MB * MB) {
+      reason = 'This database is too big for ReadOut to open (' + formatBytes(stat.size) + '; the most it can load is ' + MAX_CAP_MB + ' MB). Dashboards for it still work from the cache the desktop wrote before, if there is one.';
+    } else {
+      reason = 'This database is too big for the size cap (' + formatBytes(stat.size) + ', the cap is ' + capMb + ' MB). Raise "Size cap for the built-in engine" in the ReadOut settings to open it, up to ' + MAX_CAP_MB + ' MB; while it loads it needs roughly three times the file size in free memory.';
     }
-    if (!hasSqliteHeader(head)) throw notSqliteError();
-    this.headerOk.set(dbPath, key);
-  }
-
-  absPathOf(dbPath) {
-    const adapter = this.plugin.app.vault.adapter;
-    if (typeof adapter.getBasePath !== 'function') throw new Error('No file system path on this device.');
-    return this.deps.pathx.join(adapter.getBasePath(), ...dbPath.split('/'));
+    return { engine: null, size: stat.size, tooBig: true, reason };
   }
 
   /* Run one read-only statement. `cap` adds a LIMIT to an uncapped SELECT;
@@ -3875,18 +3711,7 @@ class QueryService {
     const choice = await this.engineFor(dbPath);
     if (!choice.engine) throw new Error(choice.reason);
     const t0 = Date.now();
-    let table;
-    if (choice.engine === 'cli') {
-      this.checkHeader(dbPath, choice);
-      table = await cliQuery(this.deps, {
-        bin: this.plugin.settings.sqlite3Path || 'sqlite3',
-        absPath: this.absPathOf(dbPath),
-        sql: finalSql,
-        timeoutMs: this.plugin.settings.queryTimeoutSec * 1000,
-      });
-    } else {
-      table = await this.wasm.query(dbPath, finalSql);
-    }
+    const table = await this.wasm.query(dbPath, finalSql);
     return { columns: table.columns, rows: table.rows, ms: Date.now() - t0, engine: choice.engine, capped };
   }
 }
@@ -5061,12 +4886,12 @@ class SqliteBrowserView extends FileView {
     header.createSpan({ cls: 'icor-sqlv-header-name', text: baseName(this.dbPath) });
     const sub = [];
     if (this.engineInfo && this.engineInfo.size !== undefined) sub.push(formatBytes(this.engineInfo.size));
-    if (this.engineInfo && this.engineInfo.engine === 'cli') sub.push('read-only, sqlite3');
     if (this.engineInfo && this.engineInfo.engine === 'wasm') sub.push('read-only, in memory');
     header.createSpan({ cls: 'icor-sqlv-header-sub', text: sub.join(' · ') });
 
     if (!this.engineInfo || !this.engineInfo.engine) {
-      root.createDiv({ cls: 'icor-sqlv-error', text: (this.engineInfo && this.engineInfo.reason) || 'This database cannot be opened here.' });
+      const info = this.engineInfo;
+      root.createDiv({ cls: info && info.tooBig ? 'icor-sqlv-note' : 'icor-sqlv-error', text: (info && info.reason) || 'This database cannot be opened here.' });
       return;
     }
 
@@ -8190,13 +8015,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    const engineLine = () => {
-      if (!Platform.isDesktopApp) return 'On this device the plugin reads databases with its built-in engine, up to the size cap below.';
-      const cli = this.plugin.query.cli;
-      if (cli && cli.ok) return 'The sqlite3 command line tool was found (version ' + cli.version + '). Big databases work at full speed.';
-      return 'The sqlite3 command line tool was not found. Databases up to the size cap below still work with the built-in engine. On macOS sqlite3 ships with the system; set the path below if it lives somewhere unusual.';
-    };
-    containerEl.createDiv({ cls: 'icor-sqlv-note', text: engineLine() });
+    containerEl.createDiv({ cls: 'icor-sqlv-note', text: 'ReadOut reads every database with its built-in engine, on every device. It starts no other program. The engine loads the whole file into memory, up to the size cap below.' });
 
     new Setting(containerEl)
       .setName('Rows per page')
@@ -8208,10 +8027,10 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Size cap for the built-in engine (MB)')
-      .setDesc('The built-in engine loads the whole database file into memory. Files over this cap are not loaded; their dashboards render from the desktop cache instead.')
+      .setDesc('The built-in engine loads the whole database file into memory, and needs roughly three times the file size in free memory while it does. Files over this cap are not loaded; their dashboards render from the cache the desktop wrote instead. The most ReadOut can load is ' + MAX_CAP_MB + ' MB. The default is ' + DESKTOP_CAP_MB + ' MB on a desktop and ' + PHONE_CAP_MB + ' MB on a phone or tablet.')
       .addText((t) => t.setValue(String(this.plugin.settings.mobileCapMb)).onChange(async (v) => {
         const n = parseInt(v, 10);
-        if (Number.isFinite(n) && n >= 1 && n <= 4000) { this.plugin.settings.mobileCapMb = n; await this.plugin.saveSettings(); }
+        if (Number.isFinite(n) && n >= 1 && n <= MAX_CAP_MB) { this.plugin.settings.mobileCapMb = n; await this.plugin.saveSettings(); }
       }));
 
     new Setting(containerEl)
@@ -8229,34 +8048,6 @@ class SqliteViewerSettingTab extends PluginSettingTab {
         this.plugin.settings.cacheFolder = normalizePath(v || DEFAULT_SETTINGS.cacheFolder);
         await this.plugin.saveSettings();
       }));
-
-    if (Platform.isDesktopApp) {
-      new Setting(containerEl)
-        .setName('Path to sqlite3')
-        .setDesc('Leave empty to use the system sqlite3. Set a full path if yours lives somewhere unusual. Careful: the plugin runs whatever this points to, so only point it at a sqlite3 binary you trust.')
-        .addText((t) => t.setValue(this.plugin.settings.sqlite3Path).onChange(async (v) => {
-          const check = checkSqlite3Path(v);
-          if (!check.ok) { new Notice(check.reason); return; }
-          if (!check.empty) {
-            const deps = this.plugin.query.deps;
-            if (deps && deps.fsx && !deps.fsx.existsSync(check.path)) {
-              new Notice('Nothing exists at that path. The setting was not saved.');
-              return;
-            }
-          }
-          this.plugin.settings.sqlite3Path = check.empty ? '' : check.path;
-          await this.plugin.saveSettings();
-          await this.plugin.query.detect();
-        }));
-
-      new Setting(containerEl)
-        .setName('Query timeout (seconds)')
-        .setDesc('A query that runs longer than this is stopped.')
-        .addText((t) => t.setValue(String(this.plugin.settings.queryTimeoutSec)).onChange(async (v) => {
-          const n = parseInt(v, 10);
-          if (Number.isFinite(n) && n >= 1 && n <= 600) { this.plugin.settings.queryTimeoutSec = n; await this.plugin.saveSettings(); }
-        }));
-    }
 
     new Setting(containerEl)
       .setName('Include category values in the mobile catalog')
@@ -9286,23 +9077,19 @@ newest text; it is written again on the next load or on "New dashboard".
 3. **No ATTACH.** ATTACH and DETACH are refused. A query cannot join two
    database files; if the data is in two files, it is two dashboards, or a
    built widget with its own \`source.database\`.
-4. **The query must run in the plugin's engine.** On the desktop the
-   plugin uses the sqlite3 command-line tool when it is installed (read-only,
-   whatever version is on that computer); otherwise, and on phones and
-   tablets, its built-in engine, sql.js 1.13.0 (SQLite compiled to
+4. **The query must run in the plugin's engine.** On every device the
+   plugin uses its built-in engine, sql.js 1.13.0 (SQLite compiled to
    WebAssembly), which loads the whole database into memory up to the
-   setting "Size cap for the built-in engine (MB)" (200 by default). Write
-   plain SQLite that both run. Do not rely on a loadable extension or a
-   function only a very new SQLite has. Test with the plugin's own engine,
-   not only with another tool (see the procedure).
+   setting "Size cap for the built-in engine (MB)" (1500 by default on a
+   desktop, 200 on a phone or tablet). Write plain SQLite. Do not rely on a
+   loadable extension or a function only a very new SQLite has. Test with
+   the plugin's own engine, not only with another tool (see the procedure).
 5. **Row cap.** A widget on a dashboard gets at most 5,000 rows (the panel's
    preview 500): a query without a LIMIT gets one added. Aggregate in SQL
    (GROUP BY a day or a week) instead of returning raw rows.
-6. **Timeouts.** With the sqlite3 tool, a query that runs longer than the
-   setting "Query timeout (seconds)" (30 by default) is stopped. The
-   built-in engine has no timeout and blocks while it works, so a slow
-   query freezes the view. Keep every query fast: filter early, use indexed
-   columns, avoid correlated subqueries over big tables.
+6. **Timeouts.** The built-in engine has no timeout and blocks while it
+   works, so a slow query freezes the view. Keep every query fast: filter
+   early, use indexed columns, avoid correlated subqueries over big tables.
 7. **Window from the newest data row, not from "now".** Data often lags
    (a sync that runs nightly, a device that uploads late). A window written
    as \`date('now', '-30 day')\` empties the chart when the data is a few
@@ -9960,7 +9747,7 @@ A prompt to give an agent:
  * refreshed. */
 const GUIDE_FILES = [
   { file: 'README.md', text: DASHBOARD_README, revision: 9, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 10, legacy: [] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 11, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -10326,7 +10113,6 @@ class ReadOutPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
     this.query = new QueryService(this);
-    this.query.detect();
 
     /* The help file's live samples (see WIDGET_SAMPLES), and a widget of a
      * dashboard, or one written out, inside any note. Obsidian throws when
@@ -10904,7 +10690,7 @@ ReadOutPlugin.lib = {
   checkTileNotes,
   extOf, baseName, stemOf, formatBytes, formatNumber, relativeTime,
   stripSqlNoise, gateStatement, applyRowCap,
-  cliTable, wasmTable, toCsv,
+  wasmTable, toCsv,
   quoteIdent, quoteLiteral, filterClause, buildBrowseQuery, buildCountQuery,
   isSidecarPath, isDbPath, isSkippedPath, findDatabases,
   parseDashboardSpec, cachePathFor, dashCachePath, catalogPathFor, planMigration,
@@ -10923,8 +10709,8 @@ ReadOutPlugin.lib = {
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
   rowTracks, rowsForOffset, DIVIDER_ROW_PX, renderDivider,
   detectIcorScaffold, folderDefaultsFor, PLAIN_FOLDERS, ICOR_FOLDERS,
-  shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, checkSqlite3Path, READ_PRAGMAS, READ_PRAGMA_FUNCS,
-  dbFileUri, detectCli, cliQuery, executeMigration, ensureFolder,
+  shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, READ_PRAGMAS, READ_PRAGMA_FUNCS,
+  executeMigration, ensureFolder,
   bytesOfB64, EMBEDDED_SQL_WASM_B64,
   DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,

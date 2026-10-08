@@ -118,18 +118,6 @@ test('L2: the console line carries the place and the error class, never the mess
   assert.equal(lib.safeLogLine('x', null), 'ReadOut: x (Error)');
 });
 
-/* --------------------------------------------- L3: the sqlite3 path rule -- */
-
-test('L3: the sqlite3 path must be absolute and named like sqlite3; empty clears it', () => {
-  assert.equal(lib.checkSqlite3Path('').ok, true);
-  assert.equal(lib.checkSqlite3Path('  ').empty, true);
-  assert.equal(lib.checkSqlite3Path('/opt/homebrew/bin/sqlite3').ok, true);
-  assert.equal(lib.checkSqlite3Path('C:\\tools\\sqlite3.exe').ok, true);
-  assert.match(lib.checkSqlite3Path('sqlite3').reason, /full path/);
-  assert.match(lib.checkSqlite3Path('/usr/bin/python3').reason, /sqlite3/);
-  assert.match(lib.checkSqlite3Path('/tmp/evil').reason, /sqlite3/);
-});
-
 /* ------------------------------------------------- L1: the .json setting -- */
 
 test('L1: the .json claim rides its setting; the database extensions never do', async () => {

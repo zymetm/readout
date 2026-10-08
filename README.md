@@ -5,8 +5,8 @@
 ReadOut opens the SQLite files that live next to your notes: browse the
 tables, run your own read-only queries, and keep charts, tables and big
 numbers as dashboards you can open again. It is read-only, so it cannot
-change your data. A multi-gigabyte database answers in milliseconds on the
-desktop, and your phone shows the same dashboards.
+change your data. Databases up to about a gigabyte open on the desktop, and
+your phone shows the same dashboards.
 
 ReadOut is forked from the
 [ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
@@ -530,24 +530,13 @@ it is for.
 - **The clipboard.** Only when you press a copy button (copy a result as CSV, copy a
   dashboard as text), ReadOut puts that text on the clipboard. It never reads the
   clipboard.
-<!-- helper -->
-- **An optional `sqlite3` helper (desktop only, off by default).** The built-in
-  engine loads the whole database file into memory, so it has a size cap. For
-  a bigger file on a desktop, you can switch on "Use the sqlite3 program for
-  large databases (desktop only)" in the settings. ReadOut then runs the
-  `sqlite3` program installed on your computer, one short-lived process per
-  query, with the SQL and the database path passed as plain arguments, never
-  through a shell. It reads only databases inside the vault, read-only, in
-  `sqlite3`'s safe mode (`-safe`, version 3.37.0 or newer). The scan flags this
-  as "shell execution" and "file system access" because that is the kind of
-  code it is. While the setting is off, ReadOut starts no program and loads
-  none of that code. If the program is missing or older than 3.37.0, ReadOut
-  says so and uses the built-in engine.
-<!-- /helper -->
-
-Without the helper, and always on a phone or tablet, the engine is the SQLite
-build embedded in ReadOut (sql.js, WebAssembly), working on a copy of the file
-in memory.
+- **No other program and no outside files.** ReadOut starts no program and uses
+  no file access outside Obsidian's own vault API. On every device the engine
+  is the SQLite build embedded in ReadOut (sql.js, WebAssembly), working on a
+  copy of the file in memory. That is why there is a size cap: 1500 MB on a
+  desktop, 200 MB on a phone or tablet, and never above 2000 MB (set it under
+  "Size cap for the built-in engine" in the settings). While a big file loads
+  it needs roughly three times its size in free memory.
 
 ## Good to know
 
