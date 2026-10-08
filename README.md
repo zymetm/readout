@@ -509,29 +509,45 @@ column where a heatmap reads a row and a column.
 - Written text runs no query on any device.
 <!-- /field reference -->
 
-## What it touches
+## What ReadOut can access, and why
 
-- **Reads database files in your vault.** Read-only, always. It never writes
-  to your databases, and it cannot alter your data.
-- **Writes the dashboards you save**, as ordinary files in your vault, and the
-  small caches that let a phone show them.
-- **Writes two guides into the dashboards folder** (`README.md` and
-  `AI-WIDGET-GUIDE.md`) only when you ask, and replaces an existing copy only
-  while it is still its own unedited text.
-- **Writes nothing else on its own.** Starting ReadOut creates no folder and
-  no file in your vault.
+ReadOut makes **no network connection and downloads nothing.** Obsidian's
+community-plugin scan lists a few kinds of access; here is each one, and what
+it is for.
 
-**It makes no network connection and downloads nothing.** On the desktop it
-runs the `sqlite3` program if one is installed, in its safe mode (`-safe`,
-version 3.37.0 or newer, with the functions that read or write files and load
-code refused as well), one short-lived process per query, with the SQL and the
-database path passed as plain arguments and never through a shell. Where there
-is no suitable `sqlite3` program, and always on a phone or tablet, the engine
-is the SQLite build embedded in ReadOut (sql.js, WebAssembly), which loads a
-copy of the file in memory. Nothing else is started.
+- **Listing the files in your vault.** ReadOut looks through the vault's file
+  list to find the databases (files ending in `.db`, `.sqlite` or
+  `.sqlite3`), so it can offer them to you. It reads no note and no other file
+  to do this.
+- **Reading and writing inside your vault.** It reads the databases you open,
+  read-only; it can never change them. It writes only its own files, as
+  ordinary files in your vault: the dashboards you save, the small caches that
+  let a phone show them, and the two guides (`README.md` and
+  `AI-WIDGET-GUIDE.md`) in the dashboards folder, and only when you ask. It
+  creates no folder and no file just by starting. A database path must be a
+  real file inside the vault: a path with `..`, an absolute path, or one inside
+  a hidden or configuration folder is refused.
+- **The clipboard.** Only when you press a copy button (copy a result as CSV, copy a
+  dashboard as text), ReadOut puts that text on the clipboard. It never reads the
+  clipboard.
+<!-- helper -->
+- **An optional `sqlite3` helper (desktop only, off by default).** The built-in
+  engine loads the whole database file into memory, so it has a size cap. For
+  a bigger file on a desktop, you can switch on "Use the sqlite3 program for
+  large databases (desktop only)" in the settings. ReadOut then runs the
+  `sqlite3` program installed on your computer, one short-lived process per
+  query, with the SQL and the database path passed as plain arguments, never
+  through a shell. It reads only databases inside the vault, read-only, in
+  `sqlite3`'s safe mode (`-safe`, version 3.37.0 or newer). The scan flags this
+  as "shell execution" and "file system access" because that is the kind of
+  code it is. While the setting is off, ReadOut starts no program and loads
+  none of that code. If the program is missing or older than 3.37.0, ReadOut
+  says so and uses the built-in engine.
+<!-- /helper -->
 
-A database path must be a real file inside the vault: a path with `..`, an
-absolute path, or one inside a hidden or configuration folder is refused.
+Without the helper, and always on a phone or tablet, the engine is the SQLite
+build embedded in ReadOut (sql.js, WebAssembly), working on a copy of the file
+in memory.
 
 ## Good to know
 

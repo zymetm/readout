@@ -58,14 +58,17 @@ EXPLAIN; ATTACH refused; write verbs (INSERT, UPDATE, DELETE, REPLACE,
 CREATE, DROP, ALTER, VACUUM, REINDEX, ANALYZE) refused wherever they
 appear as statement verbs, including behind a WITH clause; and PRAGMA
 limited to a read-only introspection allowlist, with every assignment
-form refused. On the desktop the database is then opened by the system
+form refused. On the desktop, only if the member switched on the optional sqlite3 helper
+(off by default), the database is opened by the system
 `sqlite3` tool in safe mode (`-safe`, so version 3.37.0 or newer; an older
 program is not used) with the `-readonly` flag AND a `mode=ro` file URI;
-elsewhere by the bundled sql.js engine on an in-memory copy of the file,
+otherwise by the bundled sql.js engine on an in-memory copy of the file,
 which cannot reach the original at all. The gate is the first test in
 the repo, and the tests include mutation runs that watched it fail.
 
-**Processes.** On the desktop the plugin runs `sqlite3` with a fixed
+**Processes.** Only when the optional sqlite3 helper is switched on (desktop,
+off by default; with it off the plugin starts no process and loads no Node
+module), the plugin runs `sqlite3` with a fixed
 argument list; the SQL and the database path travel as arguments, never
 through a shell. A query is killed after the configured timeout. No other
 process is started. The statement gate also refuses the names readfile,
