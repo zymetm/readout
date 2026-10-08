@@ -1970,7 +1970,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-bullet-rows {
   display: grid;
-  grid-template-columns: fit-content(30%) minmax(0, 1fr) max-content;
+  grid-template-columns: fit-content(45%) minmax(0, 1fr) max-content;
   align-content: start;
   align-items: center;
   gap: var(--sqlv-s3);
@@ -1992,7 +1992,17 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   white-space: nowrap;
 }
 
-.icor-sqlv-bullet-label { overflow: hidden; text-overflow: ellipsis; }
+/* The label column is as wide as the longest label, up to 45% of the tile;
+ * a longer label wraps to a second line, and only a third line is cut. */
+.icor-sqlv-bullet-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+}
 
 .icor-sqlv-bullet-value { font-variant-numeric: tabular-nums; }
 

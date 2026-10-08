@@ -3941,7 +3941,7 @@ function drawAxes(svg, L, xLabels, xOf) {
 
 function shortXLabel(v) {
   const s = String(v === null || v === undefined ? '' : v);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(5) : (s.length > 10 ? s.slice(0, 10) : s);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.slice(5) : s;
 }
 
 function legendFor(parentEl, names, palette, guides) {

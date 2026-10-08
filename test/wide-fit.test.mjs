@@ -58,3 +58,28 @@ test('every legend name carries its full text as a tooltip', () => {
   assert.equal(names[0].getAttribute('title'), 'Never played, not even once');
   assert.equal(names[1].getAttribute('title'), 'Played');
 });
+
+/* -------------------------------- 2. bullet labels and x axis labels -- */
+
+test('a bullet label column is as wide as the longest label, up to 45% of the tile', () => {
+  assert.match(rule('.icor-sqlv-bullet-rows'), /grid-template-columns:\s*fit-content\(45%\)/);
+});
+
+test('a long bullet label wraps to two lines before it is cut', () => {
+  const body = rule('.icor-sqlv-bullet-label');
+  assert.match(body, /white-space:\s*normal/);
+  assert.match(body, /-webkit-line-clamp:\s*2/);
+});
+
+test('an x axis label is never sliced: it is drawn whole or not at all', () => {
+  const labels = ['before 2015', '2015', '2016', '2017'];
+  const L = lib.chartLayout(600, 260, 0, 30, true);
+  const plan = lib.xLabelPlan(L, labels, (i) => L.left + (i / 3) * L.plotW);
+  assert.ok(plan.length >= 1);
+  assert.equal(plan[0].text, 'before 2015');
+  const longOnes = ['A rather long category name', 'Another long category name', 'Third long category name'];
+  const narrow = lib.chartLayout(300, 200, 0, 30, true);
+  for (const p of lib.xLabelPlan(narrow, longOnes, (i) => narrow.left + (i / 2) * narrow.plotW)) {
+    assert.ok(longOnes.includes(p.text), 'drawn whole: ' + p.text);
+  }
+});
