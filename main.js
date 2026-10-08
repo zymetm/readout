@@ -4953,6 +4953,7 @@ class SqliteBrowserView extends FileView {
   render() {
     const root = this.contentEl;
     root.empty();
+    this.guideUi = null;
     root.addClass('icor-sqlv-root');
     /* INKLINE's plugin-owned control boundary: inside a subtree carrying
      * data-ink-plugin the theme's element-level input and button skins
@@ -5297,11 +5298,54 @@ class SqliteDashboardsView extends ItemView {
     const vault = this.app.vault;
     if (vault && typeof vault.on === 'function') {
       this.registerEvent(vault.on('modify', (file) => { this.onDashboardFileChanged(file).catch(() => {}); }));
+      /* The guide button follows the two guide files: gone, renamed or moved
+       * and it is active again. Registered with the view, so Obsidian
+       * removes the listeners when the view closes. */
+      const guideChanged = (file, oldPath) => { this.onGuidePathChanged(file, oldPath); };
+      this.registerEvent(vault.on('create', guideChanged));
+      this.registerEvent(vault.on('delete', guideChanged));
+      this.registerEvent(vault.on('rename', guideChanged));
     }
     try {
       await this.reload();
     } catch (e) {
       this.showFailure(e);
+    }
+  }
+
+  /* True when a vault event could change whether the two guide files are
+   * there: one of them, or the folder holding them (or a folder above it). */
+  guidePathMatters(path) {
+    if (typeof path !== 'string') return false;
+    const folder = this.plugin.settings.dashboardFolder;
+    if (path === folder || folder.startsWith(path + '/')) return true;
+    return GUIDE_FILES.some((g) => path === folder + '/' + g.file);
+  }
+
+  onGuidePathChanged(file, oldPath) {
+    if (!this.guideUi) return;
+    if (this.guidePathMatters(file && file.path) || this.guidePathMatters(oldPath)) this.refreshGuideButton().catch(() => {});
+  }
+
+  /* Both guide files in the dashboards folder: the button is greyed out and
+   * says why; if either is missing it is active again. The latest check wins. */
+  async refreshGuideButton() {
+    const ui = this.guideUi;
+    if (!ui) return;
+    const seq = (this.guideSeq = (this.guideSeq || 0) + 1);
+    const folder = this.plugin.settings.dashboardFolder;
+    const adapter = this.app.vault.adapter;
+    let done = true;
+    for (const g of GUIDE_FILES) {
+      try { if (!(await adapter.exists(folder + '/' + g.file))) done = false; } catch (e) { done = false; }
+    }
+    if (seq !== this.guideSeq || this.guideUi !== ui) return;
+    ui.button.disabled = done;
+    ui.note.empty();
+    if (done) {
+      ui.note.createDiv({ text: 'Guide files are in ' + folder });
+      const open = ui.note.createEl('button', { text: 'Open the AI guide' });
+      open.addEventListener('click', () => this.plugin.openGuideFile('AI-WIDGET-GUIDE.md'));
     }
   }
 
@@ -5391,17 +5435,19 @@ class SqliteDashboardsView extends ItemView {
       });
       const guides = empty.createEl('button', { text: 'Create Guide Files for Your AI Team' });
       const guideNote = empty.createDiv({ cls: 'icor-sqlv-guide-note' });
+      this.guideUi = { button: guides, note: guideNote };
       guides.addEventListener('click', async () => {
+        if (guides.disabled) return;
         const where = this.plugin.settings.dashboardFolder;
         const results = await this.plugin.writeGuideFilesWithNotice();
         const ok = results.some((r) => r.outcome !== 'failed');
-        guideNote.empty();
-        guideNote.createDiv({ text: ok ? 'The guide files are in ' + where + ': README.md says what each widget does, AI-WIDGET-GUIDE.md is for an AI assistant that builds widgets for you.' : 'The guide files could not be written to ' + where + '.' });
-        if (ok) {
-          const open = guideNote.createEl('button', { text: 'Open the AI guide' });
-          open.addEventListener('click', () => this.plugin.openGuideFile('AI-WIDGET-GUIDE.md'));
+        await this.refreshGuideButton();
+        if (!ok) {
+          guideNote.empty();
+          guideNote.createDiv({ text: 'The guide files could not be written to ' + where + '.' });
         }
       });
+      this.refreshGuideButton().catch(() => {});
       return;
     }
     const spec = this.specs.find((s) => s.id === this.activeId);
@@ -5462,6 +5508,7 @@ class SqliteDashboardsView extends ItemView {
   }
 
   async onClose() {
+    this.guideUi = null;
     if (this.gridRO) { this.gridRO.disconnect(); this.gridRO = null; }
     this.releaseTileObservers();
   }

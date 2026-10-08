@@ -135,13 +135,96 @@ test('the empty screen offers "Create Guide Files for Your AI Team": it writes b
   assert.ok(adapter.files.has(folder + '/README.md'), 'the help file is written');
   assert.ok(adapter.files.has(folder + '/AI-WIDGET-GUIDE.md'), 'the AI guide is written');
   assert.match(notices.slice(before).join(' '), new RegExp('Guide files in ' + folder));
-  assert.match(textOf(view.contentEl), new RegExp('The guide files are in ' + folder));
+  assert.match(textOf(view.contentEl), new RegExp('Guide files are in ' + folder));
   const open = button(view.contentEl, 'Open the AI guide');
   assert.ok(open, 'the screen offers to open the AI guide');
   for (const fn of open.handlers.click) await fn();
   assert.deepEqual(opened, [folder + '/AI-WIDGET-GUIDE.md']);
-  /* Pressed again, the guides already exist: it behaves like the command and still answers. */
+  /* Both guides exist now: the button is greyed out and a press does nothing. */
+  assert.equal(guides.disabled, true, 'the button goes inactive once both files exist');
   const again = notices.length;
   for (const fn of guides.handlers.click) await fn();
-  assert.match(notices.slice(again).join(' '), /already up to date/);
+  assert.equal(notices.length, again, 'a press on the inactive button writes nothing and says nothing');
+});
+
+/* A view over a vault that has events, so the guide button can be watched live. */
+async function makeEventView(initialFiles = {}) {
+  const adapter = makeFakeAdapter(initialFiles, { '07 Databases/engagement.db': new Uint8Array([1]) });
+  const { makePlugin, obsidian } = loadPlugin({ desktop: true });
+  const listeners = [];
+  const vault = {
+    ...makeFakeVault(adapter, obsidian.TFile),
+    on(name, fn) { const ref = { name, fn }; listeners.push(ref); return ref; },
+  };
+  const app = { vault, workspace: { onLayoutReady: () => {}, on: () => ({}), getLeaf: () => ({ openFile: async () => {} }) } };
+  const plugin = makePlugin(app);
+  await plugin.onload();
+  const view = plugin.viewFactories[VIEW_DASHBOARDS]({ app });
+  view.app = app;
+  plugin.query.cli = { ok: false, reason: 'gate' };
+  await view.onOpen();
+  await settle();
+  const folder = plugin.settings.dashboardFolder;
+  const button = () => [...walkEl(view.contentEl)].find((e) => e.tagName === 'BUTTON' && e.textContent === 'Create Guide Files for Your AI Team');
+  const fire = async (name, ...args) => { for (const l of listeners.filter((x) => x.name === name)) l.fn(...args); await settle(); };
+  return { adapter, view, folder, button, fire, listeners, obsidian };
+}
+
+test('guide button: active while a guide file is missing, greyed out with a reason when both exist', async () => {
+  const none = await makeEventView({});
+  assert.equal(none.button().disabled, false, 'no guide files: active');
+  const one = await makeEventView({ '07 Databases/Dashboards/README.md': 'x' });
+  assert.equal(one.button().disabled, false, 'only one of the two: still active');
+
+  const both = await makeEventView({ '07 Databases/Dashboards/README.md': 'x', '07 Databases/Dashboards/AI-WIDGET-GUIDE.md': 'y' });
+  const b = both.button();
+  assert.ok(b, 'the label is unchanged');
+  assert.equal(b.disabled, true, 'both files exist: greyed out');
+  assert.match(textOf(both.view.contentEl), new RegExp('Guide files are in ' + both.folder));
+  assert.ok([...walkEl(both.view.contentEl)].find((e) => e.tagName === 'BUTTON' && e.textContent === 'Open the AI guide'), 'still offers the AI guide');
+});
+
+test('guide button: a delete, a rename or a create while the screen is open flips it live', async () => {
+  const v = await makeEventView({ '07 Databases/Dashboards/README.md': 'x', '07 Databases/Dashboards/AI-WIDGET-GUIDE.md': 'y' });
+  const { TFile } = v.obsidian;
+  const readme = v.folder + '/README.md';
+  assert.equal(v.button().disabled, true);
+
+  v.adapter.files.delete(readme);
+  await v.fire('delete', new TFile(readme));
+  assert.equal(v.button().disabled, false, 'a delete event makes it active again');
+  assert.doesNotMatch(textOf(v.view.contentEl), /Guide files are in/);
+
+  v.adapter.files.set(readme, 'x');
+  await v.fire('create', new TFile(readme));
+  assert.equal(v.button().disabled, true, 'a create event greys it out again');
+
+  const guide = v.folder + '/AI-WIDGET-GUIDE.md';
+  v.adapter.files.delete(guide);
+  v.adapter.files.set('elsewhere/AI-WIDGET-GUIDE.md', 'y');
+  await v.fire('rename', new TFile('elsewhere/AI-WIDGET-GUIDE.md'), guide);
+  assert.equal(v.button().disabled, false, 'a rename away makes it active again');
+});
+
+test('guide button: redrawing the screen re-checks the files', async () => {
+  const v = await makeEventView({ '07 Databases/Dashboards/README.md': 'x', '07 Databases/Dashboards/AI-WIDGET-GUIDE.md': 'y' });
+  v.adapter.files.delete(v.folder + '/AI-WIDGET-GUIDE.md');
+  v.view.render();
+  await settle();
+  assert.equal(v.button().disabled, false, 'drawn again with a file gone: active');
+});
+
+test('guide button: its vault events are registered with the view and not added again by redraws', async () => {
+  const v = await makeEventView({});
+  const count = v.listeners.length;
+  for (const name of ['create', 'delete', 'rename']) {
+    const ref = v.listeners.find((l) => l.name === name);
+    assert.ok(ref, name + ' is listened for');
+    assert.ok(v.view.events.includes(ref), name + ' goes through registerEvent, so Obsidian removes it on close');
+  }
+  v.view.render(); v.view.render(); await v.view.reload();
+  assert.equal(v.listeners.length, count, 'drawing again adds no listeners');
+  assert.equal(v.listeners.filter((l) => !v.view.events.includes(l)).length, 0, 'no listener is left outside the lifecycle');
+  await v.view.onClose();
+  await v.fire('delete', new v.obsidian.TFile(v.folder + '/README.md'));
 });
