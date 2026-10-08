@@ -6,6 +6,46 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.3] - 2026-10-08
+
+Layout fixes found by checking a real 13-widget dashboard at a wide pane and at
+about 400px.
+
+### Fixed
+- **Pie and doughnut legend.** The ring no longer takes more than 45% of the
+  tile's width, so the legend keeps room for its names (they were cut to one or
+  two letters beside empty space). A tile too narrow for a name of 8 characters
+  puts the legend under the ring. Every name has its full text as a tooltip.
+- **Bullet chart labels.** The label column is as wide as the longest label, up
+  to 45% of the tile; a longer label wraps to a second line, and the bar takes
+  the rest.
+- **Chart axis labels are never cut.** A label along the bottom of a bar or line
+  chart was cut to ten characters ("before 201"). It is now drawn whole, and
+  labels are skipped to make room.
+- **A narrow pane leaves no gaps.** A dashboard drawn for six columns, shown in
+  two, left empty cells and put tiles alone in the right column. The tiles now
+  keep their reading order and fill from the top left; a divider still keeps
+  the tiles after it below it. A layout that fits the pane is untouched.
+- **Stat units.** The unit and the change badge sit beside the number while they
+  fit and drop below it when they do not, instead of being cut ("g...").
+- **Heatmap column labels.** Labels that ran into each other (the year columns)
+  now turn to read upwards, or are thinned to every Nth, and the grid no longer
+  demands 360px, so a narrow tile does not scroll sideways.
+- **Tables in a narrow tile.** In a tile of 400px or less the table shares the
+  width: headers wrap instead of being cut, text columns are trimmed, and the
+  sparkline column shrinks first. A header was cut to two letters and the last
+  column pushed out of sight.
+- **Tile titles and hints.** A title may take two lines and a hint two lines (at
+  most 45% of the row) before anything is cut with an ellipsis.
+
+### Changed
+- **The AI widget guide has a new section, "Turn this guide into a skill"** (the
+  guide is revision 10). It tells an agent to make a skill that points at the
+  guide in the dashboards folder instead of copying it, keeps the seven step
+  procedure and its plugin checks (steps 4 to 6), and adds only the user's own
+  preferences. It includes a sample prompt and names no one vendor's format.
+  Unedited copies are brought up to date at start.
+
 ## [1.0.2] - 2026-10-07
 
 ### Changed
