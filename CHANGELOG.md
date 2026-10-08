@@ -6,6 +6,45 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.4] - 2026-10-08
+
+Changes from the Obsidian community plugin scan of 1.0.3.
+
+### Changed
+- **ReadOut no longer starts the `sqlite3` program or touches Node's file
+  system.** The scan flagged "shell execution" and "file system access", and
+  both came from the optional desktop `sqlite3` engine. It is removed. Every
+  device now uses the built-in engine (sql.js), which loads the database file
+  into memory. Measured in Obsidian on an 847 MB and a 905 MB database, the
+  engine loads in about a second and answers a dashboard's queries in
+  milliseconds. While a big file loads it needs roughly three times its size in
+  free memory.
+- **The size cap defaults to 1500 MB on a desktop** (it stays 200 MB on a phone
+  or tablet) and can be raised to 2000 MB, the most a single file read can
+  return. A file over the cap now gets a plain message that names the setting
+  to raise, in place of an error.
+- **The "Path to sqlite3" and "Query timeout" settings are gone**, with the
+  program they belonged to. The built-in engine has no timeout, so keep queries
+  fast. The AI widget guide (revision 11) and the help say so.
+- **The data browser's header** now reads "read-only, in memory" on every
+  device.
+
+### Fixed
+- **Every CSS lint warning in the scan.** No `!important`, no `all:` reset, no
+  `:has()`, no `column-gap` and no `display: contents` remain in the stylesheet.
+  The look is unchanged: the computed style and the position of every button,
+  the filter box, the sort headers and the dashboard tiles were compared with
+  1.0.3 and match.
+
+### Added
+- **A README section, "What ReadOut can access, and why"**, for the scan's
+  notes on file listing, vault reads and writes, and the clipboard.
+- **Build provenance.** The release workflow now signs a GitHub artifact
+  attestation for `main.js`, `manifest.json` and `styles.css`, and the release
+  check verifies each published file against it.
+- **A lockfile** (`package-lock.json`, no dependencies) so the build can be
+  checked with `npm ci`.
+
 ## [1.0.3] - 2026-10-08
 
 Layout fixes found by checking a real 13-widget dashboard at a wide pane and at
