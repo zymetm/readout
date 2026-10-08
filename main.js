@@ -9924,6 +9924,29 @@ must be read-only.
   written by the desktop when the note is shown. A phone writes nothing.
 - A mistake in the block, an unknown dashboard or a failed query is shown as a
   line in the block, never as an error in the note.
+
+## 10. Turn this guide into a skill
+
+An agent can turn this guide into a skill, a saved routine it runs each time
+it is asked to build a widget or a whole dashboard. Whatever your agent calls
+such a thing, the shape is the same:
+
+- **Point at this file, do not copy it.** ReadOut brings this guide up to
+  date with each version, with new chart types and settings. A copy goes
+  stale; a skill that says "read this file first" always reads the current
+  text. The skill names this file's path in the dashboards folder:
+  \`07 Databases/Dashboards/AI-WIDGET-GUIDE.md\`, unless your "Dashboards
+  folder" setting says otherwise.
+- **Keep the procedure as its spine.** The seven steps of section 3, with
+  the plugin checks of steps 4 to 6 (validate in "Open as text", open the
+  dashboard and look, open the widget in the edit panel), are what leave a
+  widget a person can still edit. The skill runs them in order.
+- **Add only the user's own preferences on top**: their databases, colours,
+  value levels and layout habits. Everything else stays in this guide.
+
+A prompt to give an agent:
+
+    Read 07 Databases/Dashboards/AI-WIDGET-GUIDE.md and make a skill that follows its procedure. Link to the guide, don't copy it, and add my preferences.
 `;
 
 /* The guides the plugin writes into the dashboards folder. `legacy` holds
@@ -9932,7 +9955,7 @@ must be read-only.
  * refreshed. */
 const GUIDE_FILES = [
   { file: 'README.md', text: DASHBOARD_README, revision: 9, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 9, legacy: [] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 10, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file

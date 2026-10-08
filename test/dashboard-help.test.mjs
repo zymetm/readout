@@ -148,7 +148,7 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [9, 'beeaea95'], 'AI-WIDGET-GUIDE.md': [9, 'd4429cbe'] };
+  const pinned = { 'README.md': [9, 'beeaea95'], 'AI-WIDGET-GUIDE.md': [10, '5f42e240'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
@@ -434,4 +434,17 @@ test('the AI guide names every widget type and every setting the plugin writes',
 test('the AI guide says what each type\'s query must return', () => {
   const shapes = AI.slice(AI.indexOf('## 5. What each query must return'), AI.indexOf('## 6.'));
   for (const viz of ['line', 'stat', 'table', 'combo', 'segments', 'heatmap', 'text']) assert.ok(shapes.includes('`' + viz + '`'), viz);
+});
+
+test('the AI guide ends with a short section on turning it into a skill: point at the file, keep the procedure, add preferences', () => {
+  const text = lib.AI_WIDGET_GUIDE;
+  const at = text.indexOf('## 10. Turn this guide into a skill');
+  assert.ok(at > 0, 'section 10 is there, after the others');
+  const section = text.slice(at);
+  assert.match(section, /Point at this file, do not copy it/);
+  assert.match(section, /steps 4 to 6/);
+  assert.match(section, /Add only the user's own preferences/);
+  assert.match(section, /Read 07 Databases\/Dashboards\/AI-WIDGET-GUIDE\.md and make a skill that follows its procedure\. Link to the guide, don't copy it, and add my preferences\./);
+  assert.doesNotMatch(section, /SKILL\.md|Claude|Codex|Gemini|Cursor/, 'no one vendor\'s format');
+  assert.equal(lib.GUIDE_FILES.find((g) => g.file === 'AI-WIDGET-GUIDE.md').revision, 10);
 });
