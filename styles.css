@@ -849,12 +849,19 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
  * beside it (under it on a phone). The slices are separated by a hairline
  * in the card's own colour. */
 .icor-sqlv-pie { display: flex; align-items: center; gap: var(--sqlv-s4); height: 100%; min-height: 96px; min-width: 0; }
-.icor-sqlv-pie-svg { flex: 0 1 auto; height: 100%; max-height: 100%; width: auto; aspect-ratio: 1; min-width: 0; min-height: 96px; }
+/* The tile body that holds a pie is the container the stacking rule below measures. */
+.icor-sqlv-tile-body:has(> .icor-sqlv-pie) { container-type: inline-size; }
+/* The ring never takes more than 45% of the width, so the legend keeps room
+ * for its names; where the tile is too narrow for that, the legend stacks
+ * under the ring (the container rule below). */
+.icor-sqlv-pie-svg { flex: 0 1 auto; height: 100%; max-height: 100%; width: auto; max-width: 45%; aspect-ratio: 1; min-width: 0; min-height: 96px; }
 .icor-sqlv-pie-slice { stroke: var(--sqlv-card); stroke-width: 0.8; stroke-linejoin: round; }
 .icor-sqlv-pie-total { fill: var(--sqlv-fg); font-family: var(--sqlv-font-mono); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .icor-sqlv-pie-legend { flex: 1 1 auto; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: var(--sqlv-s1); overflow: auto; max-height: 100%; min-width: 0; }
 .icor-sqlv-pie-legend .icor-sqlv-legend-item { gap: var(--sqlv-s2); max-width: 100%; }
-/* A long part name gives way (ellipsis); its dot and its numbers stay whole. */
+/* A name keeps its own width beside its numbers and gives way (ellipsis, the
+ * full name in the tooltip) only when the legend is narrower than that; the
+ * ring is capped above so the legend always has the room. */
 .icor-sqlv-pie-legend .icor-sqlv-legend-name { flex: 0 1 auto; }
 .icor-sqlv-pie-legend .icor-sqlv-segments-value { flex: 0 0 auto; white-space: nowrap; }
 
@@ -864,6 +871,14 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; min-height: 96px; }
   /* Under the pie the legend is as wide as the tile (never centred past
    * its edge) and shows every row; the tile grows to hold them. */
+  .icor-sqlv-pie-legend { flex: 0 0 auto; align-self: stretch; max-height: none; overflow: visible; }
+}
+
+/* A tile too narrow to leave a name 8 characters beside the ring puts the
+ * legend under it, as on a phone. */
+@container (max-width: 330px) {
+  .icor-sqlv-pie { flex-direction: column; gap: var(--sqlv-s2); height: auto; }
+  .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; min-height: 96px; }
   .icor-sqlv-pie-legend { flex: 0 0 auto; align-self: stretch; max-height: none; overflow: visible; }
 }
 

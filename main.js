@@ -2276,7 +2276,7 @@ function renderSegments(parentEl, table, tile, extras) {
     const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
     const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip is-round' });
     chip.style.setProperty('background', p.color);
-    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name });
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name, attr: { title: p.name } });
     item.createSpan({ cls: 'icor-sqlv-segments-value', text: formatNumber(p.value) + unit });
   }
   return parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
@@ -2371,7 +2371,7 @@ function renderPie(parentEl, table, tile, extras) {
     const item = legend.createSpan({ cls: 'icor-sqlv-legend-item' });
     const chip = item.createSpan({ cls: 'icor-sqlv-legend-chip is-round' });
     chip.style.setProperty('background', p.color);
-    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name });
+    item.createSpan({ cls: 'icor-sqlv-legend-name', text: p.name, attr: { title: p.name } });
     item.createSpan({ cls: 'icor-sqlv-segments-value', text: formatNumber(p.value) + unit + ' \u00b7 ' + Math.round(p.share) + '%' });
   }
   return pie.parts.map((p) => p.name + ' ' + formatNumber(p.value) + unit).join(', ');
