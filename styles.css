@@ -702,11 +702,14 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
  * the old proportions instead of collapsing. */
 .icor-sqlv-tile.is-preview .icor-sqlv-chart-host { flex: none; aspect-ratio: 64 / 26; }
 
-/* Every tile title is one line; the full text shows on hover. */
+/* A tile title wraps to a second line before it is cut (a third is
+ * dropped); the full text shows on hover. */
 .icor-sqlv-tile > .icor-sqlv-tile-title {
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 
 /* The phone's "Computed on desktop" line stays one line in any tile. */
@@ -1817,9 +1820,11 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   flex: 1 1 auto;
   min-width: 0;
   margin-bottom: 0;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 
 /* A segments bar's level pill sits at the right of its title row, whole;
@@ -2137,20 +2142,24 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 /* -------------------------------------------- hint and footnote -- */
 
-/* A hint at the right of the title row, quiet and mono like a caption;
- * the title gives way first. A footnote under the widget, at most three
+/* A hint at the right of the title row, quiet and mono like a caption.
+ * Title and hint both wrap to a second line before either is cut; the hint
+ * takes at most 45% of the row. A footnote under the widget, at most three
  * lines; hovering shows it all. */
 .icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 60%;
+  max-width: 45%;
   margin-left: auto;
   font-family: var(--sqlv-font-mono);
   font-size: 11px;
   color: var(--sqlv-fg-faint);
-  white-space: nowrap;
+  text-align: right;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
 }
 
 .icor-sqlv-tile-footnote {

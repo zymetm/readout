@@ -92,7 +92,7 @@ test('headerDelta alone is unchanged', () => {
   assert.equal(byClass(el, 'icor-sqlv-head-rollup').length, 0);
 });
 
-test('one line, never wrapped: the roll-up stays whole at the right, the title gives way first', () => {
+test('the roll-up stays whole on one line at the right, the title gives way first (it wraps to two lines)', () => {
   const css = fs.readFileSync(fileURLToPath(new URL('../styles.css', import.meta.url)), 'utf8');
   const rule = /\.icor-sqlv-head-rollup \{([^}]*)\}/.exec(css);
   assert.ok(rule);
@@ -101,7 +101,7 @@ test('one line, never wrapped: the roll-up stays whole at the right, the title g
   assert.match(row[1], /display: flex/, 'title and roll-up share one row');
   assert.doesNotMatch(row[1], /flex-wrap: wrap/);
   const title = /\.icor-sqlv-tile-titlebar > \.icor-sqlv-tile-title \{([^}]*)\}/.exec(css);
-  for (const want of [/min-width: 0/, /white-space: nowrap/, /text-overflow: ellipsis/]) assert.match(title[1], want);
+  for (const want of [/min-width: 0/, /-webkit-line-clamp: 2/, /overflow: hidden/]) assert.match(title[1], want);
   assert.equal(/has-rollup >/.test(css), false, 'no rule gives the title priority over the roll-up');
   assert.equal(/\.icor-sqlv-chart-caption/.test(css), false, 'no line under the chart');
 });

@@ -177,3 +177,20 @@ test('a table in a tile of 400px or less shares the width and shrinks its sparkl
 test('the narrow table rules come after the phone rules, so they win', () => {
   assert.ok(css.indexOf('@container (max-width: 400px)') > css.indexOf('@media (max-width: 600px) {\n  .icor-sqlv-tile .icor-sqlv-spark'));
 });
+
+/* ------------------------------------------- 6. titles and hints wrap -- */
+
+test('a tile title wraps to two lines before it is cut, in a title row or alone', () => {
+  for (const sel of ['.icor-sqlv-tile > .icor-sqlv-tile-title', '.icor-sqlv-tile-titlebar > .icor-sqlv-tile-title']) {
+    const body = rule(sel);
+    assert.match(body, /-webkit-line-clamp:\s*2/, sel);
+    assert.doesNotMatch(body, /white-space:\s*nowrap/, sel);
+  }
+});
+
+test('a hint wraps to two lines, and never takes more than 45% of the row', () => {
+  const body = rule('.icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint');
+  assert.match(body, /-webkit-line-clamp:\s*2/);
+  assert.match(body, /max-width:\s*45%/);
+  assert.doesNotMatch(body, /white-space:\s*nowrap/);
+});
