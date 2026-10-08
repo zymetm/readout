@@ -2093,6 +2093,21 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   .icor-sqlv-tile .icor-sqlv-table td { max-width: 9em; }
 }
 
+/* A table in a tile of 400px or less shares the width it has instead of
+ * scrolling: the table is as wide as the tile, headers may wrap, text
+ * columns are trimmed, cells are tighter, and the sparkline column is the
+ * one that shrinks. Only a table that still cannot fit scrolls. */
+.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll) { container-type: inline-size; }
+
+@container (max-width: 400px) {
+  .icor-sqlv-tile .icor-sqlv-table { width: 100%; }
+  .icor-sqlv-tile .icor-sqlv-table th,
+  .icor-sqlv-tile .icor-sqlv-table td { padding-left: var(--sqlv-s1); padding-right: var(--sqlv-s1); max-width: 6em; }
+  .icor-sqlv-tile .icor-sqlv-table thead th { white-space: normal; overflow-wrap: break-word; line-height: 1.2; vertical-align: bottom; }
+  .icor-sqlv-tile .icor-sqlv-spark { width: 40px; }
+}
+
+
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at

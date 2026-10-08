@@ -161,3 +161,19 @@ test('the heatmap grid no longer forces a width, and turned labels are drawn upw
   assert.match(rule('.icor-sqlv-heatmap.has-turned-labels .icor-sqlv-heatmap-col'), /writing-mode:\s*vertical-rl/);
   assert.match(rule('.icor-sqlv-heatmap-col.is-thinned'), /visibility:\s*hidden/);
 });
+
+/* ----------------------------------------- 5. tables in a narrow tile -- */
+
+test('a table in a tile of 400px or less shares the width and shrinks its sparkline first', () => {
+  assert.match(rule('.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll)'), /container-type:\s*inline-size/);
+  const m = /@container \(max-width:\s*(\d+)px\)\s*\{([\s\S]*?\n\})\n/.exec(css.slice(css.indexOf('.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll)')));
+  assert.ok(m, 'a container rule for the table');
+  assert.equal(Number(m[1]), 400);
+  assert.match(m[2], /\.icor-sqlv-table\s*\{\s*width:\s*100%/);
+  assert.match(m[2], /thead th\s*\{[^}]*white-space:\s*normal/);
+  assert.match(m[2], /\.icor-sqlv-spark\s*\{\s*width:\s*40px/);
+});
+
+test('the narrow table rules come after the phone rules, so they win', () => {
+  assert.ok(css.indexOf('@container (max-width: 400px)') > css.indexOf('@media (max-width: 600px) {\n  .icor-sqlv-tile .icor-sqlv-spark'));
+});
