@@ -1867,7 +1867,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-heatmap-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
 
-.icor-sqlv-heatmap-grid { display: grid; gap: 2px; align-items: center; min-width: 360px; }
+.icor-sqlv-heatmap-grid { display: grid; gap: 2px; align-items: center; }
 
 .icor-sqlv-heatmap-corner { height: 14px; }
 
@@ -1882,6 +1882,18 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 }
 
 .icor-sqlv-heatmap-col { text-align: center; }
+
+/* Labels wider than their cell turn to read upwards, and when even that is
+ * too tight every Nth is kept (fitHeatmapLabels). */
+.icor-sqlv-heatmap.has-turned-labels .icor-sqlv-heatmap-col {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: left;
+  line-height: 11px;
+  justify-self: center;
+}
+
+.icor-sqlv-heatmap-col.is-thinned { visibility: hidden; }
 
 .icor-sqlv-heatmap-col.is-current,
 .icor-sqlv-heatmap-row.is-current { color: var(--sqlv-fg); font-weight: 600; }

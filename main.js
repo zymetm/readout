@@ -2518,6 +2518,46 @@ function renderRangeLegend(legend, tile, levels, withEmpty, chipClass) {
   none.createSpan({ cls: 'icor-sqlv-legend-name', text: 'no data' });
 }
 
+/* The column labels of a heatmap against the width of one cell: written
+ * across when they fit, turned to read upwards when the cell is narrower
+ * than the label but a line of text still fits in it, and thinned (every
+ * Nth label, the rest hidden) when even that does not. Pure: the numbers
+ * are 9px mono, about 5.4px a character. */
+const HEAT_LABEL_CHAR_W = 5.4;
+const HEAT_LABEL_LINE_W = 11;
+
+function heatmapLabelPlan(cellW, labels, own) {
+  const every = Number.isInteger(own) && own > 1 ? own : 1;
+  if (!(cellW > 0)) return { rotate: false, step: every };
+  const widest = Math.max(0, ...labels.map((t) => String(t).length)) * HEAT_LABEL_CHAR_W + 2;
+  if (cellW >= widest) return { rotate: false, step: every };
+  const step = cellW >= HEAT_LABEL_LINE_W ? 1 : Math.ceil(HEAT_LABEL_LINE_W / cellW);
+  return { rotate: true, step: every * Math.max(1, Math.ceil(step / every)) };
+}
+
+/* Applies the plan, and again whenever the grid's width changes. Without
+ * layout (no ResizeObserver) the labels stay as written. */
+function fitHeatmapLabels(wrap, gridEl, heads, labels, own, rowTrack, observers) {
+  const apply = () => {
+    const cell = gridEl.querySelector ? gridEl.querySelector('.icor-sqlv-heatmap-cell') : null;
+    const cellW = cell ? cell.offsetWidth : 0;
+    const plan = heatmapLabelPlan(cellW, labels, own);
+    if (plan.rotate) wrap.classList.add('has-turned-labels'); else wrap.classList.remove('has-turned-labels');
+    heads.forEach((h, j) => { if (j % plan.step !== 0) h.classList.add('is-thinned'); else h.classList.remove('is-thinned'); });
+    if (rowTrack) gridEl.style.setProperty('grid-template-rows', plan.rotate ? 'auto ' + rowTrack : '14px ' + rowTrack);
+  };
+  let lastWidth = -1;
+  const observer = resizeObserverFor(gridEl, () => {
+    if (!gridEl.isConnected) { observer.disconnect(); return; }
+    if (gridEl.clientWidth === lastWidth) return;
+    lastWidth = gridEl.clientWidth;
+    apply();
+  });
+  if (!observer) return;
+  observer.observe(gridEl);
+  if (observers) observers.push(observer);
+}
+
 function renderHeatmap(parentEl, table, tile, extras) {
   const grid = heatmapGrid(table, tile);
   if (!grid || !grid.rows.length) {
@@ -2537,9 +2577,12 @@ function renderHeatmap(parentEl, table, tile, extras) {
   el.setAttribute('role', 'img');
   el.setAttribute('aria-label', 'Heatmap, ' + grid.rows.length + ' rows by ' + grid.cols.length + ' columns. Hover a cell for its value.');
   el.createDiv({ cls: 'icor-sqlv-heatmap-corner' });
+  const heads = [];
   grid.cols.forEach((c, j) => {
     const head = el.createDiv({ cls: 'icor-sqlv-heatmap-col', text: j % every === 0 ? c : '' });
+    head.setAttribute('title', c);
     if (j === live) head.addClass('is-current');
+    heads.push(head);
   });
   grid.rows.forEach((r, i) => {
     const rowHead = el.createDiv({ cls: 'icor-sqlv-heatmap-row', text: r });
@@ -2566,6 +2609,7 @@ function renderHeatmap(parentEl, table, tile, extras) {
       box.setAttribute('title', parts.join(' · '));
     });
   });
+  fitHeatmapLabels(wrap, el, heads, grid.cols.filter((c, j) => j % every === 0), every, tile.cells === 'fill' ? 'repeat(' + grid.rows.length + ', minmax(13px, 1fr))' : '', extras && extras.observers);
   const legend = wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend' });
   renderRangeLegend(legend, tile, levels);
   if (tile.marker) {
@@ -10844,7 +10888,7 @@ ReadOutPlugin.lib = {
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
   FILTER_OPS, filterConditionOf, filtersCondOf, COMPARE_LABELS, canCompare,
   deltaBadge, nextPreviewState, canSave, droppedSettings, formNumber, formNumberList, checkFormTile, DASHBOARD_README, AI_WIDGET_GUIDE, GUIDE_FILES, SAMPLE_BLOCK_LANG, WIDGET_SAMPLES, renderWidgetSample, WidgetSampleChild, guideHash, guideTextFor, guideIsPluginOwn, guideRevision, guideRefreshFor, refreshGuideFile, VIZ_KINDS, SIZE_PRESETS, sizePresetOf, makeDebounce,
-  chartLayout, xLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
+  chartLayout, xLabelPlan, heatmapLabelPlan, CHART_MIN_X_H, CHART_MIN_Y_W, TICK_CHAR_W, renderTile,
   fitStatCaption, STAT_CAPTION_STEPS, isLevelColor, checkChartColors, chartPaletteFor, normalizeLevels, levelIdFor, planLevelRename, renameLevelInDashboard, normalizeLevelLooks, checkRanges, checkLevelColors, checkTileLevels, levelOf, resolveLevel, levelLookFor,
   headerDeltaOf, checkHeaderDelta, chartRangeOf, chartCaptionOf,
   checkRangeColumn, checkCaptions, statCaptionSteps, CAPTIONS_MAX, checkValueSize, fitStatValue, nextFitSize, VALUE_SIZE_PRESETS,

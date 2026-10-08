@@ -137,3 +137,27 @@ test('a stat unit drops below the number instead of being cut', () => {
   assert.doesNotMatch(body, /text-overflow/);
   assert.match(rule('.icor-sqlv-stat-value > *'), /white-space:\s*nowrap/);
 });
+
+/* ------------------------------------------- 4. heatmap column labels -- */
+
+test('heatmap labels are written across when the cell is wide enough for them', () => {
+  assert.deepEqual({ ...lib.heatmapLabelPlan(40, ['2015', '2016'], 1) }, { rotate: false, step: 1 });
+});
+
+test('labels wider than their cell turn to read upwards, and every one is kept', () => {
+  assert.deepEqual({ ...lib.heatmapLabelPlan(16, ['<2015', '2016'], 1) }, { rotate: true, step: 1 });
+});
+
+test('cells too narrow even for a turned label thin the labels to every Nth', () => {
+  const plan = lib.heatmapLabelPlan(5, ['2015', '2016'], 1);
+  assert.equal(plan.rotate, true);
+  assert.equal(plan.step, 3);
+  const own = lib.heatmapLabelPlan(5, ['2015', '2016'], 2);
+  assert.equal(own.step % 2, 0, "the tile's own columnLabelEvery still divides the step");
+});
+
+test('the heatmap grid no longer forces a width, and turned labels are drawn upwards', () => {
+  assert.doesNotMatch(rule('.icor-sqlv-heatmap-grid'), /min-width/);
+  assert.match(rule('.icor-sqlv-heatmap.has-turned-labels .icor-sqlv-heatmap-col'), /writing-mode:\s*vertical-rl/);
+  assert.match(rule('.icor-sqlv-heatmap-col.is-thinned'), /visibility:\s*hidden/);
+});
