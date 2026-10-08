@@ -41,7 +41,7 @@ test('a legend name keeps its own width beside its numbers and gives way only wh
 });
 
 test('a tile too narrow for an 8 character name stacks the legend under the ring', () => {
-  assert.match(rule('.icor-sqlv-tile-body:has(> .icor-sqlv-pie)'), /container-type:\s*inline-size/);
+  assert.match(rule('.icor-sqlv-tile-body.icor-sqlv-has-pie'), /container-type:\s*inline-size/);
   const m = /@container \(max-width:\s*(\d+)px\)\s*\{([\s\S]*?\n\})/.exec(css);
   assert.ok(m, 'a container rule for the pie');
   assert.ok(Number(m[1]) >= 300, 'it stacks while a name would still fall under 8 characters');
@@ -165,8 +165,8 @@ test('the heatmap grid no longer forces a width, and turned labels are drawn upw
 /* ----------------------------------------- 5. tables in a narrow tile -- */
 
 test('a table in a tile of 400px or less shares the width and shrinks its sparkline first', () => {
-  assert.match(rule('.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll)'), /container-type:\s*inline-size/);
-  const m = /@container \(max-width:\s*(\d+)px\)\s*\{([\s\S]*?\n\})\n/.exec(css.slice(css.indexOf('.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll)')));
+  assert.match(rule('.icor-sqlv-tile-body.icor-sqlv-has-table-scroll'), /container-type:\s*inline-size/);
+  const m = /@container \(max-width:\s*(\d+)px\)\s*\{([\s\S]*?\n\})\n/.exec(css.slice(css.indexOf('.icor-sqlv-tile-body.icor-sqlv-has-table-scroll')));
   assert.ok(m, 'a container rule for the table');
   assert.equal(Number(m[1]), 400);
   assert.match(m[2], /\.icor-sqlv-table\s*\{\s*width:\s*100%/);

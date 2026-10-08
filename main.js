@@ -2350,6 +2350,8 @@ function renderPie(parentEl, table, tile, extras) {
   }
   const unit = tile.unit ? (tile.unit === '%' ? '%' : ' ' + tile.unit) : '';
   const said = pie.parts.map((p) => p.name + ': ' + formatNumber(p.value) + unit + ' (' + Math.round(p.share) + '%)').join('. ');
+  /* The tile body that holds a pie is the container the stacking rule measures. */
+  parentEl.addClass('icor-sqlv-has-pie');
   const wrap = parentEl.createDiv({ cls: 'icor-sqlv-pie' });
   const svg = svgEl('svg', { viewBox: '0 0 100 100', class: 'icor-sqlv-pie-svg', role: 'img', 'aria-label': said });
   for (const sl of pie.slices) {
@@ -2913,7 +2915,8 @@ function renderBullet(parentEl, table, tile, extras) {
   /* One grid for every bar, so the tracks line up on the shared scale. */
   const list = wrap.createDiv({ cls: 'icor-sqlv-bullet-rows' + (labelled ? '' : ' is-unlabelled') });
   for (const r of rows) {
-    const row = list.createDiv({ cls: 'icor-sqlv-bullet-row' });
+    /* The label, track and numbers are cells of the one grid. */
+    const row = list;
     if (labelled) row.createSpan({ cls: 'icor-sqlv-bullet-label', text: r.label }).setAttribute('title', r.label);
     const track = row.createDiv({ cls: 'icor-sqlv-bullet-track' });
     for (const b of bands) {
@@ -4761,6 +4764,8 @@ function drawSpark(td, values) {
 function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
   const cap = maxRows || 200;
   const sparks = new Set(Array.isArray(sparklines) ? sparklines : []);
+  /* The tile body that holds a table is the container the narrow-table rules measure. */
+  parentEl.addClass('icor-sqlv-has-table-scroll');
   const scroller = parentEl.createDiv({ cls: 'icor-sqlv-table-scroll' });
   const t = scroller.createEl('table', { cls: 'icor-sqlv-table' });
   /* On a narrow screen the table scrolls sideways and a trend column at
@@ -5189,7 +5194,7 @@ class SqliteBrowserView extends FileView {
     for (const col of res.columns) {
       const th = headRow.createEl('th');
       const btn = th.createEl('button', { cls: 'icor-sqlv-sort' });
-      btn.createSpan({ cls: 'icor-sqlv-sort-label', text: col });
+      btn.createSpan({ cls: 'icor-sqlv-sort-label' + (this.sortCol === col ? ' is-sorted' : ''), text: col });
       if (this.sortCol === col) btn.createSpan({ cls: 'icor-sqlv-sort-mark', text: this.sortDir === 'asc' ? '▴' : '▾' });
       btn.setAttribute('aria-label', 'Sort by ' + col);
       /* The full name survives a narrow column. */

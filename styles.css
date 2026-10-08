@@ -209,7 +209,33 @@
 /* Quiet text rows; the active tab's 2px marker underline is this view's
  * one marker moment. Never an accent-filled pill. */
 .icor-sqlv-tabs button:not(.icor-sqlv-funnel) {
-  all: unset;
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  cursor: auto;
   padding: var(--sqlv-s2) var(--sqlv-s3);
   font-size: 13px;
   color: var(--sqlv-fg-faint);
@@ -291,7 +317,33 @@
 /* Header cells in the kicker voice; the sorted column's arrow is the
  * state-ink whisper. */
 .icor-sqlv-table thead button.icor-sqlv-sort {
-  all: unset;
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  cursor: auto;
   display: flex;
   align-items: baseline;
   gap: var(--sqlv-s1);
@@ -319,11 +371,11 @@
 
 .icor-sqlv-sort-mark { flex: 0 0 auto; color: var(--sqlv-marker); font-size: 11px; }
 
-th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); }
+.icor-sqlv-sort-label.is-sorted { color: var(--sqlv-fg-dim); }
 
 /* The filter row: hidden behind the funnel, and quiet when shown. The
- * !important marks are a belt for foreign themes that skin bare inputs;
- * INKLINE stands down via the opt-out and never needs them. */
+ * input rules repeat their class so a foreign theme that skins bare inputs
+ * does not win; INKLINE stands down via the opt-out and never needs it. */
 .icor-sqlv-filter-row th {
   position: static;
   padding: 0 var(--sqlv-s2) var(--sqlv-s1);
@@ -331,48 +383,82 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   border-bottom: 1px solid var(--sqlv-hairline-subtle);
 }
 
-.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter {
-  all: unset;
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter {
+  appearance: none;
+  -webkit-appearance: none;
   display: block;
   width: 100%;
   min-width: 5em;
   box-sizing: border-box;
-  padding: 1px 0 !important;
-  height: auto !important;
-  min-height: 0 !important;
-  font-family: var(--sqlv-font-mono) !important;
+  margin: 0;
+  padding: 1px 0;
+  height: auto;
+  min-height: auto;
+  text-align: inherit;
+  text-rendering: inherit;
+  outline-offset: 0;
+  transition: all 0s;
+  font: inherit;
+  font-family: var(--sqlv-font-mono);
   font-size: 11px;
+  line-height: inherit;
   color: var(--sqlv-fg);
-  background: transparent !important;
-  background-image: none !important;
-  border: none !important;
-  border-bottom: 1px solid transparent !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
+  background: transparent none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
   cursor: text;
 }
 
-.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter::placeholder {
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter::placeholder {
   color: var(--sqlv-fg-faint);
 }
 
-.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter:hover {
-  background-image: none !important;
-  border-bottom-color: var(--sqlv-hairline) !important;
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:hover {
+  background-image: none;
+  border-bottom-color: var(--sqlv-hairline);
 }
 
-.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter:focus,
-.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter:focus-visible {
-  outline: none !important;
-  border-bottom-color: var(--sqlv-marker) !important;
-  box-shadow: none !important;
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:focus,
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:focus-visible {
+  outline: none;
+  border-bottom-color: var(--sqlv-marker);
+  box-shadow: none;
 }
 
 /* The funnel. The 6px dot says filters are active while hidden. */
 .icor-sqlv-tabs-spacer { flex: 1 1 auto; }
 
 .icor-sqlv-tabs button.icor-sqlv-funnel {
-  all: unset;
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  cursor: auto;
   position: relative;
   display: flex;
   align-items: center;
@@ -853,7 +939,7 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
  * in the card's own colour. */
 .icor-sqlv-pie { display: flex; align-items: center; gap: var(--sqlv-s4); height: 100%; min-height: 96px; min-width: 0; }
 /* The tile body that holds a pie is the container the stacking rule below measures. */
-.icor-sqlv-tile-body:has(> .icor-sqlv-pie) { container-type: inline-size; }
+.icor-sqlv-tile-body.icor-sqlv-has-pie { container-type: inline-size; }
 /* The ring never takes more than 45% of the width, so the legend keeps room
  * for its names; where the tile is too narrow for that, the legend stacks
  * under the ring (the container rule below). */
@@ -918,7 +1004,7 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: var(--sqlv-s2);
+  gap: 0 var(--sqlv-s2);
 }
 
 .icor-sqlv-stat-value > * { white-space: nowrap; }
@@ -1095,7 +1181,33 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 }
 
 .icor-sqlv-tile-action {
-  all: unset;
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  cursor: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1517,7 +1629,33 @@ button.icor-sqlv-add-filter { align-self: flex-start; }
 }
 
 button.icor-sqlv-advanced-toggle {
-  all: unset;
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  cursor: auto;
   font-family: var(--sqlv-font-mono);
   font-size: 11px;
   font-weight: 500;
@@ -2007,9 +2145,6 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 .icor-sqlv-bullet-rows.is-unlabelled { grid-template-columns: minmax(0, 1fr) max-content; }
 
-/* A row is only a group: its label, track and numbers are cells of the one grid. */
-.icor-sqlv-bullet-row { display: contents; }
-
 .icor-sqlv-bullet-label,
 .icor-sqlv-bullet-value {
   font-family: var(--sqlv-font-mono);
@@ -2102,7 +2237,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
  * scrolling: the table is as wide as the tile, headers may wrap, text
  * columns are trimmed, cells are tighter, and the sparkline column is the
  * one that shrinks. Only a table that still cannot fit scrolls. */
-.icor-sqlv-tile-body:has(> .icor-sqlv-table-scroll) { container-type: inline-size; }
+.icor-sqlv-tile-body.icor-sqlv-has-table-scroll { container-type: inline-size; }
 
 @container (max-width: 400px) {
   .icor-sqlv-tile .icor-sqlv-table { width: 100%; }
@@ -2116,7 +2251,7 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 /* ------------------------------------------------------------ text -- */
 
 /* A text widget: plain paragraphs in the card. A text line is no card at
- * all: one quiet line in a thin row, like a section divider's heading. */
+ * Overall: one quiet line in a thin row, like a section divider's heading. */
 .icor-sqlv-text { overflow: auto; font-size: var(--font-ui-small, 13px); color: var(--sqlv-fg-dim); line-height: 1.5; }
 
 .icor-sqlv-text-para { margin: 0 0 var(--sqlv-s2); }
