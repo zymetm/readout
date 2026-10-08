@@ -6,6 +6,20 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-10-07
+
+### Added
+- **"Create Guide Files for Your AI Team" on the empty dashboards screen.** It
+  sits beside "Create your first dashboard" and does what the command "Write
+  the guide files" does: writes `README.md` and `AI-WIDGET-GUIDE.md` into the
+  dashboards folder. A notice and a line on the screen say where they went, with
+  a button to open the AI guide. If the files are already there it behaves like
+  the command: an unedited copy is brought up to date, an edited one is left
+  alone.
+
+### Changed
+- The help file mentions the new button (revision 9).
+
 ## [1.0.0] - 2026-10-07
 
 ReadOut's first release: the ICOR for Life SQLite Viewer 0.7.0, forked and

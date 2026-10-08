@@ -92,8 +92,11 @@ ReadOut can write two guides into the dashboards folder, mirrored here:
   build a widget: the rules, the procedure, the schema, the result
   shapes, and the reference below for the dashboard file.
 
-They are written only when you ask: run the command "Write the guide files"
-or press the button of the same name in the settings. Each copy ends with a
+They are written only when you ask: run the command "Write the guide files",
+press the button of the same name in the settings, or press "Create Guide Files
+for Your AI Team" on the empty dashboards screen (the one with "Create your
+first dashboard"), which also says where the files went and offers to open the
+AI guide. Each copy ends with a
 fingerprint of its text. A newer version of ReadOut replaces a copy only while
 it still matches (nobody has edited it); an edited copy is never
 overwritten. Delete a copy and run the command again to get the newest text.
