@@ -6,6 +6,17 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-10-07
+
+### Changed
+- **"Create Guide Files for Your AI Team" greys out once the files exist.**
+  When `README.md` and `AI-WIDGET-GUIDE.md` are both in the dashboards folder,
+  the button on the empty dashboards screen goes inactive, says "Guide files are
+  in" the folder, and still offers "Open the AI guide". If either file goes
+  missing (deleted, renamed, moved, or the folder setting changed) the button is
+  active again. It reacts while the screen is open and is checked every time the
+  screen is drawn.
+
 ## [1.0.1] - 2026-10-07
 
 ### Added
