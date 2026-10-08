@@ -107,6 +107,15 @@
   font-size: 13px;
 }
 
+.icor-sqlv-guide-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  max-width: 420px;
+  text-align: center;
+}
+
 .icor-sqlv-header {
   display: flex;
   align-items: baseline;

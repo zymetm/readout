@@ -11,7 +11,7 @@ tags:
 
 What each widget type shows, what it is good for, and what each of its settings does. To change a setting, press "Edit" on the dashboard, then the pencil on the widget. Every data widget also has "Widget name", "Unit" (shown with the values, like orders or %) and "Size" ("Small (a square)", "Medium", "Wide", "Large", or "Keep as is" when editing).
 
-Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in this folder.
+Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in this folder. If it is missing, press "Create Guide Files for Your AI Team" on the empty dashboards screen, or run the command "Write the guide files".
 
 ## Line chart and bar chart
 
@@ -498,4 +498,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by ReadOut (revision 8, fingerprint a6160d7d). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 9, fingerprint beeaea95). If you edit this file, ReadOut stops updating it. -->

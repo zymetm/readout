@@ -5389,6 +5389,19 @@ class SqliteDashboardsView extends ItemView {
         this.activeId = spec.id;
         await this.reload();
       });
+      const guides = empty.createEl('button', { text: 'Create Guide Files for Your AI Team' });
+      const guideNote = empty.createDiv({ cls: 'icor-sqlv-guide-note' });
+      guides.addEventListener('click', async () => {
+        const where = this.plugin.settings.dashboardFolder;
+        const results = await this.plugin.writeGuideFilesWithNotice();
+        const ok = results.some((r) => r.outcome !== 'failed');
+        guideNote.empty();
+        guideNote.createDiv({ text: ok ? 'The guide files are in ' + where + ': README.md says what each widget does, AI-WIDGET-GUIDE.md is for an AI assistant that builds widgets for you.' : 'The guide files could not be written to ' + where + '.' });
+        if (ok) {
+          const open = guideNote.createEl('button', { text: 'Open the AI guide' });
+          open.addEventListener('click', () => this.plugin.openGuideFile('AI-WIDGET-GUIDE.md'));
+        }
+      });
       return;
     }
     const spec = this.specs.find((s) => s.id === this.activeId);
@@ -8604,7 +8617,7 @@ tags:
 
 What each widget type shows, what it is good for, and what each of its settings does. To change a setting, press "Edit" on the dashboard, then the pencil on the widget. Every data widget also has "Widget name", "Unit" (shown with the values, like orders or %) and "Size" ("Small (a square)", "Medium", "Wide", "Large", or "Keep as is" when editing).
 
-Editing dashboard files by hand, or asking an AI to? Use \`AI-WIDGET-GUIDE.md\` in this folder.
+Editing dashboard files by hand, or asking an AI to? Use \`AI-WIDGET-GUIDE.md\` in this folder. If it is missing, press "Create Guide Files for Your AI Team" on the empty dashboards screen, or run the command "Write the guide files".
 
 ## Line chart and bar chart
 
@@ -9788,7 +9801,7 @@ must be read-only.
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 8, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 9, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 9, legacy: [] },
 ];
 
@@ -10573,7 +10586,16 @@ class ReadOutPlugin extends Plugin {
     return this.writeGuideFiles({ createMissing: false });
   }
 
-  /* The command and the settings button. Says in plain words what it did. */
+  /* Opens one of the guide files in a new tab; says so when it is not there. */
+  async openGuideFile(name) {
+    const path = this.settings.dashboardFolder + '/' + name;
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) { new Notice(name + ' is not in ' + this.settings.dashboardFolder + ' yet.'); return; }
+    await this.app.workspace.getLeaf(true).openFile(file);
+  }
+
+  /* The command, the settings button and the empty dashboards screen's
+   * button. Says in plain words what it did. */
   async writeGuideFilesWithNotice() {
     const results = await this.writeGuideFiles();
     const where = this.settings.dashboardFolder;

@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter, FIXTURE_DASHBOARD_FILES } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, makeFakeVault, notices, FIXTURE_DASHBOARD_FILES } from './harness.mjs';
 
 const VIEW_DASHBOARDS = 'readout-dashboards';
 
@@ -107,4 +107,41 @@ test('the toolbar wraps and its dropdown shrinks, so a phone never clips Refresh
   assert.match(rule('.icor-sqlv-dash-bar'), /flex-wrap:\s*wrap/, 'the bar wraps');
   assert.match(rule('.icor-sqlv-dash-bar select.dropdown'), /min-width:\s*0/, 'the dropdown can shrink below its text');
   assert.match(rule('.icor-sqlv-dash-bar button'), /flex:\s*0 0 auto/, 'a button keeps its own size and moves to the next line instead of being cut');
+});
+
+test('the empty screen offers "Create Guide Files for Your AI Team": it writes both guides, says where, and offers to open the AI guide', async () => {
+  const adapter = makeFakeAdapter({}, { '07 Databases/engagement.db': new Uint8Array([1]) });
+  const { makePlugin, obsidian } = loadPlugin({ desktop: true });
+  const opened = [];
+  const app = {
+    vault: { ...makeFakeVault(adapter, obsidian.TFile) },
+    workspace: { onLayoutReady: () => {}, on: () => ({}), getLeaf: () => ({ openFile: async (f) => { opened.push(f.path); } }) },
+  };
+  const plugin = makePlugin(app);
+  await plugin.onload();
+  const view = plugin.viewFactories[VIEW_DASHBOARDS]({ app });
+  view.app = app;
+  plugin.query.cli = { ok: false, reason: 'gate' };
+  await view.onOpen();
+  await settle();
+  const folder = plugin.settings.dashboardFolder;
+  const button = (el, text) => [...walkEl(el)].find((e) => e.tagName === 'BUTTON' && e.textContent === text);
+  assert.ok(button(view.contentEl, 'Create your first dashboard'), 'the first button stays');
+  const guides = button(view.contentEl, 'Create Guide Files for Your AI Team');
+  assert.ok(guides, 'the guide button shows on the empty screen');
+  assert.equal(adapter.files.has(folder + '/README.md'), false, 'nothing is written before the button is pressed');
+  const before = notices.length;
+  for (const fn of guides.handlers.click) await fn();
+  assert.ok(adapter.files.has(folder + '/README.md'), 'the help file is written');
+  assert.ok(adapter.files.has(folder + '/AI-WIDGET-GUIDE.md'), 'the AI guide is written');
+  assert.match(notices.slice(before).join(' '), new RegExp('Guide files in ' + folder));
+  assert.match(textOf(view.contentEl), new RegExp('The guide files are in ' + folder));
+  const open = button(view.contentEl, 'Open the AI guide');
+  assert.ok(open, 'the screen offers to open the AI guide');
+  for (const fn of open.handlers.click) await fn();
+  assert.deepEqual(opened, [folder + '/AI-WIDGET-GUIDE.md']);
+  /* Pressed again, the guides already exist: it behaves like the command and still answers. */
+  const again = notices.length;
+  for (const fn of guides.handlers.click) await fn();
+  assert.match(notices.slice(again).join(' '), /already up to date/);
 });
