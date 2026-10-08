@@ -2979,10 +2979,49 @@ function packLayout(layouts, cols, anchorIndex) {
   return out;
 }
 
+/* True when a saved layout was drawn for more columns than this pane has. */
+function overflowsColumns(layout, cols) {
+  const wide = clampLayout(layout, GRID_MAX_COLS);
+  return wide.x + wide.w > cols;
+}
+
+/* THE NARROW REFLOW, in plain words: a dashboard drawn for six columns,
+ * shown in two or three, would have every tile past the last column pushed
+ * into it and the cells before it left empty. Instead the tiles keep their
+ * reading order (top to bottom, left to right on the wide layout) and each
+ * takes the first free spot from the top, so there are no gaps. A tile that
+ * spans the whole width (a divider, or a table cut down to the width) is a
+ * wall: nothing after it moves up past it, so a section stays below its
+ * heading. Only a pane narrower than the layout does this; a layout that
+ * fits is left exactly as it was saved. */
+function reflowNarrow(tiles, cols) {
+  const wide = normalizeLayout(tiles, GRID_MAX_COLS);
+  const order = wide.map((l, i) => i).sort((a, b) => (wide[a].y - wide[b].y) || (wide[a].x - wide[b].x) || (a - b));
+  const out = new Array(tiles.length);
+  const placed = [];
+  let floor = 0;
+  for (const i of order) {
+    const w = Math.min(wide[i].w, cols);
+    const h = wide[i].h;
+    let spot = null;
+    for (let y = floor; !spot; y++) {
+      for (let x = 0; x + w <= cols && !spot; x++) {
+        const candidate = { x, y, w, h };
+        if (!placed.some((p) => rectsCollide(candidate, p))) spot = candidate;
+      }
+    }
+    out[i] = spot;
+    placed.push(spot);
+    if (spot.w >= cols) floor = spot.y + spot.h;
+  }
+  return out;
+}
+
 /* Layouts for every tile: the spec's own {x,y,w,h} where present, a
  * sensible default spot where not (the 0.2.x migration), everything
  * clamped to the column count and packed without overlaps. */
 function normalizeLayout(tiles, cols) {
+  if (cols < GRID_MAX_COLS && tiles.some((t) => t.layout && overflowsColumns(t.layout, cols))) return reflowNarrow(tiles, cols);
   const layouts = [];
   const placed = [];
   for (const tile of tiles) {

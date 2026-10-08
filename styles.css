@@ -885,8 +885,8 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
 .icor-sqlv-legend-chip.is-round { border-radius: 50%; width: 8px; height: 8px; }
 
 /* A stat tile never lets its edge cut a line of text. Top to bottom:
- * the title (its own row, one line, ellipsis), the number (one line,
- * ellipsis), the change line (two whole lines at most), and the footer
+ * the title (its own row), the number (one line; its unit and change
+ * badge drop below it when they do not fit), the change line (two whole lines at most), and the footer
  * with the level pill, bottom right. When space runs short only the
  * change line gives way, to one line and then out, measured by
  * fitStatCaption, so this holds at any font size. Font sizes stay the
@@ -910,8 +910,17 @@ th:has(.icor-sqlv-sort-mark) .icor-sqlv-sort-label { color: var(--sqlv-fg-dim); 
   flex: 0 0 auto;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* The unit and the change badge sit beside the number while they fit and
+   * drop below it when they do not, instead of being cut ("g..."). */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--sqlv-s2);
 }
+
+.icor-sqlv-stat-value > * { white-space: nowrap; }
+
+.icor-sqlv-stat-value > .icor-sqlv-delta { margin-left: 0; align-self: center; }
 
 .icor-sqlv-stat-unit {
   font-family: var(--sqlv-font-mono);

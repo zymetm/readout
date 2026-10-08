@@ -83,3 +83,57 @@ test('an x axis label is never sliced: it is drawn whole or not at all', () => {
     assert.ok(longOnes.includes(p.text), 'drawn whole: ' + p.text);
   }
 });
+
+/* ------------------------------------ 3. a narrow grid and stat units -- */
+
+const T = (x, y, w, h, viz) => ({ viz: viz || 'stat', layout: { x, y, w, h } });
+const cellsOf = (layouts) => layouts.map((l) => ({ x: l.x, y: l.y, w: l.w, h: l.h }));
+
+function noOverlap(layouts) {
+  for (let i = 0; i < layouts.length; i++) {
+    for (let j = i + 1; j < layouts.length; j++) {
+      const a = layouts[i]; const b = layouts[j];
+      assert.ok(!(a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h), 'tiles ' + i + ' and ' + j + ' overlap');
+    }
+  }
+}
+
+test('five stats drawn across six columns fill two columns left to right, with no empty cell', () => {
+  const tiles = [0, 1, 2, 3, 4].map((x) => T(x, 0, 1, 1));
+  const out = cellsOf(lib.normalizeLayout(tiles, 2));
+  assert.deepEqual(out, [
+    { x: 0, y: 0, w: 1, h: 1 }, { x: 1, y: 0, w: 1, h: 1 },
+    { x: 0, y: 1, w: 1, h: 1 }, { x: 1, y: 1, w: 1, h: 1 },
+    { x: 0, y: 2, w: 1, h: 1 },
+  ]);
+});
+
+test('a tile wider than the pane is cut to the pane, and a tall one lets a stat fill beside it', () => {
+  const tiles = [T(0, 0, 3, 2, 'heatmap'), T(3, 0, 2, 2, 'bar'), T(0, 2, 1, 1), T(1, 2, 1, 1)];
+  const out = cellsOf(lib.normalizeLayout(tiles, 2));
+  assert.deepEqual(out[0], { x: 0, y: 0, w: 2, h: 2 });
+  assert.deepEqual(out[1], { x: 0, y: 2, w: 2, h: 2 });
+  assert.deepEqual(out.slice(2), [{ x: 0, y: 4, w: 1, h: 1 }, { x: 1, y: 4, w: 1, h: 1 }]);
+  noOverlap(out);
+});
+
+test('a divider is a wall: nothing after it moves up past it', () => {
+  const tiles = [T(0, 0, 3, 1, 'heatmap'), T(3, 0, 1, 1), T(0, 1, 6, 1, 'divider'), T(0, 2, 1, 1)];
+  const out = cellsOf(lib.normalizeLayout(tiles, 2));
+  assert.ok(out[3].y > out[2].y, 'the tile after the divider stays below it');
+  noOverlap(out);
+});
+
+test('a layout that fits the pane is left exactly as it was saved', () => {
+  const tiles = [T(0, 0, 1, 1), T(2, 0, 1, 1), T(4, 1, 2, 1, 'bar')];
+  const out = cellsOf(lib.normalizeLayout(tiles, 6));
+  assert.deepEqual(out, [{ x: 0, y: 0, w: 1, h: 1 }, { x: 2, y: 0, w: 1, h: 1 }, { x: 4, y: 0, w: 2, h: 1 }]);
+});
+
+test('a stat unit drops below the number instead of being cut', () => {
+  const body = rule('.icor-sqlv-stat-value');
+  assert.match(body, /display:\s*flex/);
+  assert.match(body, /flex-wrap:\s*wrap/);
+  assert.doesNotMatch(body, /text-overflow/);
+  assert.match(rule('.icor-sqlv-stat-value > *'), /white-space:\s*nowrap/);
+});
