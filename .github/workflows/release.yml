@@ -9,7 +9,10 @@ name: Release
 # is not on main. Then the tests run, and only then is the release created.
 #
 # The release carries exactly three files: main.js, manifest.json and
-# styles.css. That is all the directory installer downloads. The SQLite
+# styles.css. Each one gets a signed GitHub artifact attestation (build
+# provenance), so anyone can check that a downloaded file was built from
+# this repository's tag by this workflow (gh attestation verify <file> --repo
+# <owner>/<repo>). That is all the directory installer downloads. The SQLite
 # engine is already inside main.js, so there is nothing else to ship. The
 # release notes are the matching section of CHANGELOG.md.
 #
@@ -102,7 +105,11 @@ jobs:
         with:
           node-version: '22'
 
-      # No dependencies and no lockfile: nothing to install.
+      # The repo has no dependencies; package-lock.json pins that, and `npm ci`
+      # fails if the lockfile and package.json ever disagree.
+      - name: Check the lockfile
+        run: npm ci --ignore-scripts
+
       - name: Test
         run: npm test
 
@@ -115,12 +122,24 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # The attestation is signed with this run's identity token and stored
+      # with the repository.
+      id-token: write
+      attestations: write
     steps:
       - name: Check out the tagged commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.ref }}
           persist-credentials: false
+
+      - name: Attest the three release files (build provenance)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
 
       - name: Write the release notes from the changelog
         env:
@@ -175,3 +194,6 @@ jobs:
             cmp "$f" "published/$f" || { echo "::error::$f in the release differs from the tag"; exit 1; }
           done
           sha256sum published/main.js published/manifest.json published/styles.css
+          for f in main.js manifest.json styles.css; do
+            gh attestation verify "published/$f" --repo "$GITHUB_REPOSITORY"
+          done
