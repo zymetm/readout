@@ -6,6 +6,41 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.5] - 2026-10-09
+
+Changes from the Obsidian community plugin scan of 1.0.4.
+
+### Changed
+- **ReadOut no longer contains any code that touches Node's file system.** The
+  last "direct file system access" warning came from the SQLite engine
+  (sql.js) pasted into `main.js`: it carried a branch for running under Node
+  that loads Node's file system, path and crypto modules. That branch never ran
+  in Obsidian. It is now cut out of the copy in `main.js`, and nothing else in
+  the engine is changed. Measured in Obsidian: the dashboards and the data
+  browser load, query and draw as before.
+- **The size limit is stated plainly.** The README and the settings now say
+  databases up to about 2 GB open and larger files will not.
+
+### Fixed
+- **Every "Unexpected duplicate property" warning in the CSS lint.** 31
+  declarations in the stylesheet repeated a property already set earlier in the
+  same rule (the button resets). Each property is now written once per rule with
+  its final value. The look is unchanged: the computed style and the position of
+  4,777 elements (the tab bar, filter button and row, sort headers, tile
+  buttons, the Advanced toggle, and three dashboards in view and edit mode) were
+  compared with 1.0.4 and match.
+
+### Added
+- **A `build` script that is honest about having no build.** `npm run build`
+  compiles nothing and changes no file. It checks that `main.js` embeds the
+  vendored sql.js (with the one patch above) and the vendored `.wasm` exactly,
+  and fails if not. CI and the release workflow run it, then check that
+  `main.js`, `manifest.json` and `styles.css` are unchanged.
+- **README:** "What ReadOut can access, and why" now says the vault listing
+  finds databases anywhere in your vault (it reads file names and sizes only),
+  and that the clipboard is written only when you click a copy button and is
+  never read.
+
 ## [1.0.4] - 2026-10-08
 
 Changes from the Obsidian community plugin scan of 1.0.3.
