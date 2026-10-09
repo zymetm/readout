@@ -990,7 +990,10 @@
 
 .icor-sqlv-stat-value > * { white-space: nowrap; }
 
-.icor-sqlv-stat-value > .icor-sqlv-delta { margin-left: 0; align-self: center; }
+/* The change badge has its own line directly under the number, in every stat
+ * widget, so it sits in the same place whatever the length of the number. */
+.icor-sqlv-stat-change { flex: 0 0 auto; display: flex; justify-content: flex-start; margin-top: var(--sqlv-s1); min-width: 0; }
+.icor-sqlv-stat-change > .icor-sqlv-delta { margin-left: 0; white-space: nowrap; }
 
 .icor-sqlv-stat-unit {
   font-family: var(--sqlv-font-mono);
@@ -2190,11 +2193,20 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 .icor-sqlv-tile-body.icor-sqlv-has-table-scroll { container-type: inline-size; }
 
 @container (max-width: 400px) {
-  .icor-sqlv-tile .icor-sqlv-table { width: 100%; }
+  .icor-sqlv-tile .icor-sqlv-table { width: 100%; font-size: 11px; }
   .icor-sqlv-tile .icor-sqlv-table th,
-  .icor-sqlv-tile .icor-sqlv-table td { padding-left: var(--sqlv-s1); padding-right: var(--sqlv-s1); max-width: 6em; }
-  .icor-sqlv-tile .icor-sqlv-table thead th { white-space: normal; overflow-wrap: break-word; line-height: 1.2; vertical-align: bottom; }
-  .icor-sqlv-tile .icor-sqlv-spark { width: 40px; }
+  .icor-sqlv-tile .icor-sqlv-table td { padding-left: 3px; padding-right: 3px; max-width: 5em; }
+  /* A heading wraps at its spaces and, when one word is still too wide, at a
+   * syllable with a hyphen. It is never cut off or broken in mid-word, every
+   * heading is bottom-aligned on the same line, and a number is never cut. */
+  .icor-sqlv-tile .icor-sqlv-table thead th {
+    white-space: normal; overflow: visible; max-width: none; text-overflow: clip;
+    overflow-wrap: normal; word-break: normal; hyphens: auto;
+    line-height: 1.15; vertical-align: bottom; font-size: 10px;
+  }
+  .icor-sqlv-tile .icor-sqlv-table td.icor-sqlv-num { max-width: none; overflow: visible; text-overflow: clip; }
+  .icor-sqlv-tile .icor-sqlv-spark { width: 28px; }
+}
 }
 
 

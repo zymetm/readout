@@ -171,7 +171,7 @@ test('a table in a tile of 400px or less shares the width and shrinks its sparkl
   assert.equal(Number(m[1]), 400);
   assert.match(m[2], /\.icor-sqlv-table\s*\{\s*width:\s*100%/);
   assert.match(m[2], /thead th\s*\{[^}]*white-space:\s*normal/);
-  assert.match(m[2], /\.icor-sqlv-spark\s*\{\s*width:\s*40px/);
+  assert.match(m[2], /\.icor-sqlv-spark\s*\{\s*width:\s*28px/);
 });
 
 test('the narrow table rules come after the phone rules, so they win', () => {

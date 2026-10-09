@@ -288,7 +288,7 @@ test('how many weeks fit: a square of 6px and a gap each, after the weekday name
   assert.equal(lib.calendarWeeksFit(0), Infinity);
   assert.equal(lib.calendarWeeksFit(undefined), Infinity);
   assert.equal(lib.calendarWeeksFit(340), 39);
-  assert.equal(lib.calendarWeeksFit(450), 53);
+  assert.equal(lib.calendarWeeksFit(452), 53);
   assert.equal(lib.calendarWeeksFit(20), 8, 'never fewer than eight weeks');
 });
 

@@ -2764,7 +2764,7 @@ function calendarOf(table, tile, defaultWeekStart, maxWeeks) {
  * not measured yet (0) gets every week. */
 const CAL_MIN_CELL = 6;
 const CAL_GAP = 2;
-const CAL_LABEL_PX = 24;
+const CAL_LABEL_PX = 28;
 const CAL_MIN_WEEKS = 8;
 function calendarWeeksFit(width) {
   if (!(width > 0)) return Infinity;
@@ -4433,7 +4433,8 @@ function renderStatTile(parentEl, table, tile, extras) {
     const badge = deltaBadge(value, prev, extras.favorable);
     if (badge) {
       const cls = badge.good === null ? 'is-flat' : (badge.good ? 'is-good' : 'is-bad');
-      const pill = line.createSpan({ cls: 'icor-sqlv-delta ' + cls });
+      /* Always on its own line under the number, however long the number. */
+      const pill = wrap.createDiv({ cls: 'icor-sqlv-stat-change' }).createSpan({ cls: 'icor-sqlv-delta ' + cls });
       pill.createSpan({ text: (badge.direction === 'up' ? '▲ ' : badge.direction === 'down' ? '▼ ' : '') + badge.label });
       pill.setAttribute('aria-label', 'Compared with the ' + (extras.compare === 'last_year' ? 'same period last year' : 'previous period') + ': ' + badge.label);
       pill.setAttribute('title', 'vs ' + formatNumber(Number(prev)) + (tile.unit ? ' ' + tile.unit : ''));
@@ -4640,7 +4641,7 @@ function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
   let pinned = -1;
   table.columns.forEach((c, i) => { if (sparks.has(c)) pinned = i; });
   const head = t.createEl('thead').createEl('tr');
-  table.columns.forEach((col, i) => head.createEl('th', { text: col, cls: i === pinned ? 'icor-sqlv-pinned' : '' }));
+  table.columns.forEach((col, i) => { const th = head.createEl('th', { text: col, cls: i === pinned ? 'icor-sqlv-pinned' : '' }); th.setAttribute('lang', 'en'); });
   const body = t.createEl('tbody');
   for (const row of table.rows.slice(0, cap)) {
     const tr = body.createEl('tr');
@@ -4648,6 +4649,7 @@ function renderResultTable(parentEl, table, { maxRows, sparklines } = {}) {
       const series = sparks.has(table.columns[i]) ? sparkValuesOf(v) : null;
       const td = tr.createEl('td', { text: series ? '' : (v === null || v === undefined ? '' : String(v)) });
       if (series) { td.addClass('icor-sqlv-spark-cell'); drawSpark(td, series); }
+      else if (typeof v === 'string' && v.length > 8) td.setAttribute('title', v);
       else if (typeof v === 'number') td.addClass('icor-sqlv-num');
       if (i === pinned) td.addClass('icor-sqlv-pinned');
     });
