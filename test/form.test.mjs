@@ -234,7 +234,7 @@ test('the one-way conversion: a built widget converted to SQL parses as a raw ti
 
 /* ---------------------------------------------- the form, DOM-driven -- */
 
-import { makeFakeAdapter } from './harness.mjs';
+import { makeFakeAdapter, makeFakeVault } from './harness.mjs';
 
 function* walkEl(el) { yield el; for (const c of el.children || []) yield* walkEl(c); }
 function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if (el.classSet && el.classSet.has(cls)) out.push(el); return out; }
@@ -242,7 +242,7 @@ function byClass(root, cls) { const out = []; for (const el of walkEl(root)) if 
 test('the form gates Save on a green preview and saves a widget that round-trips', async () => {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [{ path: '07 Databases/x.db', stat: { size: 1 } }] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: makeFakeVault(adapter, fresh.obsidian.TFile), workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -287,7 +287,7 @@ test('the form gates Save on a green preview and saves a widget that round-trips
 test('a failed preview locks Save and shows its error in the form', async () => {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

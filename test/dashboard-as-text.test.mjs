@@ -55,7 +55,7 @@ async function setup() {
   const app = {
     vault: {
       adapter,
-      getFiles: () => [],
+     
       read: async (f) => adapter.files.get(f.path),
       process: async (f, fn) => {
         const next = fn(adapter.files.get(f.path));
@@ -285,7 +285,7 @@ test('the hand-off to the dashboards view uses window.setTimeout, as the Obsidia
    * main window's. Here the sandbox has no global one, only window's. */
   const { makePlugin } = loadPlugin({ globals: { setTimeout: undefined, clearTimeout: undefined } });
   const adapter = makeFakeAdapter({ [PATH]: JSON.stringify(SPEC) });
-  const app = { vault: { adapter, getFiles: () => [], read: async (f) => adapter.files.get(f.path) }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter, read: async (f) => adapter.files.get(f.path) }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();

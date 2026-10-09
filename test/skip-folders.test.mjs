@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin } from './harness.mjs';
+import { loadPlugin, unwrap } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -21,10 +21,21 @@ test('the config folder the vault names is skipped, and .git and .trash always',
   assert.deepEqual(lib.findDatabases(files).map((f) => f.path), ['Data/a.db', 'myconfig/plugins/x/cache.db'], 'no config folder given: the usual name');
 });
 
-test('a plugin passes the vault configDir to the finder', async () => {
+test('the plugin walks the children of the database folder, skipping the vault config folder', async () => {
   const fresh = loadPlugin();
-  const app = { vault: { adapter: {}, configDir: 'myconfig', getFiles: () => [{ path: 'myconfig/p/c.db', stat: { size: 1 } }, { path: 'Data/a.db', stat: { size: 1 } }] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
-  const plugin = fresh.makePlugin(app);
-  plugin.app = app;
-  assert.deepEqual(plugin.vaultDatabases().map((f) => f.path), ['Data/a.db']);
+  const file = (path) => ({ path, stat: { size: 1 } });
+  const root = { path: '/', children: [
+    { path: 'Data', children: [file('Data/a.db'), { path: 'Data/x', children: [file('Data/x/b.sqlite')] }] },
+    { path: 'myconfig', children: [{ path: 'myconfig/p', children: [file('myconfig/p/c.db')] }] },
+    { path: 'Other', children: [file('Other/d.db')] },
+  ] };
+  const vault = { adapter: {}, configDir: 'myconfig', getRoot: () => root, getAbstractFileByPath: (p) => (p === 'Data' ? root.children[0] : null) };
+  const plugin = fresh.makePlugin({ vault });
+  plugin.app = { vault };
+  plugin.settings = { dataFolder: 'Data' };
+  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite'], 'only the database folder is walked');
+  plugin.settings = { dataFolder: '/' };
+  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite', 'Other/d.db'], 'the vault root is walked only when chosen');
+  plugin.settings = { dataFolder: 'Missing' };
+  assert.deepEqual(unwrap(plugin.vaultDatabases()), []);
 });

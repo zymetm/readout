@@ -74,7 +74,7 @@ test('only a theme variable or a six-digit hex counts as a level colour', () => 
 
 test('the plugin normalizes its saved levels when it loads', async () => {
   const fresh = loadPlugin();
-  const app = { vault: { adapter: makeFakeAdapter(), getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter: makeFakeAdapter() }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app, { levels: [{ name: 'Fine', color: '#00ff00' }, { name: '' }], levelLooks: { stat: 'outline' } });
   await plugin.onload();
   assert.deepEqual(unwrap(plugin.settings.levels), [{ id: 'fine', name: 'Fine', color: '#00ff00' }]);
@@ -231,7 +231,7 @@ const settle = () => new Promise((r) => setTimeout(r, 20));
 async function makeView(files, binaries, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const adapter = makeFakeAdapter(files, binaries);
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   const view = plugin.viewFactories[VIEW_DASHBOARDS]({ app });
@@ -276,7 +276,7 @@ test('a phone judges the cached number at render time, from the cached ranges', 
 async function makeForm(tile) {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -539,7 +539,7 @@ test('a rename in the settings rewrites every dashboard and the cache; delete pl
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter(files, { '07 Databases/x.db': new Uint8Array([1]) });
   const reloaded = [];
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}), getLeavesOfType: () => [{ view: { reload: async () => { reloaded.push(1); } } }] } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}), getLeavesOfType: () => [{ view: { reload: async () => { reloaded.push(1); } } }] } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
 

@@ -18,7 +18,7 @@ const { lib } = loadPlugin();
 
 async function bootPlugin(fresh, adapter, saved = undefined) {
   const registered = [];
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app, saved);
   plugin.app = app;
   plugin.registerExtensions = (exts, type) => registered.push([exts.join(','), type]);

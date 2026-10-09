@@ -78,10 +78,12 @@ can render them), a schema catalog per database (table and column names
 and types) for the mobile picker, and its own `data.json` settings. The
 catalog carries RAW VALUES of small text columns only when the member
 turns on "Include category values in the mobile catalog", which is off by
-default; the setting says in plain words what gets written. The migration
-button MOVES database files inside the vault via Obsidian's rename, only
-after the member confirms an exact list, and never overwrites an existing
-file.
+default; the setting says in plain words what gets written. "Save as CSV"
+writes one new CSV file into an Exports folder inside the database folder
+when the member clicks it, never over an existing file. ReadOut never moves,
+renames or deletes a database file, never lists the files of the whole vault
+(it walks only the database folder, unless the member turns on searching the
+whole vault), and never touches the clipboard.
 
 **Where it connects.** Nowhere. No remote host, no telemetry, no analytics.
 
@@ -97,8 +99,8 @@ file.
   read or write a file outside the vault.
 - **Path escape.** A dashboard file, a settings value or a database path
   that makes the plugin read or write outside the vault.
-- **Migration data loss.** Any path by which the migration button
-  overwrites, truncates or deletes a file.
+- **Overwriting a file.** Any path by which "Save as CSV" overwrites,
+  truncates or deletes an existing file.
 - **HTML or code injection** when query results, schema names or dashboard
   titles render (a database is data; a malicious database must not become
   code).

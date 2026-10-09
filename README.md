@@ -48,9 +48,15 @@ from a table with a few clicks, or you can write the SQL yourself.
 
 ## Where it keeps things
 
-- Your databases can be anywhere in the vault. The data folder (by default
-  `Databases`) is only where the "Move databases into ..." button in the
-  settings gathers them.
+- ReadOut lists the databases inside the database folder (by default
+  `Databases`, or `07 Databases` in an ICOR for Life vault), including its
+  subfolders. Clicking any `.db`, `.sqlite` or `.sqlite3` file anywhere in the
+  vault still opens it, and a dashboard can name a database anywhere in the
+  vault. If your databases sit all over, or at the top of the vault, switch on
+  "Search the whole vault for databases" in the settings (it looks through every
+  folder's file names, so it is off unless you choose it).
+- A query result can be saved as a CSV file with "Save as CSV": it goes into an
+  `Exports` folder inside the database folder, and ReadOut tells you where.
 - Dashboards are plain JSON files in the dashboards folder, and the desktop
   writes a small cache next to them so a phone can show a database that is
   too large to sync.
@@ -515,22 +521,28 @@ ReadOut makes **no network connection and downloads nothing.** Obsidian's
 community-plugin scan lists a few kinds of access; here is each one, and what
 it is for.
 
-- **Listing the files in your vault.** Databases can be anywhere in your vault,
-  and ReadOut finds them for you. To do that it looks through the vault's file
-  list for files ending in `.db`, `.sqlite` or `.sqlite3` and offers them to
-  you. It only looks at file names and sizes: it reads no note and no other file
-  to do this.
+- **Looking for databases.** ReadOut does not list the files in your vault.
+  It looks only inside the database folder you set (by default `Databases`, or
+  `07 Databases` in an ICOR for Life vault), walking that folder's contents
+  through Obsidian's folder API for files ending in `.db`, `.sqlite` or
+  `.sqlite3`. It looks at file names and sizes only: it reads no note and no
+  other file to do this. A database anywhere else still opens when you click it
+  or when a dashboard you wrote names it. If you want ReadOut to look through the
+  whole vault, you turn on "Search the whole vault for databases" in the
+  settings; it is off otherwise.
 - **Reading and writing inside your vault.** It reads the databases you open,
   read-only; it can never change them. It writes only its own files, as
   ordinary files in your vault: the dashboards you save, the small caches that
-  let a phone show them, and the two guides (`README.md` and
-  `AI-WIDGET-GUIDE.md`) in the dashboards folder, and only when you ask. It
-  creates no folder and no file just by starting. A database path must be a
+  let a phone show them, the two guides (`README.md` and
+  `AI-WIDGET-GUIDE.md`) in the dashboards folder, and only when you ask, and a
+  CSV file when you click "Save as CSV" on a query result (in an `Exports`
+  folder inside the database folder). It creates no folder and no file just by
+  starting. A database path must be a
   real file inside the vault: a path with `..`, an absolute path, or one inside
   a hidden or configuration folder is refused.
-- **The clipboard.** ReadOut writes to the clipboard only when you click a copy
-  button ("Copy as CSV" on a query result, "Copy JSON" in the JSON viewer), and then it puts just
-  that text there. It never reads what is on your clipboard.
+- **The clipboard.** ReadOut does not use the clipboard at all, neither to
+  read it nor to write to it. A query result is saved as a CSV file in your vault
+  ("Save as CSV"); copy from there if you want it elsewhere.
 - **No other program and no outside files.** ReadOut starts no program and uses
   no file access outside Obsidian's own vault API. On every device the engine
   is the SQLite build embedded in ReadOut (sql.js, WebAssembly), working on a

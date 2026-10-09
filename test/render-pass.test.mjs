@@ -22,7 +22,7 @@ test('the form preview debounce schedules on window, not on the bare globals', a
   const boom = () => { throw new Error('the bare global was used'); };
   const fresh = loadPlugin({ globals: { window: windowSpy, setTimeout: boom, clearTimeout: boom } });
   const adapter = makeFakeAdapter({}, {});
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -41,7 +41,7 @@ const SALES = { id: 'sales', title: 'Sales', database: DB, tiles: [{ title: 'Not
 async function noteWithBlocks() {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({ [DASH]: JSON.stringify(SALES) }, { [DB]: new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

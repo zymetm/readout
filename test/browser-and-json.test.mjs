@@ -24,7 +24,7 @@ function click(el) { for (const fn of (el.handlers && el.handlers.click) || []) 
 async function makeBrowser() {
   const { makePlugin } = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -82,7 +82,7 @@ async function makeJsonView(files, { size } = {}) {
   const app = {
     vault: {
       adapter,
-      getFiles: () => [],
+     
       read: async (f) => files[f.path],
       modify: async (f, text) => { files[f.path] = text; modified.push(f.path); },
       process: async (f, fn) => { files[f.path] = fn(files[f.path]); modified.push(f.path); return files[f.path]; },
@@ -102,7 +102,7 @@ async function makeJsonView(files, { size } = {}) {
   return { plugin, view, file, states, modified, files };
 }
 
-test('a JSON that is not a dashboard opens in the reader: pretty, read-only, with copy and edit', async () => {
+test('a JSON that is not a dashboard opens in the reader: pretty, read-only, with edit and no copy', async () => {
   const { view, file, states } = await makeJsonView({ 'notes/data.json': '{"b":1,"a":[1,2]}' });
   await view.onLoadFile(file);
   view.file = file;
@@ -113,7 +113,7 @@ test('a JSON that is not a dashboard opens in the reader: pretty, read-only, wit
   assert.match(pre.textContent, /"b": 1/, 'pretty-printed');
   const buttons = [];
   for (const el of walkEl(view.contentEl)) if (el.tagName === 'BUTTON') buttons.push(el.textContent);
-  assert.ok(buttons.includes('Copy JSON'));
+  assert.ok(!buttons.includes('Copy JSON'), 'no clipboard button');
   assert.ok(buttons.includes('Edit as text'));
   assert.equal(view.contentEl.attrs['data-ink-plugin'], 'icor-for-life-sqlite-viewer');
 });

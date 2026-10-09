@@ -37,12 +37,12 @@
  * Three layers, top to bottom of this file:
  *
  *   1. A pure library: the statement gate, the row cap, query building for
- *      the browser, CSV export, dashboard spec parsing, migration planning,
+ *      the browser, CSV export, dashboard spec parsing, database finding,
  *      chart scales. No Obsidian, no file system. Exposed as
  *      `ReadOutPlugin.lib` for the gates.
  *   2. The engine: the sql.js loader, with the query gate in front of it.
  *   3. The Obsidian surface: the database browser view, the dashboards
- *      view, the database index, the settings tab and the migration modal.
+ *      view, the database index, the settings tab.
  *
  * Hand-written CommonJS, no runtime npm dependencies. This file is the
  * source: `npm run build` (build.mjs) copies it to the root main.js with the
@@ -553,6 +553,40 @@ function findDatabases(files, configDir) {
   return files
     .filter((f) => isDbPath(f.path) && !isSkippedPath(f.path, configDir))
     .sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/* True when a database-folder setting means the whole vault: empty, "/" or ".". */
+function isVaultRootFolder(setting) {
+  const t = String(setting === undefined || setting === null ? '' : setting).trim();
+  return t === '' || t === '/' || t === '.';
+}
+
+/* Every database file under a folder, found by walking its children through
+ * the vault API (a TFolder has a children list; a file has none). Only this
+ * folder is walked, never the whole vault unless the folder is the vault
+ * root, which the member chooses in settings. Returns { path, size }. */
+function walkDatabases(folder, configDir) {
+  const found = [];
+  const visit = (f) => {
+    for (const child of (f && Array.isArray(f.children)) ? f.children : []) {
+      if (isSkippedPath(child.path, configDir)) continue;
+      if (Array.isArray(child.children)) visit(child);
+      else if (isDbPath(child.path)) found.push({ path: child.path, size: child.stat ? child.stat.size : 0 });
+    }
+  };
+  visit(folder);
+  return findDatabases(found, configDir);
+}
+
+/* The name of a saved result file: the database's stem, a stamp, ".csv". */
+function csvExportName(dbPath, now, taken) {
+  const d = now instanceof Date ? now : new Date();
+  const p2 = (n) => String(n).padStart(2, '0');
+  const stamp = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + p2(d.getMinutes()) + p2(d.getSeconds());
+  const stem = (dbPath ? stemOf(dbPath) : 'query') + ' ' + stamp;
+  let name = stem + '.csv';
+  for (let i = 2; taken && taken.has(name); i++) name = stem + ' (' + i + ').csv';
+  return name;
 }
 
 /* Whether these bytes begin like a SQLite database file: the first 16
@@ -1816,36 +1850,6 @@ function catalogPathFor(cacheFolder, dbPath) {
 /* Where a 0.5.0 catalog lived, read as a fallback until it regenerates. */
 function legacyCatalogPathFor(cacheFolder, dbPath) {
   return normalizePath(cacheFolder + '/catalogs/' + stemOf(dbPath) + '.json');
-}
-
-/* ---------------------------------------------------- migration planning -- */
-
-/* Plan the "Move databases into the data folder" button: every database outside the
- * data folder moves to its top level, sidecars travel with their database,
- * nothing is ever overwritten. Pure: takes paths, returns the plan. */
-function planMigration(dbPaths, existingPaths, targetRoot) {
-  const root = normalizePath(targetRoot || PLAIN_FOLDERS.dataFolder);
-  const moves = [];
-  const skips = [];
-  const claimed = new Set();
-  for (const from of dbPaths) {
-    if (from === root || from.startsWith(root + '/')) {
-      skips.push({ path: from, reason: 'already inside ' + root });
-      continue;
-    }
-    const to = root + '/' + baseName(from);
-    if (existingPaths.has(to) || claimed.has(to)) {
-      skips.push({ path: from, reason: 'a file named ' + baseName(from) + ' already exists in ' + root });
-      continue;
-    }
-    claimed.add(to);
-    const sidecars = [];
-    for (const suffix of ['-wal', '-shm']) {
-      if (existingPaths.has(from + suffix)) sidecars.push({ from: from + suffix, to: to + suffix });
-    }
-    moves.push({ from, to, sidecars });
-  }
-  return { moves, skips, targetRoot: root };
 }
 
 /* ---------------------------------------------------------- chart math -- */
@@ -3725,31 +3729,6 @@ class QueryService {
   }
 }
 
-/* Move the databases a migration plan names, through the vault adapter,
- * never overwriting. Injected adapter = testable with a fake. */
-async function executeMigration(adapter, plan) {
-  const results = [];
-  await ensureFolder(adapter, plan.targetRoot);
-  for (const move of plan.moves) {
-    if (!(await adapter.exists(move.from))) {
-      results.push({ from: move.from, to: move.to, ok: false, reason: 'the file is gone' });
-      continue;
-    }
-    if (await adapter.exists(move.to)) {
-      results.push({ from: move.from, to: move.to, ok: false, reason: 'a file already exists at ' + move.to });
-      continue;
-    }
-    await adapter.rename(move.from, move.to);
-    for (const side of move.sidecars) {
-      if ((await adapter.exists(side.from)) && !(await adapter.exists(side.to))) {
-        await adapter.rename(side.from, side.to);
-      }
-    }
-    results.push({ from: move.from, to: move.to, ok: true });
-  }
-  return results;
-}
-
 async function ensureFolder(adapter, folder) {
   const parts = normalizePath(folder).split('/');
   let path = '';
@@ -5155,10 +5134,10 @@ class SqliteBrowserView extends FileView {
         this.consoleResult = res;
         const meta = out.createDiv({ cls: 'icor-sqlv-console-meta' });
         meta.createSpan({ text: formatNumber(res.rows.length) + (res.rows.length === 1 ? ' row' : ' rows') + ' in ' + res.ms + ' ms' + (res.capped ? ', capped at ' + this.plugin.settings.rowCap : '') });
-        const copy = meta.createEl('button', { text: 'Copy as CSV' });
-        copy.addEventListener('click', async () => {
-          await navigator.clipboard.writeText(toCsv(res.columns, res.rows));
-          new Notice('Copied ' + res.rows.length + ' rows as CSV.');
+        const save = meta.createEl('button', { text: 'Save as CSV' });
+        save.setAttribute('aria-label', 'Save this result as a CSV file in the vault');
+        save.addEventListener('click', async () => {
+          try { await this.plugin.saveCsv(this.dbPath, res); } catch (e) { new Notice('Could not save the CSV: ' + e.message); }
         });
         renderResultTable(out, res, { maxRows: this.plugin.settings.rowCap });
       } catch (e) {
@@ -7961,67 +7940,6 @@ class DatabaseIndexModal extends Modal {
   onClose() { this.contentEl.empty(); }
 }
 
-/* ------------------------------------------------- the migration modal -- */
-
-class MigrationModal extends Modal {
-  constructor(plugin, plan) {
-    super(plugin.app);
-    this.plugin = plugin;
-    this.plan = plan;
-  }
-
-  onOpen() {
-    this.titleEl.setText('Move databases into ' + this.plan.targetRoot);
-    (this.modalEl || this.contentEl).setAttribute('data-ink-plugin', 'icor-for-life-sqlite-viewer');
-    const { contentEl } = this;
-    contentEl.empty();
-
-    if (!this.plan.moves.length) {
-      contentEl.createDiv({ text: 'Nothing to move. Every database is already inside ' + this.plan.targetRoot + ', or its name is already taken there.' });
-      for (const skip of this.plan.skips) {
-        contentEl.createDiv({ cls: 'icor-sqlv-note', text: skip.path + ': ' + skip.reason });
-      }
-      return;
-    }
-
-    contentEl.createDiv({ text: 'These files would move. Nothing is copied, deleted or changed; the files are only moved.' });
-    const list = contentEl.createDiv({ cls: 'icor-sqlv-move-list' });
-    for (const move of this.plan.moves) {
-      const row = list.createDiv({ cls: 'icor-sqlv-move-row' });
-      row.createDiv({ text: move.from + '  →  ' + move.to });
-      for (const side of move.sidecars) {
-        row.createDiv({ cls: 'icor-sqlv-note', text: side.from + '  →  ' + side.to + '  (moves with its database)' });
-      }
-    }
-    for (const skip of this.plan.skips) {
-      contentEl.createDiv({ cls: 'icor-sqlv-note', text: 'Stays put: ' + skip.path + ' (' + skip.reason + ')' });
-    }
-    const warn = contentEl.createDiv({ cls: 'icor-sqlv-warn' });
-    warn.createDiv({ text: 'Moving changes where the databases live. Tools outside Obsidian that connect to them may need the new path. No data is lost or modified.' });
-    warn.createDiv({ text: 'Close other apps that are using a database before moving it.' });
-
-    const bar = contentEl.createDiv({ cls: 'icor-sqlv-console-bar' });
-    const go = bar.createEl('button', { text: 'Move ' + this.plan.moves.length + (this.plan.moves.length === 1 ? ' database' : ' databases'), cls: 'mod-cta' });
-    const cancel = bar.createEl('button', { text: 'Cancel' });
-    cancel.addEventListener('click', () => this.close());
-    go.addEventListener('click', async () => {
-      go.disabled = true;
-      const results = await executeMigration(this.plugin.app.vault.adapter, this.plan);
-      contentEl.empty();
-      this.titleEl.setText('Done');
-      const moved = results.filter((r) => r.ok);
-      const skipped = results.filter((r) => !r.ok);
-      contentEl.createDiv({ text: moved.length + (moved.length === 1 ? ' database moved.' : ' databases moved.') });
-      for (const r of moved) contentEl.createDiv({ cls: 'icor-sqlv-note', text: r.from + '  →  ' + r.to });
-      for (const r of skipped) contentEl.createDiv({ cls: 'icor-sqlv-note', text: 'Skipped ' + r.from + ': ' + r.reason });
-      const closeBtn = contentEl.createEl('button', { text: 'Close' });
-      closeBtn.addEventListener('click', () => this.close());
-    });
-  }
-
-  onClose() { this.contentEl.empty(); }
-}
-
 /* ------------------------------------------------------- the settings -- */
 
 class SqliteViewerSettingTab extends PluginSettingTab {
@@ -8042,6 +7960,24 @@ class SqliteViewerSettingTab extends PluginSettingTab {
       .addText((t) => t.setValue(String(this.plugin.settings.pageSize)).onChange(async (v) => {
         const n = parseInt(v, 10);
         if (Number.isFinite(n) && n >= 5 && n <= 1000) { this.plugin.settings.pageSize = n; await this.plugin.saveSettings(); }
+      }));
+
+    new Setting(containerEl)
+      .setName('Database folder')
+      .setDesc('ReadOut lists the databases inside this folder (and its subfolders) in the database browser, the index and the widget form. Clicking any .db, .sqlite or .sqlite3 file anywhere still opens it, and a dashboard can name a database anywhere in the vault.')
+      .addText((t) => t.setValue(isVaultRootFolder(this.plugin.settings.dataFolder) ? '' : this.plugin.settings.dataFolder).setDisabled(isVaultRootFolder(this.plugin.settings.dataFolder)).onChange(async (v) => {
+        if (isVaultRootFolder(v)) return;
+        this.plugin.settings.dataFolder = normalizePath(v);
+        await this.plugin.saveSettings();
+      }));
+
+    new Setting(containerEl)
+      .setName('Search the whole vault for databases')
+      .setDesc('Off by default. When on, ReadOut looks through every folder in the vault for database files instead of only the database folder above. It reads folder and file names, never the contents of any file except a database you open.')
+      .addToggle((t) => t.setValue(isVaultRootFolder(this.plugin.settings.dataFolder)).onChange(async (v) => {
+        this.plugin.settings.dataFolder = v ? '/' : folderDefaultsFor(await detectIcorScaffold(this.app.vault.adapter)).dataFolder;
+        await this.plugin.saveSettings();
+        this.display();
       }));
 
     new Setting(containerEl)
@@ -8115,16 +8051,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     this.displayLevels(containerEl);
 
-    new Setting(containerEl).setName('Tidy up').setHeading();
-    new Setting(containerEl)
-      .setName('Move databases into ' + this.plugin.settings.dataFolder)
-      .setDesc('Finds every database outside ' + this.plugin.settings.dataFolder + ' and offers to move it there, together with any -wal and -shm files that belong to it. You see the exact list first, and nothing moves until you confirm.')
-      .addButton((b) => b.setButtonText('Review and move').onClick(() => {
-        const dbs = this.plugin.vaultDatabases();
-        const existing = new Set(this.app.vault.getFiles().map((f) => f.path));
-        const plan = planMigration(dbs.map((d) => d.path), existing, this.plugin.settings.dataFolder);
-        new MigrationModal(this.plugin, plan).open();
-      }));
+    new Setting(containerEl).setName('Guide files').setHeading();
     new Setting(containerEl)
       .setName('Write the guide files')
       .setDesc('Writes README.md and AI-WIDGET-GUIDE.md into ' + this.plugin.settings.dashboardFolder + ': the first says what each widget does, the second is for an AI assistant that builds widgets for you. A copy you have edited is never replaced. ReadOut writes nothing here unless you ask.')
@@ -8410,11 +8337,6 @@ class JsonFileView extends FileView {
       return;
     }
 
-    const copy = bar.createEl('button', { text: 'Copy JSON' });
-    copy.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(this.text);
-      new Notice('Copied ' + this.file.name + '.');
-    });
     if (!this.tooBig) {
       const edit = bar.createEl('button', { text: 'Edit as text' });
       edit.addEventListener('click', () => { this.editing = true; this.render(); });
@@ -10301,8 +10223,39 @@ class ReadOutPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /* The databases ReadOut lists: those under the database folder setting,
+   * found by walking that folder's children. Never a listing of the whole
+   * vault, unless the setting is the vault root. A database anywhere in the
+   * vault still opens when you click it or a dashboard names it. */
   vaultDatabases() {
-    return findDatabases(this.app.vault.getFiles().map((f) => ({ path: f.path, size: f.stat.size })), this.app.vault.configDir);
+    const vault = this.app.vault;
+    if (!vault || typeof vault.getAbstractFileByPath !== 'function') return [];
+    const setting = this.settings ? this.settings.dataFolder : '';
+    let folder = null;
+    if (isVaultRootFolder(setting)) folder = typeof vault.getRoot === 'function' ? vault.getRoot() : null;
+    else folder = vault.getAbstractFileByPath(normalizePath(setting));
+    return walkDatabases(folder, vault.configDir);
+  }
+
+  /* Save a query result as a CSV file in the vault: <database folder>/Exports,
+   * a name no file has, and a notice that opens it when clicked. */
+  async saveCsv(dbPath, res) {
+    const vault = this.app.vault;
+    const root = isVaultRootFolder(this.settings.dataFolder) ? '' : normalizePath(this.settings.dataFolder);
+    const folder = normalizePath((root ? root + '/' : '') + 'Exports');
+    await ensureFolder(vault.adapter, folder);
+    const taken = new Set();
+    const listing = await vault.adapter.list(folder).catch(() => ({ files: [] }));
+    for (const f of listing.files || []) taken.add(baseName(f));
+    const path = folder + '/' + csvExportName(dbPath, new Date(), taken);
+    const file = await vault.create(path, toCsv(res.columns, res.rows));
+    const text = 'Saved ' + res.rows.length + (res.rows.length === 1 ? ' row' : ' rows') + ' to ' + path + '. Click to open it.';
+    const notice = new Notice(text, 10000);
+    const el = notice.noticeEl || notice.containerEl;
+    if (el && el.addEventListener) {
+      el.addEventListener('click', () => { this.app.workspace.getLeaf(true).openFile(file).catch(() => {}); });
+    }
+    return path;
   }
 
   async openBrowserFor(dbPath) {
@@ -10719,7 +10672,7 @@ ReadOutPlugin.lib = {
   wasmTable, toCsv,
   quoteIdent, quoteLiteral, filterClause, buildBrowseQuery, buildCountQuery,
   isSidecarPath, isDbPath, isSkippedPath, findDatabases,
-  parseDashboardSpec, cachePathFor, dashCachePath, catalogPathFor, planMigration,
+  parseDashboardSpec, cachePathFor, dashCachePath, catalogPathFor, walkDatabases, isVaultRootFolder,
   niceScale, stackRows, statOf,
   validTimeframe, resolveTimeframe, timeframeConditions, sqlForWidget,
   pivotSeries, prepareTileForRender, checkWidgetSource, specToJson,
@@ -10736,7 +10689,7 @@ ReadOutPlugin.lib = {
   rowTracks, rowsForOffset, DIVIDER_ROW_PX, renderDivider,
   detectIcorScaffold, folderDefaultsFor, PLAIN_FOLDERS, ICOR_FOLDERS,
   shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, READ_PRAGMAS, READ_PRAGMA_FUNCS,
-  executeMigration, ensureFolder,
+  ensureFolder, csvExportName,
   bytesOfB64, EMBEDDED_SQL_WASM_B64,
   DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,

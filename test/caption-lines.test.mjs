@@ -158,7 +158,7 @@ const settle = () => new Promise((r) => setTimeout(r, 20));
 async function makeView(files, binaries, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const adapter = makeFakeAdapter(files, binaries);
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   const view = plugin.viewFactories['readout-dashboards']({ app });
@@ -186,7 +186,7 @@ test('a phone shows the same caption lines from the desktop cache', async () => 
 test('the edit screen shows the caption columns for an SQL stat tile and saves them back', async () => {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

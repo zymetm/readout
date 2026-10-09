@@ -22,7 +22,7 @@ const RANGES = [{ high: 10, level: 'Good' }, { level: 'Alert' }];
 async function makeForm(tile) {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/shop.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

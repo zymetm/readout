@@ -146,7 +146,7 @@ test('the + tile shows only on an empty dashboard or in edit mode', () => {
 test('the dashboards view obeys the visibility rule end to end', async () => {
   const { makePlugin } = loadPlugin();
   const adapter = makeFakeAdapter(FIXTURE_DASHBOARD_FILES, { '07 Databases/engagement.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = makePlugin(app);
   plugin.app = app;
   await plugin.onload();

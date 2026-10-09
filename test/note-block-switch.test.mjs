@@ -10,7 +10,7 @@ import { loadPlugin, makeFakeAdapter } from './harness.mjs';
 async function boot({ saved = null, throwFor = [] } = {}) {
   const fresh = loadPlugin({ desktop: true });
   const adapter = makeFakeAdapter({}, {});
-  const vault = { adapter, getFiles: () => [], configDir: '.obsidian' };
+  const vault = { adapter, configDir: '.obsidian' };
   const app = { vault, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app, saved);
   plugin.app = app;

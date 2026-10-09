@@ -1798,25 +1798,6 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   font-variant-numeric: tabular-nums;
 }
 
-.icor-sqlv-move-list {
-  margin: var(--sqlv-s3) 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sqlv-s2);
-  font-family: var(--sqlv-font-mono);
-  font-size: 11px;
-  max-height: 40vh;
-  overflow-y: auto;
-}
-
-.icor-sqlv-move-row {
-  padding: var(--sqlv-s1) var(--sqlv-s2);
-  border: 1px solid var(--sqlv-hairline);
-  border-radius: var(--sqlv-r-subtle);
-  overflow-wrap: anywhere;
-  color: var(--sqlv-fg);
-}
-
 /* ---------------------------------------------------------------- touch -- */
 
 @media (pointer: coarse) {

@@ -105,7 +105,7 @@ const INLINE = JSON.stringify({ database: DB, title: 'Orders per channel', viz: 
 async function makeNote(files, { desktop = true, engine = true, globals } = {}) {
   const fresh = loadPlugin({ desktop, globals });
   const adapter = makeFakeAdapter(files, { [DB]: new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

@@ -49,7 +49,7 @@ test('the plugin keeps the setting, offers it to every render and repairs a bad 
   const make = async (saved) => {
     const fresh = loadPlugin();
     const adapter = makeFakeAdapter();
-    const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+    const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
     const plugin = fresh.makePlugin(app, saved);
     plugin.app = app;
     await plugin.onload();

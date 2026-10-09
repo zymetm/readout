@@ -121,7 +121,7 @@ const MIXED = {
 async function makeView(files, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const adapter = makeFakeAdapter(files, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   const view = plugin.viewFactories[VIEW]({ app });
@@ -166,7 +166,7 @@ test('a phone draws the divider with nothing to compute and the next widget from
 async function makeForm(tiles, editIndex) {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

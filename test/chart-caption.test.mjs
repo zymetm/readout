@@ -164,7 +164,7 @@ test('a phone shows the roll-up from the cached rows', async () => {
     '07 Databases/Dashboards/cc.json': JSON.stringify(spec),
     '07 Databases/Dashboard Cache/dashboards/cc.json': JSON.stringify(cache),
   }, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
@@ -182,7 +182,7 @@ const byLabel = (root, label) => [...walkEl(root)].find((e) => e.getAttribute &&
 test('the edit screen offers the roll-up, shows N for "change", and saves it', async () => {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

@@ -145,7 +145,7 @@ test('a phone shows the change from the cached rows', async () => {
     '07 Databases/Dashboards/hd.json': JSON.stringify(spec),
     '07 Databases/Dashboard Cache/dashboards/hd.json': JSON.stringify(cache),
   }, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
@@ -163,7 +163,7 @@ test('a phone shows the change from the cached rows', async () => {
 async function makeForm(tile) {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter({}, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();

@@ -19,7 +19,7 @@ async function boot(files, ages, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const adapter = makeFakeAdapter(files, {});
   adapter.stat = async (p) => (adapter.files.has(p) ? { size: 1, mtime: ages[p] === undefined ? Date.now() : Date.now() - ages[p] } : null);
-  const app = { vault: { adapter, getFiles: () => [], configDir: '.obsidian' }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter, configDir: '.obsidian' }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -66,7 +66,7 @@ test('the desktop prunes when the workspace is ready; a phone never writes or re
   const fresh = loadPlugin({ desktop: false });
   const adapter = makeFakeAdapter({ [FOLDER + '/notes/old.json']: '{}' }, {});
   adapter.stat = async () => ({ size: 1, mtime: 1 });
-  const app = { vault: { adapter, getFiles: () => [], configDir: '.obsidian' }, workspace: { onLayoutReady: (fn) => fn(), on: () => ({}) } };
+  const app = { vault: { adapter, configDir: '.obsidian' }, workspace: { onLayoutReady: (fn) => fn(), on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   plugin.app = app;
   await plugin.onload();
@@ -76,7 +76,7 @@ test('the desktop prunes when the workspace is ready; a phone never writes or re
   const fresh2 = loadPlugin({ desktop: true });
   const adapter2 = makeFakeAdapter({ [FOLDER + '/notes/old.json']: '{}' }, {});
   adapter2.stat = async () => ({ size: 1, mtime: 1 });
-  const app2 = { vault: { adapter: adapter2, getFiles: () => [], configDir: '.obsidian' }, workspace: { onLayoutReady: (fn) => fn(), on: () => ({}) } };
+  const app2 = { vault: { adapter: adapter2, configDir: '.obsidian' }, workspace: { onLayoutReady: (fn) => fn(), on: () => ({}) } };
   const plugin2 = fresh2.makePlugin(app2);
   plugin2.app = app2;
   await plugin2.onload();

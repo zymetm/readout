@@ -216,10 +216,37 @@ export function unwrap(value) { return JSON.parse(JSON.stringify(value)); }
  * adapter so its log shows every write. `TFile` is the stub's class from
  * the same loadPlugin() call, so main.js's instanceof checks hold. */
 export function makeFakeVault(adapter, TFile) {
+  const sizeOf = (p) => (adapter.binaries.has(p) ? adapter.binaries.get(p).length : String(adapter.files.get(p) || '').length);
+  const treeOf = (root) => {
+    const prefix = root ? root + '/' : '';
+    const folders = new Map([[root, { path: root, children: [] }]]);
+    const parentOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+    const ensure = (dir) => {
+      if (folders.has(dir)) return folders.get(dir);
+      const f = { path: dir, children: [] };
+      folders.set(dir, f);
+      ensure(parentOf(dir)).children.push(f);
+      return f;
+    };
+    for (const p of [...adapter.files.keys(), ...adapter.binaries.keys()]) {
+      if (prefix && !p.startsWith(prefix)) continue;
+      const f = new TFile(p);
+      f.stat = { size: sizeOf(p) };
+      ensure(parentOf(p)).children.push(f);
+    }
+    return folders.get(root);
+  };
   return {
     adapter,
-    getFiles: () => [],
-    getAbstractFileByPath: (p) => (adapter.files.has(p) || adapter.binaries.has(p) ? new TFile(p) : null),
+    configDir: '.obsidian',
+    /* The folder tree, built from what the adapter holds: a folder has a
+     * children list, a file has a stat. */
+    getRoot: () => treeOf(''),
+    getAbstractFileByPath: (p) => {
+      if (adapter.files.has(p) || adapter.binaries.has(p)) { const f = new TFile(p); f.stat = { size: sizeOf(p) }; return f; }
+      const t = treeOf(p);
+      return t.children.length ? t : null;
+    },
     read: async (f) => adapter.read(f.path),
     async create(p, text) {
       if (adapter.files.has(p)) throw new Error('File already exists.');

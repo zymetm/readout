@@ -79,7 +79,7 @@ async function openDashboards({ win, sourceOverride = null } = {}) {
     '07 Databases/Dashboards/obs.json': JSON.stringify(spec),
     '07 Databases/Dashboard Cache/dashboards/obs.json': JSON.stringify(cache),
   }, { '07 Databases/x.db': new Uint8Array([1]) });
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });

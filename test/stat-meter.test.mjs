@@ -108,7 +108,7 @@ const settle = () => new Promise((r) => setTimeout(r, 20));
 async function makeView(files, binaries, { desktop = true } = {}) {
   const fresh = loadPlugin({ desktop });
   const adapter = makeFakeAdapter(files, binaries);
-  const app = { vault: { adapter, getFiles: () => [] }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
+  const app = { vault: { adapter }, workspace: { onLayoutReady: () => {}, on: () => ({}) } };
   const plugin = fresh.makePlugin(app);
   await plugin.onload();
   const view = plugin.viewFactories['readout-dashboards']({ app });
