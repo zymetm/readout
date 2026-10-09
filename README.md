@@ -8,6 +8,15 @@ numbers as dashboards you can open again. It is read-only, so it cannot
 change your data. Databases up to about a gigabyte open on the desktop, and
 your phone shows the same dashboards.
 
+> **Safe by design**
+>
+> - ReadOut is read-only: it never writes to, changes or deletes your databases.
+> - It reads only databases inside your vault.
+> - It runs no programs, makes no network connections, and does not use the
+>   clipboard.
+> - The only files it writes are its own (dashboards, guides, cache and CSV
+>   exports), inside your vault, through Obsidian.
+
 ReadOut is forked from the
 [ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
 by myICOR, under its MIT licence, and credits its original authors (see
