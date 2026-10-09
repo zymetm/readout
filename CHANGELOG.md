@@ -6,6 +6,25 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.8] - 2026-10-09
+
+### Fixed
+- **No pointless decimals in a chart's change.** A whole change reads
+  "+361 USD", not "+361.0 USD", in the title row, the caption and the hover
+  text; a real decimal stays ("+2.5 USD") and thousands get a comma.
+- **The year calendar fits a phone.** When its tile is too narrow for every
+  week it shows the newest weeks that fit (squares of at least 6 px), with the
+  month names moved to the weeks that are left, and never scrolls sideways.
+  Wider tiles show every week as before.
+- **Tables in a narrow tile are tidier.** A heading wraps at its spaces and is
+  never cut off or broken in the middle of a word, headings share one baseline,
+  numbers are never clipped, text and type are a little tighter, and a cut text
+  cell shows its whole text on hover. A table that still cannot fit scrolls
+  sideways.
+- **The change badge of a big-number widget always has its own line** directly
+  under the number, whatever the length of the number, so every stat tile
+  looks the same. The unit stays beside the number.
+
 ## [1.0.7] - 2026-10-09
 
 ### Changed
