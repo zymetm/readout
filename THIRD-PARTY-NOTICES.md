@@ -35,7 +35,8 @@ that reads databases on every device. The files ship two ways, and nothing is ev
 A test gate asserts the pasted source equals the vendored `sql-wasm.js`
 with exactly that patch applied, that `main.js` contains no `require` of a
 Node module, and that the embedded binary is byte-identical to the vendored
-`sql-wasm.wasm`. `npm run build` runs the same check.
+`sql-wasm.wasm`. `npm run build` puts the patched sql.js and the binary into
+`main.js` from `src/main.js`, and CI fails if the result differs from the committed file.
 
 SHA-256 of the vendored standalone files (unchanged since 0.5.0; the
 embedded `.wasm` is the same bytes, and the embedded `.js` is the same text

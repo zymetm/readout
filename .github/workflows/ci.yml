@@ -52,13 +52,12 @@ jobs:
       - name: Test
         run: npm test
 
-      # ReadOut has no build step: main.js is the source and is what ships.
-      # `npm run build` compiles nothing and rewrites nothing. It checks that
-      # main.js embeds the vendored sql.js (with its one documented patch) and
-      # the vendored .wasm exactly, and fails the run if not. Then the release
-      # files must be byte-for-byte what was committed.
-      - name: Build check (no build step; verifies the embedded sql.js)
+      # `npm run build` assembles main.js (src/main.js plus the patched vendored
+      # sql.js and the wasm) and styles.css (from src/styles.css). Obsidian
+      # installs the committed copies, so the build must give back exactly
+      # those bytes: the step after it fails the run if the build changed them.
+      - name: Build
         run: npm run build
 
-      - name: Release files unchanged by the build
+      - name: Committed release files are exactly what the build makes
         run: git diff --exit-code -- main.js manifest.json styles.css

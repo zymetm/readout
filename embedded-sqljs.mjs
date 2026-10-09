@@ -1,7 +1,7 @@
-/* ReadOut has no build step: main.js is the source and is what ships. This
- * file is the one place that says how the sql.js copy pasted into main.js
- * differs from the vendored sql-wasm.js, and `npm run build` (below) only
- * CHECKS main.js against it. It compiles nothing and rewrites nothing.
+/* How the sql.js copy inside the shipped main.js differs from the vendored
+ * sql-wasm.js. build.mjs (`npm run build`) uses patchSqlJs() below to put the
+ * patched engine into main.js; the tests use checkEmbedded() to prove the
+ * committed main.js still holds exactly that.
  *
  * The one modification (sql.js 1.13.0, recorded in THIRD-PARTY-NOTICES.md):
  * the Node.js loading branch is removed, so the pasted copy never names
@@ -13,13 +13,10 @@
  *   2. drop the `if(ca){...}else` Node branch that loads the wasm from disk;
  *   3. drop the `if(ca){...}else` branch that reads stdin;
  *   4. use crypto.getRandomValues only, and drop `&&!ca` before streaming.
- *
- * Run `node embedded-sqljs.mjs` (or `npm run build`) from the repo root: it
- * exits non-zero if main.js drifted from the vendored files plus this patch. */
+ */
 
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 export const BEGIN = '/* BEGIN vendored sql-wasm.js */\nfunction vendoredSqlJs(module, exports, require, __dirname, __filename) {\n';
 export const END = '\n}\n/* END vendored sql-wasm.js */';
@@ -82,14 +79,4 @@ export function checkEmbedded(repo) {
     problems.push('the embedded wasm in main.js is not sql-wasm.wasm');
   }
   return problems;
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const repo = dirname(fileURLToPath(import.meta.url));
-  const problems = checkEmbedded(repo);
-  if (problems.length) {
-    console.error('ReadOut has no build step; this only checks main.js.\n' + problems.map((p) => '  - ' + p).join('\n'));
-    process.exit(1);
-  }
-  console.log('ReadOut has no build step. Checked: main.js embeds the patched sql.js and the sql-wasm.wasm bytes. Nothing was changed.');
 }

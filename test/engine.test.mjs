@@ -142,12 +142,12 @@ test('the embedded sql.js equals the vendored file with the one Node-branch patc
   const a = main.indexOf(BEGIN);
   assert.ok(a > 0 && main.indexOf(END) > a, 'the vendored source markers are in main.js');
   assert.equal(embeddedSource(main), patchSqlJs(readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8')),
-    'the pasted sql.js drifted from sql-wasm.js plus the patch in embedded-sqljs.mjs; paste it again between the markers');
+    'the pasted sql.js drifted from sql-wasm.js plus the patch in embedded-sqljs.mjs; run npm run build');
   /* The old way compiled a base64 string with new Function; it must stay gone. */
   assert.doesNotMatch(main.slice(0, a), /new Function\(|\beval\(|EMBEDDED_SQL_WASM_JS_B64/);
   const embeddedWasm = Buffer.from(lib.bytesOfB64(lib.EMBEDDED_SQL_WASM_B64));
   assert.ok(embeddedWasm.equals(readFileSync(resolve(repo, 'sql-wasm.wasm'))),
-    'embedded sql-wasm.wasm drifted from the vendored file; regenerate per the comment in main.js');
+    'embedded sql-wasm.wasm drifted from the vendored file; run npm run build');
   assert.deepEqual(checkEmbedded(repo), []);
 });
 

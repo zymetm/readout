@@ -113,11 +113,11 @@ jobs:
       - name: Test
         run: npm test
 
-      # No build step exists; this only checks the embedded sql.js (see ci.yml).
-      - name: Build check (no build step; verifies the embedded sql.js)
+      # The build must give back exactly the committed release files (see ci.yml).
+      - name: Build
         run: npm run build
 
-      - name: Release files unchanged by the build
+      - name: Committed release files are exactly what the build makes
         run: git diff --exit-code -- main.js manifest.json styles.css
 
   release:

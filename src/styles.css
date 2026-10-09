@@ -1,0 +1,2343 @@
+/* ReadOut
+ *
+ * Drawn on the INKLINE theme tokens when a vault has them, and on Obsidian's own tokens otherwise.
+ * The plugin opts out of the theme's element skins (data-ink-plugin) and
+ * draws itself from ONE local token layer. Every token is
+ * var(--ink-X, obsidian-fallback), so the plugin works in any vault and
+ * re-skinning is token-level, never structural. The governing sentence:
+ * a dashboard is an instrument panel. It MEASURES. Ruled lines only.
+ */
+
+/* ------------------------------------------------------ the token layer -- */
+
+[data-ink-plugin="icor-for-life-sqlite-viewer"] {
+  /* grounds */
+  --sqlv-ground: var(--ink, var(--background-primary));
+  --sqlv-card: var(--ink-2, var(--background-secondary));
+  --sqlv-well: var(--ink-3, var(--background-modifier-hover));
+  --sqlv-input: var(--ink-input, var(--background-primary));
+  --sqlv-overlay: var(--ink-overlay, var(--background-secondary));
+  /* ink ladder: quiet is a token step, never an opacity dial */
+  --sqlv-fg: var(--ink-paper, var(--text-normal));
+  --sqlv-fg-dim: var(--ink-paper-dim, var(--text-muted));
+  --sqlv-fg-faint: var(--ink-paper-faint, var(--text-faint));
+  /* marker (the pen) */
+  --sqlv-marker: var(--ink-marker, var(--interactive-accent));
+  --sqlv-marker-fill: var(--ink-marker-fill, var(--interactive-accent));
+  --sqlv-on-marker: var(--ink-on-marker, var(--text-on-accent));
+  --sqlv-marker-border: var(--ink-marker-border, var(--interactive-accent));
+  --sqlv-marker-bg: var(--ink-marker-bg, var(--background-modifier-hover));
+  /* lines */
+  --sqlv-hairline: var(--ink-hairline, var(--background-modifier-border));
+  --sqlv-hairline-subtle: var(--ink-hairline-subtle, var(--background-modifier-border));
+  --sqlv-hairline-strong: var(--ink-hairline-emphasis, var(--background-modifier-border-hover));
+  --sqlv-control-border: var(--ink-control-border, var(--background-modifier-border-hover));
+  --sqlv-hover-wash: var(--ink-hover-wash, var(--background-modifier-hover));
+  --sqlv-float-shadow: var(--ink-float-shadow, var(--shadow-s));
+  --sqlv-destructive: var(--ink-destructive, var(--color-red));
+  --sqlv-destructive-text: var(--ink-destructive-text, var(--text-error));
+  --sqlv-warning: var(--ink-warning, var(--color-orange));
+  /* radii: the corner ladder, fixed rungs */
+  --sqlv-r-subtle: var(--ink-radius-subtle, 10px);
+  --sqlv-r-card: var(--ink-radius-standard, 16px);
+  --sqlv-r-modal: var(--ink-radius-elevated, 20px);
+  --sqlv-r-pill: var(--ink-radius-pill, 999px);
+  --sqlv-r-control: var(--ink-radius-control, 4px);
+  --sqlv-r-micro: var(--ink-radius-micro, 2px);
+  /* spacing: 4px base rungs */
+  --sqlv-s1: 4px;
+  --sqlv-s2: 8px;
+  --sqlv-s3: 12px;
+  --sqlv-s4: 16px;
+  --sqlv-s5: 24px;
+  --sqlv-s6: 32px;
+  --sqlv-s7: 48px;
+  /* type */
+  --sqlv-font-display: var(--ink-font-display, var(--font-interface));
+  --sqlv-font-body: var(--ink-font-body, var(--font-interface));
+  --sqlv-font-mono: var(--ink-font-mono, var(--font-monospace));
+  /* chart series: ink writing first, then the four category lenses */
+  --sqlv-series-1: var(--ink-paper-dim, var(--text-muted));
+  --sqlv-series-2: var(--ink-hue-cyan, var(--color-cyan));
+  --sqlv-series-3: var(--ink-hue-yellow, var(--color-yellow));
+  --sqlv-series-4: var(--ink-hue-indigo, var(--color-purple));
+  --sqlv-series-5: var(--ink-hue-burgundy, var(--color-pink));
+  --sqlv-ease: var(--ink-ease-draw, ease);
+
+  font-family: var(--sqlv-font-body);
+}
+
+/* The kicker voice: mono, small, uppercase, faint. Used by tile titles,
+ * status lines, table headers, crumbs, range labels. */
+.icor-sqlv-kicker,
+.icor-sqlv-dash-status,
+.icor-sqlv-tile-title,
+.icor-sqlv-divider-heading,
+.icor-sqlv-range-label,
+.icor-sqlv-wizard-crumbs,
+.icor-sqlv-wizard-group,
+.icor-sqlv-console-meta,
+.icor-sqlv-rail-heading {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sqlv-fg-faint);
+}
+
+/* ------------------------------------------------------------- layout -- */
+
+.icor-sqlv-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-blank {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sqlv-s3);
+  height: 100%;
+  color: var(--sqlv-fg-faint);
+  font-size: 13px;
+}
+
+.icor-sqlv-guide-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  max-width: 420px;
+  text-align: center;
+}
+
+.icor-sqlv-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sqlv-s2);
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  border-bottom: 1px solid var(--sqlv-hairline);
+  flex: 0 0 auto;
+}
+
+.icor-sqlv-header-name {
+  font-family: var(--sqlv-font-display);
+  font-weight: 640;
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-header-sub {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-split { display: flex; flex: 1 1 auto; min-height: 0; }
+
+.icor-sqlv-rail {
+  flex: 0 0 240px;
+  overflow-y: auto;
+  border-right: 1px solid var(--sqlv-hairline);
+  padding: var(--sqlv-s2);
+}
+
+.icor-sqlv-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+}
+
+.icor-sqlv-grow { flex: 1 1 auto; min-height: 0; }
+
+@media (max-width: 600px) {
+  .icor-sqlv-split { flex-direction: column; }
+  .icor-sqlv-rail {
+    flex: 0 0 auto;
+    max-height: 30%;
+    border-right: none;
+    border-bottom: 1px solid var(--sqlv-hairline);
+  }
+}
+
+/* --------------------------------------------------------------- rail -- */
+
+.icor-sqlv-rail-heading { margin: var(--sqlv-s2) 0 var(--sqlv-s1); letter-spacing: 0.06em; }
+
+.icor-sqlv-rail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sqlv-s1);
+  padding: var(--sqlv-s1) var(--sqlv-s2);
+  border-radius: var(--sqlv-r-subtle);
+  cursor: pointer;
+  color: var(--sqlv-fg-dim);
+}
+
+.icor-sqlv-rail-row:hover { background: var(--sqlv-hover-wash); color: var(--sqlv-fg); }
+
+.icor-sqlv-rail-row.is-active { background: var(--sqlv-well); color: var(--sqlv-fg); }
+
+.icor-sqlv-rail-name { overflow-wrap: anywhere; min-width: 0; font-size: 13px; }
+
+.icor-sqlv-rail-count {
+  flex: 0 0 auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------- tabs -- */
+
+.icor-sqlv-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--sqlv-s1);
+  margin-bottom: var(--sqlv-s3);
+  border-bottom: 1px solid var(--sqlv-hairline);
+  flex: 0 0 auto;
+}
+
+/* Quiet text rows; the active tab's 2px marker underline is this view's
+ * one marker moment. Never an accent-filled pill. */
+.icor-sqlv-tabs button:not(.icor-sqlv-funnel) {
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  font-size: 13px;
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 140ms var(--sqlv-ease);
+}
+
+.icor-sqlv-tabs button:not(.icor-sqlv-funnel):hover { color: var(--sqlv-fg-dim); }
+
+.icor-sqlv-tabs button:not(.icor-sqlv-funnel):focus-visible {
+  outline: 2px solid var(--sqlv-marker);
+  outline-offset: 2px;
+}
+
+.icor-sqlv-tabs button.is-active {
+  color: var(--sqlv-fg);
+  border-bottom-color: var(--sqlv-marker);
+}
+
+.icor-sqlv-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: var(--sqlv-s2);
+}
+
+/* -------------------------------------------------------------- tables -- */
+
+.icor-sqlv-table-scroll {
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+}
+
+.icor-sqlv-table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 13px;
+}
+
+/* Flat cells, explicit properties so no theme leaks in. Row rules are
+ * subtle hairlines; no zebra fills. */
+.icor-sqlv-table th,
+.icor-sqlv-table td {
+  padding: var(--sqlv-s1) var(--sqlv-s2);
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid var(--sqlv-hairline-subtle);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  max-width: 32em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--sqlv-ground);
+  border-bottom: 1px solid var(--sqlv-hairline);
+  z-index: 1;
+}
+
+.icor-sqlv-tile .icor-sqlv-table thead th { background: var(--sqlv-card); }
+
+.icor-sqlv-table tbody tr:hover td { background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-num { font-variant-numeric: tabular-nums; text-align: right; }
+
+/* Header cells in the kicker voice; the sorted column's arrow is the
+ * state-ink whisper. */
+.icor-sqlv-table thead button.icor-sqlv-sort {
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+  padding: 0;
+  height: auto;
+  min-height: auto;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-decoration: none;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sqlv-s1);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.icor-sqlv-table thead button.icor-sqlv-sort:hover { color: var(--sqlv-fg-dim); }
+
+.icor-sqlv-table thead button.icor-sqlv-sort:focus-visible {
+  outline: 2px solid var(--sqlv-marker);
+  outline-offset: 1px;
+}
+
+.icor-sqlv-sort-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.icor-sqlv-sort-mark { flex: 0 0 auto; color: var(--sqlv-marker); font-size: 11px; }
+
+.icor-sqlv-sort-label.is-sorted { color: var(--sqlv-fg-dim); }
+
+/* The filter row: hidden behind the funnel, and quiet when shown. The
+ * input rules repeat their class so a foreign theme that skins bare inputs
+ * does not win; INKLINE stands down via the opt-out and never needs it. */
+.icor-sqlv-filter-row th {
+  position: static;
+  padding: 0 var(--sqlv-s2) var(--sqlv-s1);
+  background: var(--sqlv-ground);
+  border-bottom: 1px solid var(--sqlv-hairline-subtle);
+}
+
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter {
+  appearance: none;
+  -webkit-appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 5em;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 1px 0;
+  height: auto;
+  min-height: auto;
+  text-align: inherit;
+  text-rendering: inherit;
+  outline-offset: 0;
+  transition: all 0s;
+  font: inherit;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  line-height: inherit;
+  color: var(--sqlv-fg);
+  background: transparent none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  cursor: text;
+}
+
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter::placeholder {
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:hover {
+  background-image: none;
+  border-bottom-color: var(--sqlv-hairline);
+}
+
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:focus,
+.icor-sqlv-root .icor-sqlv-table input.icor-sqlv-filter.icor-sqlv-filter:focus-visible {
+  outline: none;
+  border-bottom-color: var(--sqlv-marker);
+  box-shadow: none;
+}
+
+/* The funnel. The 6px dot says filters are active while hidden. */
+.icor-sqlv-tabs-spacer { flex: 1 1 auto; }
+
+.icor-sqlv-tabs button.icor-sqlv-funnel {
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  min-height: auto;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--sqlv-r-subtle);
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+}
+
+.icor-sqlv-tabs button.icor-sqlv-funnel:hover { color: var(--sqlv-fg); background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-tabs button.icor-sqlv-funnel:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 2px; }
+
+.icor-sqlv-tabs button.icor-sqlv-funnel[aria-pressed="true"] { color: var(--sqlv-fg); background: var(--sqlv-well); }
+
+.icor-sqlv-funnel svg { width: 15px; height: 15px; }
+
+.icor-sqlv-funnel.has-filters::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sqlv-marker);
+}
+
+/* ------------------------------------------------------------- console -- */
+
+.icor-sqlv-console {
+  width: 100%;
+  font-family: var(--sqlv-font-mono);
+  font-size: 13px;
+  color: var(--sqlv-fg);
+  background: var(--sqlv-input);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-card);
+  padding: var(--sqlv-s3);
+  resize: vertical;
+}
+
+.icor-sqlv-console:focus,
+.icor-sqlv-console:focus-visible {
+  outline: none;
+  border-color: var(--sqlv-marker);
+  box-shadow: 0 0 0 1px var(--sqlv-marker-border);
+}
+
+.icor-sqlv-console-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  flex: 0 0 auto;
+}
+
+.icor-sqlv-console-out {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  overflow: auto;
+}
+
+.icor-sqlv-console-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
+
+/* Quiet-well buttons: the default voice for every plugin button. The one
+ * pill lives in the modal bar only. */
+.icor-sqlv-root button:not(.icor-sqlv-sort):not(.icor-sqlv-funnel):not(.icor-sqlv-tile-action):not(.icor-sqlv-edit-toggle),
+.icor-sqlv-dash-bar button,
+.icor-sqlv-wizard button {
+  background: var(--sqlv-well);
+  color: var(--sqlv-fg-dim);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-subtle);
+  box-shadow: none;
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+  padding: var(--sqlv-s1) var(--sqlv-s3);
+  cursor: pointer;
+  transition: background 140ms var(--sqlv-ease), color 140ms var(--sqlv-ease);
+}
+
+.icor-sqlv-root button:not(.icor-sqlv-sort):not(.icor-sqlv-funnel):not(.icor-sqlv-tile-action):not(.icor-sqlv-edit-toggle):hover,
+.icor-sqlv-dash-bar button:hover,
+.icor-sqlv-wizard button:hover {
+  background: var(--sqlv-overlay);
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-root button:focus-visible,
+.icor-sqlv-wizard button:focus-visible {
+  outline: 2px solid var(--sqlv-marker);
+  outline-offset: 2px;
+}
+
+/* THE pill: one per modal, the confirm action. */
+.icor-sqlv-modal-bar button.mod-cta {
+  background: var(--sqlv-marker-fill);
+  color: var(--sqlv-on-marker);
+  border: none;
+  border-radius: var(--sqlv-r-pill);
+  font-weight: 600;
+  padding: var(--sqlv-s2) var(--sqlv-s4);
+}
+
+.icor-sqlv-modal-bar button.mod-cta:hover { background: var(--sqlv-marker-fill); color: var(--sqlv-on-marker); }
+
+/* In-view ctas (Run, Create first dashboard) stay quiet wells. */
+.icor-sqlv-root .icor-sqlv-body button.mod-cta,
+.icor-sqlv-root .icor-sqlv-blank button.mod-cta {
+  background: var(--sqlv-well);
+  color: var(--sqlv-fg);
+  border: 1px solid var(--sqlv-hairline-strong);
+  border-radius: var(--sqlv-r-subtle);
+}
+
+/* ---------------------------------------------------------- dashboards -- */
+
+/* The bar wraps and its dropdown shrinks, so on a phone no button is cut
+ * off at the edge and the view never scrolls sideways. */
+.icor-sqlv-dash-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sqlv-s2) var(--sqlv-s3);
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  border-bottom: 1px solid var(--sqlv-hairline);
+  flex: 0 0 auto;
+}
+
+.icor-sqlv-dash-bar select.dropdown,
+.icor-sqlv-range select.dropdown {
+  background-color: var(--sqlv-well);
+  color: var(--sqlv-fg-dim);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  box-shadow: none;
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+}
+
+.icor-sqlv-dash-bar select.dropdown { flex: 1 1 8em; min-width: 0; max-width: 100%; }
+.icor-sqlv-dash-bar button { flex: 0 0 auto; white-space: nowrap; }
+
+.icor-sqlv-dash-bar select.dropdown:focus-visible,
+.icor-sqlv-range select.dropdown:focus-visible {
+  outline: 2px solid var(--sqlv-marker);
+  outline-offset: 2px;
+}
+
+.icor-sqlv-dash {
+  overflow-y: auto;
+  padding: var(--sqlv-s4);
+  flex: 1 1 auto;
+}
+
+.icor-sqlv-dash-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sqlv-s3);
+  margin-bottom: var(--sqlv-s2);
+}
+
+.icor-sqlv-dash-title { min-width: 0; }
+
+/* The dashboard's one marker moment: the 2.5px rule under the title,
+ * width fit to the text. */
+.icor-sqlv-dash-title-text {
+  display: inline-block;
+  margin: 0;
+  font-family: var(--sqlv-font-display);
+  font-size: 24px;
+  font-weight: 640;
+  color: var(--sqlv-fg);
+  cursor: text;
+  border-radius: var(--sqlv-r-subtle);
+  padding: var(--sqlv-s1) var(--sqlv-s1);
+  overflow-wrap: anywhere;
+}
+
+.icor-sqlv-dash-title-text::after {
+  content: '';
+  display: block;
+  height: 2.5px;
+  background: var(--sqlv-marker);
+  margin-top: var(--sqlv-s1);
+}
+
+.icor-sqlv-dash-title-text:hover { background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-dash-title-input {
+  font-family: var(--sqlv-font-display);
+  font-size: 24px;
+  font-weight: 640;
+  color: var(--sqlv-fg);
+  background: var(--sqlv-input);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  width: min(20em, 90vw);
+}
+
+.icor-sqlv-range {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sqlv-s2);
+}
+
+.icor-sqlv-range-custom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sqlv-s1);
+  margin-top: var(--sqlv-s1);
+}
+
+.icor-sqlv-range-custom input[type="date"] {
+  background: var(--sqlv-input);
+  color: var(--sqlv-fg);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+}
+
+.icor-sqlv-edit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sqlv-s1);
+  background: var(--sqlv-well);
+  color: var(--sqlv-fg-dim);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-subtle);
+  box-shadow: none;
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+  padding: var(--sqlv-s1) var(--sqlv-s3);
+  cursor: pointer;
+}
+
+.icor-sqlv-edit-toggle:hover { background: var(--sqlv-overlay); color: var(--sqlv-fg); }
+
+.icor-sqlv-edit-toggle.is-on { background: var(--sqlv-well); color: var(--sqlv-fg); border-color: var(--sqlv-hairline-strong); }
+
+.icor-sqlv-edit-toggle:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 2px; }
+
+.icor-sqlv-edit-toggle svg { width: 13px; height: 13px; }
+
+.icor-sqlv-dash-status { margin-bottom: var(--sqlv-s2); text-transform: uppercase; }
+
+/* The grid: JS sets columns and row height; the gap is a token. */
+.icor-sqlv-grid {
+  display: grid;
+  gap: var(--sqlv-s4);
+  margin-top: var(--sqlv-s2);
+}
+
+.icor-sqlv-tile {
+  position: relative;
+  background: var(--sqlv-card);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-card);
+  padding: var(--sqlv-s4);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+  transition: border-color 140ms var(--sqlv-ease);
+}
+
+.icor-sqlv-tile:hover { border-color: var(--sqlv-hairline-strong); }
+
+.icor-sqlv-tile.is-stat { display: flex; flex-direction: column; }
+
+.icor-sqlv-tile-title { margin-bottom: var(--sqlv-s3); flex: 0 0 auto; }
+
+.icor-sqlv-tile-body { min-width: 0; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+
+.icor-sqlv-chart { width: 100%; height: auto; display: block; }
+
+/* A chart fills its tile body: a measured drawing area over a one-line
+ * legend. The chart is drawn to the area's own pixel size, so it never
+ * reaches past the tile edge. */
+.icor-sqlv-chart-box {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.icor-sqlv-chart-host {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 80px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* A chart drawn before it had a size is scaled into the area, never taller. */
+.icor-sqlv-chart-host > .icor-sqlv-chart:not(.is-measured) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.icor-sqlv-chart-host > .icor-sqlv-chart.is-measured {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* The form's preview tile sizes to its content, so its chart area keeps
+ * the old proportions instead of collapsing. */
+.icor-sqlv-tile.is-preview .icor-sqlv-chart-host { flex: none; aspect-ratio: 64 / 26; }
+
+/* A tile title wraps to a second line before it is cut (a third is
+ * dropped); the full text shows on hover. */
+.icor-sqlv-tile > .icor-sqlv-tile-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* The phone's "Computed on desktop" line stays one line in any tile. */
+.icor-sqlv-tile > .icor-sqlv-cache-note {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-tile .icor-sqlv-table-scroll { max-height: 100%; }
+
+.icor-sqlv-chart line,
+.icor-sqlv-chart rect,
+.icor-sqlv-chart path { shape-rendering: geometricPrecision; }
+
+/* Horizontal gridlines only; the baseline is the axis. No frames. */
+.icor-sqlv-gridline { stroke: var(--sqlv-hairline-subtle); stroke-width: 1; }
+
+.icor-sqlv-baseline { stroke: var(--sqlv-hairline); stroke-width: 1; }
+
+/* Reference lines ("refLines"): the theme's dim ink unless the tile names a
+ * colour. Shaded zones ("zones") carry their own colour and opacity. */
+.icor-sqlv-refline { stroke-width: 1; }
+.icor-sqlv-refline:not([stroke]) { stroke: var(--sqlv-fg-dim); }
+
+/* A labelled reference line is named in the legend: a short dashed
+ * line in its colour, the theme's dim ink unless it names one. */
+.icor-sqlv-legend-chip.is-guide {
+  width: 14px;
+  height: 0;
+  border-radius: 0;
+  background: none;
+  border-top: 1px dashed var(--sqlv-fg-dim);
+}
+
+.icor-sqlv-tick {
+  fill: var(--sqlv-fg-faint);
+  font-family: var(--sqlv-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The pen points: solid marker guide, marker dots, a chip readout. A chart
+ * with its own colours ("guideColor", "color") sets them on its box. */
+.icor-sqlv-guide { stroke: var(--sqlv-tile-guide, var(--sqlv-marker)); stroke-width: 1; }
+
+.icor-sqlv-hover-dot { fill: var(--sqlv-tile-series, var(--sqlv-marker)); }
+
+/* A scatter chart: the points are a little see-through so where they pile
+ * up shows; the trend line is dashed, in the dim ink. */
+.icor-sqlv-point { fill-opacity: 0.75; }
+
+.icor-sqlv-trend { stroke: var(--sqlv-fg-dim); stroke-width: 1.5; stroke-dasharray: 5 3; }
+
+.icor-sqlv-readout-chip {
+  fill: var(--sqlv-overlay);
+  stroke: var(--sqlv-hairline);
+  stroke-width: 1;
+}
+
+.icor-sqlv-readout {
+  fill: var(--sqlv-fg);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  dominant-baseline: middle;
+}
+
+.icor-sqlv-legend {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  gap: var(--sqlv-s1) var(--sqlv-s3);
+  margin-top: var(--sqlv-s2);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  flex: 0 0 auto;
+}
+
+.icor-sqlv-legend-item { display: inline-flex; align-items: center; gap: var(--sqlv-s1); flex: 0 1 auto; min-width: 0; }
+
+.icor-sqlv-legend-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.icor-sqlv-legend-chip { flex: 0 0 auto; }
+
+.icor-sqlv-legend.is-hidden { display: none; }
+
+.icor-sqlv-legend-chip {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--sqlv-r-micro);
+  display: inline-block;
+}
+
+/* A segments bar: one bar split into its parts, each part's share in it
+ * when there is room, and a legend that wraps under it. */
+.icor-sqlv-segments { display: flex; flex-direction: column; gap: var(--sqlv-s2); min-height: 0; height: 100%; }
+
+.icor-sqlv-segments-bar {
+  display: flex;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: var(--sqlv-r-micro);
+  overflow: hidden;
+}
+
+.icor-sqlv-segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.icor-sqlv-segment-label {
+  font-family: var(--sqlv-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--sqlv-on-marker);
+  white-space: nowrap;
+}
+
+.icor-sqlv-segments-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--sqlv-s3);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  min-width: 0;
+}
+
+.icor-sqlv-segments-value { color: var(--sqlv-fg-dim); font-variant-numeric: tabular-nums; }
+
+/* A pie chart: a square drawing that CSS scales to the tile, a legend
+ * beside it (under it on a phone). The slices are separated by a hairline
+ * in the card's own colour. */
+.icor-sqlv-pie { display: flex; align-items: center; gap: var(--sqlv-s4); height: 100%; min-height: 96px; min-width: 0; }
+/* The tile body that holds a pie is the container the stacking rule below measures. */
+.icor-sqlv-tile-body.icor-sqlv-has-pie { container-type: inline-size; }
+/* The ring never takes more than 45% of the width, so the legend keeps room
+ * for its names; where the tile is too narrow for that, the legend stacks
+ * under the ring (the container rule below). */
+.icor-sqlv-pie-svg { flex: 0 1 auto; height: 100%; max-height: 100%; width: auto; max-width: 45%; aspect-ratio: 1; min-width: 0; min-height: 96px; }
+.icor-sqlv-pie-slice { stroke: var(--sqlv-card); stroke-width: 0.8; stroke-linejoin: round; }
+.icor-sqlv-pie-total { fill: var(--sqlv-fg); font-family: var(--sqlv-font-mono); font-size: 9px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.icor-sqlv-pie-legend { flex: 1 1 auto; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: var(--sqlv-s1); overflow: auto; max-height: 100%; min-width: 0; }
+.icor-sqlv-pie-legend .icor-sqlv-legend-item { gap: var(--sqlv-s2); max-width: 100%; }
+/* A name keeps its own width beside its numbers and gives way (ellipsis, the
+ * full name in the tooltip) only when the legend is narrower than that; the
+ * ring is capped above so the legend always has the room. */
+.icor-sqlv-pie-legend .icor-sqlv-legend-name { flex: 0 1 auto; }
+.icor-sqlv-pie-legend .icor-sqlv-segments-value { flex: 0 0 auto; white-space: nowrap; }
+
+@media (max-width: 600px) {
+  .icor-sqlv-pie { flex-direction: column; gap: var(--sqlv-s2); }
+  .icor-sqlv-pie { height: auto; }
+  .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; min-height: 96px; }
+  /* Under the pie the legend is as wide as the tile (never centred past
+   * its edge) and shows every row; the tile grows to hold them. */
+  .icor-sqlv-pie-legend { flex: 0 0 auto; align-self: stretch; max-height: none; overflow: visible; }
+}
+
+/* A tile too narrow to leave a name 8 characters beside the ring puts the
+ * legend under it, as on a phone. */
+@container (max-width: 330px) {
+  .icor-sqlv-pie { flex-direction: column; gap: var(--sqlv-s2); height: auto; }
+  .icor-sqlv-pie-svg { flex: 1 1 0; height: auto; width: auto; max-width: 100%; min-height: 96px; }
+  .icor-sqlv-pie-legend { flex: 0 0 auto; align-self: stretch; max-height: none; overflow: visible; }
+}
+
+.icor-sqlv-legend-chip.is-round { border-radius: 50%; width: 8px; height: 8px; }
+
+/* A stat tile never lets its edge cut a line of text. Top to bottom:
+ * the title (its own row), the number (one line; its unit and change
+ * badge drop below it when they do not fit), the change line (two whole lines at most), and the footer
+ * with the level pill, bottom right. When space runs short only the
+ * change line gives way, to one line and then out, measured by
+ * fitStatCaption, so this holds at any font size. Font sizes stay the
+ * plugin's own. */
+.icor-sqlv-stat {
+  padding: var(--sqlv-s1) 0 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.icor-sqlv-stat-value {
+  font-family: var(--sqlv-font-display);
+  font-size: 34px;
+  font-weight: 640;
+  color: var(--sqlv-fg);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  /* The unit and the change badge sit beside the number while they fit and
+   * drop below it when they do not, instead of being cut ("g..."). */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--sqlv-s2);
+}
+
+.icor-sqlv-stat-value > * { white-space: nowrap; }
+
+.icor-sqlv-stat-value > .icor-sqlv-delta { margin-left: 0; align-self: center; }
+
+.icor-sqlv-stat-unit {
+  font-family: var(--sqlv-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-stat-caption {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  margin-top: var(--sqlv-s1);
+  flex: 0 0 auto;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.icor-sqlv-stat-caption.is-clamped-1 { -webkit-line-clamp: 1; }
+
+/* Named caption lines: one line each, never wrapped, cut with an
+ * ellipsis (the full text is on hover). Lines two and on are a small,
+ * muted bulleted list the plugin draws. */
+.icor-sqlv-stat-caption.is-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-stat-bullets {
+  flex: 0 0 auto;
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.icor-sqlv-stat-caption.is-bullet {
+  position: relative;
+  margin-top: 0;
+  padding-left: 0.9em;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.icor-sqlv-stat-caption.is-bullet::before {
+  content: '\2022';
+  position: absolute;
+  left: 0.15em;
+}
+
+.icor-sqlv-stat-caption.is-dropped,
+.icor-sqlv-stat-caption.is-line.is-dropped { display: none; }
+
+/* A meter under the number: a track, a fill in the level colour, and a
+ * tick at the target. It never shrinks; the caption lines give way first. */
+.icor-sqlv-meter {
+  position: relative;
+  flex: 0 0 auto;
+  height: 10px;
+  margin: var(--sqlv-s1) 0 2px;
+  border-radius: var(--sqlv-r-pill);
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-meter-fill {
+  height: 100%;
+  border-radius: var(--sqlv-r-pill);
+  background: var(--sqlv-fg-dim);
+}
+
+.icor-sqlv-meter-target {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--sqlv-fg-dim);
+}
+
+/* The footer sits at the bottom of the stat, the pill at its right. It
+ * never shrinks; the change line above it gives way first. */
+.icor-sqlv-stat-foot {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: var(--sqlv-s1);
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.icor-sqlv-stat-foot .icor-sqlv-level-pill {
+  display: inline-block;
+  max-width: 100%;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Value levels: the level marks the tile's frame, never the number's ink.
+ * The colour arrives as one custom property (a theme variable or a hex);
+ * the look is chosen per widget type in the settings. The level name is
+ * the tile's accessible label, and the pill carries the range's text. */
+.icor-sqlv-tile.is-level-rail { border-left: 4px solid var(--sqlv-level-color); }
+
+.icor-sqlv-tile.is-level-outline,
+.icor-sqlv-tile.is-level-outline:hover {
+  border-color: var(--sqlv-level-color);
+  box-shadow: inset 0 0 0 1px var(--sqlv-level-color);
+}
+
+.icor-sqlv-tile.is-level-tint {
+  background: color-mix(in srgb, var(--sqlv-level-color) 14%, var(--sqlv-card));
+}
+
+.icor-sqlv-level-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--sqlv-fg);
+  padding: 1px var(--sqlv-s2);
+  border-radius: var(--sqlv-r-pill);
+  border: 1px solid var(--sqlv-level-color, var(--sqlv-hairline));
+}
+
+/* ------------------------------------------------- edit mode: the grid -- */
+
+.icor-sqlv-tile.is-editing { cursor: grab; }
+
+.icor-sqlv-tile.is-editing:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 2px; }
+
+/* Floating chrome: the one sanctioned shadow, on the tile in hand. */
+.icor-sqlv-tile.is-dragging {
+  box-shadow: var(--sqlv-float-shadow);
+  transform: scale(1.02);
+  transition: none;
+  z-index: 10;
+  cursor: grabbing;
+}
+
+/* A tile being moved follows the pointer; the offset arrives as two custom
+ * properties set while the pointer moves. */
+.icor-sqlv-tile.is-dragging.is-moving {
+  transform: translate(var(--sqlv-drag-x, 0px), var(--sqlv-drag-y, 0px));
+}
+
+.icor-sqlv-drag-surface {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  touch-action: none;
+}
+
+.icor-sqlv-tile-actions {
+  position: absolute;
+  top: var(--sqlv-s2);
+  right: var(--sqlv-s2);
+  display: flex;
+  gap: var(--sqlv-s1);
+  z-index: 3;
+}
+
+.icor-sqlv-tile-action {
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  min-height: auto;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  border: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-transform: none;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--sqlv-r-subtle);
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+  background: var(--sqlv-card);
+}
+
+.icor-sqlv-tile-action:hover { color: var(--sqlv-fg); background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-tile-action:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 1px; }
+
+.icor-sqlv-tile-action svg { width: 15px; height: 15px; }
+
+/* The resize handle: a ruled L-corner, 10x10 at 2px. */
+.icor-sqlv-resize-handle {
+  position: absolute;
+  right: var(--sqlv-s1);
+  bottom: var(--sqlv-s1);
+  width: 18px;
+  height: 18px;
+  z-index: 3;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.icor-sqlv-resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--sqlv-fg-faint);
+  border-bottom: 2px solid var(--sqlv-fg-faint);
+  border-bottom-right-radius: var(--sqlv-r-control);
+}
+
+.icor-sqlv-resize-handle:hover::after { border-color: var(--sqlv-fg); }
+
+.icor-sqlv-tile.is-dragging .icor-sqlv-resize-handle::after { border-color: var(--sqlv-marker); }
+
+/* Dashes mean not-yet-settled: the hole left behind, and the drop cell. */
+.icor-sqlv-drag-hole {
+  border: 1.5px dashed var(--sqlv-hairline-strong);
+  border-radius: var(--sqlv-r-card);
+  background: transparent;
+}
+
+.icor-sqlv-drop-cell {
+  border: 1.5px dashed var(--sqlv-marker-border);
+  border-radius: var(--sqlv-r-card);
+  background: var(--sqlv-marker-bg);
+  z-index: 1;
+}
+
+/* The + tile: the not-yet-traveled cell. An invitation, not the moment. */
+.icor-sqlv-add-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sqlv-s1);
+  border: 1.5px dashed var(--sqlv-hairline-strong);
+  background: transparent;
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.icor-sqlv-add-tile:hover,
+.icor-sqlv-add-tile:focus-visible {
+  color: var(--sqlv-fg-dim);
+  border-color: var(--sqlv-marker-border);
+  outline: none;
+}
+
+.icor-sqlv-add-plus svg { width: 24px; height: 24px; }
+
+.icor-sqlv-add-text {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ------------------------------------------------------ widget wizard -- */
+
+.icor-sqlv-wizard-modal {
+  max-width: min(560px, 96vw);
+  background: var(--sqlv-overlay);
+  border-radius: var(--sqlv-r-modal);
+  box-shadow: var(--sqlv-float-shadow);
+}
+
+.icor-sqlv-wizard { display: flex; flex-direction: column; gap: var(--sqlv-s2); }
+
+.icor-sqlv-wizard-crumbs { overflow-wrap: anywhere; }
+
+.icor-sqlv-wizard-heading {
+  font-family: var(--sqlv-font-display);
+  font-size: 20px;
+  font-weight: 640;
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-wizard-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+}
+
+.icor-sqlv-wizard-group { margin-top: var(--sqlv-s2); }
+
+.icor-sqlv-wizard-list { display: flex; flex-direction: column; gap: 2px; }
+
+/* Options are rows, not boxes. */
+.icor-sqlv-wizard-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sqlv-s3);
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  min-height: 34px;
+  box-sizing: border-box;
+  border-radius: var(--sqlv-r-subtle);
+  cursor: pointer;
+  background: transparent;
+}
+
+.icor-sqlv-wizard-row:hover { background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-wizard-row:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 1px; }
+
+.icor-sqlv-wizard-row.is-selected {
+  background: var(--sqlv-well);
+  box-shadow: inset 2px 0 0 var(--sqlv-marker);
+}
+
+.icor-sqlv-wizard-row.is-keyboard { background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-wizard-row-label { color: var(--sqlv-fg); min-width: 0; overflow-wrap: anywhere; }
+
+.icor-sqlv-wizard-row-detail {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  text-align: right;
+  flex: 0 1 auto;
+}
+
+.icor-sqlv-wizard-search,
+.icor-sqlv-wizard-input {
+  width: 100%;
+  background: var(--sqlv-input);
+  color: var(--sqlv-fg);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  box-shadow: none;
+}
+
+.icor-sqlv-wizard-search::placeholder,
+.icor-sqlv-wizard-input::placeholder { color: var(--sqlv-fg-faint); }
+
+.icor-sqlv-wizard-search:focus,
+.icor-sqlv-wizard-search:focus-visible,
+.icor-sqlv-wizard-input:focus,
+.icor-sqlv-wizard-input:focus-visible {
+  outline: none;
+  border-color: var(--sqlv-marker);
+  box-shadow: 0 0 0 1px var(--sqlv-marker-border);
+}
+
+.icor-sqlv-wizard-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sqlv-s1);
+  font-size: 13px;
+  color: var(--sqlv-fg);
+}
+
+.icor-sqlv-viz-list { flex-direction: row; flex-wrap: wrap; }
+
+.icor-sqlv-modal-bar { margin-top: var(--sqlv-s3); justify-content: flex-end; }
+
+/* ------------------------------------------------- the widget form -- */
+
+.icor-sqlv-form-modal { max-width: min(880px, 96vw); }
+
+.icor-sqlv-form-panes {
+  display: flex;
+  gap: var(--sqlv-s4);
+  align-items: flex-start;
+}
+
+.icor-sqlv-form-fields {
+  flex: 1 1 55%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s3);
+  max-height: min(60vh, 560px);
+  overflow-y: auto;
+  padding-right: var(--sqlv-s1);
+}
+
+.icor-sqlv-form-side {
+  flex: 1 1 45%;
+  min-width: 0;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+}
+
+.icor-sqlv-form-preview .icor-sqlv-tile.is-preview {
+  min-height: 160px;
+  cursor: default;
+}
+
+/* What a save would leave out: the warning rail, the words stay ink. */
+.icor-sqlv-form-dropped:not(:empty) {
+  border-left: 3px solid var(--sqlv-warning);
+  padding-left: var(--sqlv-s2);
+  color: var(--sqlv-fg);
+}
+
+/* The form stacks on narrow panes: preview above the Save button. */
+@media (max-width: 700px) {
+  .icor-sqlv-form-panes { flex-direction: column; }
+  .icor-sqlv-form-side { position: static; width: 100%; }
+  .icor-sqlv-form-fields { max-height: none; overflow: visible; width: 100%; }
+}
+
+.icor-sqlv-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s1);
+}
+
+.icor-sqlv-field-label {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-field-required { color: var(--sqlv-fg-dim); text-transform: none; letter-spacing: 0; }
+
+.icor-sqlv-field-optional { text-transform: none; letter-spacing: 0; }
+
+/* The picker: a field that expands its searchable list inline. */
+button.icor-sqlv-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sqlv-s2);
+  width: 100%;
+  text-align: left;
+  background: var(--sqlv-input);
+  color: var(--sqlv-fg);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  cursor: pointer;
+}
+
+button.icor-sqlv-picker.is-empty { color: var(--sqlv-fg-faint); }
+
+button.icor-sqlv-picker:hover { border-color: var(--sqlv-hairline-strong); }
+
+button.icor-sqlv-picker:focus-visible {
+  outline: none;
+  border-color: var(--sqlv-marker);
+  box-shadow: 0 0 0 1px var(--sqlv-marker-border);
+}
+
+.icor-sqlv-picker-chev { color: var(--sqlv-fg-faint); flex: 0 0 auto; }
+
+.icor-sqlv-picker-panel {
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-subtle);
+  padding: var(--sqlv-s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--sqlv-overlay);
+}
+
+/* Filter rows: column, condition, value, remove. */
+.icor-sqlv-filter-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+}
+
+.icor-sqlv-filter-row-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sqlv-s2);
+}
+
+.icor-sqlv-filter-row-edit select.dropdown {
+  background-color: var(--sqlv-well);
+  color: var(--sqlv-fg-dim);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  font-size: 13px;
+  max-width: 40%;
+}
+
+.icor-sqlv-filter-row-edit .icor-sqlv-wizard-input { flex: 1 1 8em; min-width: 6em; width: auto; }
+
+.icor-sqlv-filter-row-edit button.icor-sqlv-picker { flex: 1 1 8em; width: auto; }
+
+button.icor-sqlv-add-filter { align-self: flex-start; }
+
+.icor-sqlv-range-row .icor-sqlv-wizard-input.icor-sqlv-range-num { flex: 0 1 5em; min-width: 4em; }
+
+/* Per-widget level colours: an override is marked in words, never by the
+ * colour alone, and carries its way back to the settings. */
+.icor-sqlv-level-colors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  margin-top: var(--sqlv-s3);
+  padding-top: var(--sqlv-s2);
+  border-top: 1px solid var(--sqlv-hairline-subtle);
+}
+
+.icor-sqlv-level-colors.is-overridden {
+  border-left: 3px solid var(--sqlv-warning);
+  padding-left: var(--sqlv-s2);
+}
+
+.icor-sqlv-level-colors-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sqlv-s2); }
+
+.icor-sqlv-level-override-mark {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg);
+  padding: 1px var(--sqlv-s2);
+  border-radius: var(--sqlv-r-pill);
+  border: 1px solid var(--sqlv-warning);
+}
+
+.icor-sqlv-level-swatch {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: var(--sqlv-r-micro);
+  border: 1px solid var(--sqlv-hairline);
+  background: var(--sqlv-level-color, transparent);
+}
+
+.icor-sqlv-level-color-name { min-width: 5em; color: var(--sqlv-fg-dim); font-size: 13px; }
+
+.icor-sqlv-level-color-row.is-overridden .icor-sqlv-level-color-name { color: var(--sqlv-fg); font-weight: 600; }
+
+.icor-sqlv-form select.dropdown {
+  background-color: var(--sqlv-well);
+  color: var(--sqlv-fg-dim);
+  border: 1px solid var(--sqlv-control-border);
+  border-radius: var(--sqlv-r-subtle);
+  box-shadow: none;
+  font-family: var(--sqlv-font-body);
+  font-size: 13px;
+  width: 100%;
+}
+
+.icor-sqlv-form select.dropdown:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 2px; }
+
+/* Advanced: one quiet unfold at the bottom. */
+.icor-sqlv-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  border-top: 1px solid var(--sqlv-hairline-subtle);
+  padding-top: var(--sqlv-s2);
+}
+
+/* An option group in the edit form (Axis, Guide lines, Notes ...): the
+ * Advanced toggle's look, its fields in the same column. */
+/* A row of an edit-form list (series, guide lines, zones, part colours):
+ * one unit, its name on top when its fields wrap. */
+.icor-sqlv-form-row { padding-bottom: var(--sqlv-s2); border-bottom: 1px solid var(--sqlv-hairline-subtle); }
+
+.icor-sqlv-form-row-name {
+  flex: 1 0 100%;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--sqlv-fg-faint);
+}
+
+.icor-sqlv-form-row-check { display: inline-flex; align-items: center; gap: var(--sqlv-s1); }
+
+.icor-sqlv-option-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+}
+
+button.icor-sqlv-advanced-toggle {
+  /* A plain button: the browser and theme button skins stood down. */
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: auto;
+  align-items: normal;
+  justify-content: normal;
+  white-space: inherit;
+  text-rendering: inherit;
+  transition: all 0s;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  outline: 0;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-decoration: none;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sqlv-fg-faint);
+  cursor: pointer;
+}
+
+button.icor-sqlv-advanced-toggle:hover { color: var(--sqlv-fg-dim); }
+
+button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-marker); outline-offset: 2px; }
+
+.icor-sqlv-sql-pre {
+  margin: 0;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  background: var(--sqlv-input);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-subtle);
+  padding: var(--sqlv-s2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The comparison badge: the color says whether the direction is good for
+ * THIS metric, never simply whether the number rose. */
+.icor-sqlv-delta {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--sqlv-s2);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px var(--sqlv-s2);
+  border-radius: var(--sqlv-r-pill);
+  vertical-align: middle;
+}
+
+.icor-sqlv-delta.is-good {
+  color: var(--ink-success-text, var(--color-green));
+  border: 1px solid var(--ink-success, var(--color-green));
+}
+
+.icor-sqlv-delta.is-bad {
+  color: var(--sqlv-destructive-text);
+  border: 1px solid var(--sqlv-destructive);
+}
+
+.icor-sqlv-delta.is-flat {
+  color: var(--sqlv-fg-faint);
+  border: 1px solid var(--sqlv-hairline);
+}
+
+/* The prior period is a dotted ghost: another time, a state. */
+.icor-sqlv-ghost { opacity: 1; }
+
+/* ---------------------------------------------------------- JSON view -- */
+
+.icor-sqlv-json {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  height: 100%;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+}
+
+.icor-sqlv-json-pre {
+  flex: 1 1 auto;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 13px;
+  color: var(--sqlv-fg);
+  background: var(--sqlv-card);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-card);
+  padding: var(--sqlv-s3);
+  white-space: pre;
+}
+
+.icor-sqlv-json-editor { flex: 1 1 auto; resize: none; }
+
+/* Under a dashboard opened as text: whether it still reads. */
+.icor-sqlv-json-check.is-error { color: var(--sqlv-destructive-text); }
+
+/* ------------------------------------------------------ notes and errors -- */
+
+.icor-sqlv-note {
+  color: var(--sqlv-fg-faint);
+  font-size: 13px;
+}
+
+/* Errors: quiet box, destructive left rail; the words ride the error ink. */
+.icor-sqlv-error {
+  color: var(--sqlv-destructive-text);
+  font-size: 13px;
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  border: 1px solid var(--sqlv-hairline);
+  border-left: 3px solid var(--sqlv-destructive);
+  border-radius: var(--sqlv-r-subtle);
+  overflow-wrap: anywhere;
+}
+
+.icor-sqlv-error-detail {
+  color: var(--sqlv-fg-dim);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  margin-top: var(--sqlv-s1);
+}
+
+.icor-sqlv-empty {
+  color: var(--sqlv-fg-faint);
+  font-size: 13px;
+  padding: var(--sqlv-s4) 0;
+  text-align: center;
+}
+
+.icor-sqlv-section-title {
+  font-weight: 600;
+  color: var(--sqlv-fg);
+  margin-top: var(--sqlv-s3);
+}
+
+/* Warnings: the rail marks state; the words stay ink. */
+.icor-sqlv-warn {
+  border: 1px solid var(--sqlv-hairline);
+  border-left: 3px solid var(--sqlv-warning);
+  border-radius: var(--sqlv-r-subtle);
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  margin: var(--sqlv-s3) 0;
+  color: var(--sqlv-fg);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s1);
+}
+
+/* -------------------------------------------------------- index modal -- */
+
+.icor-sqlv-index { display: flex; flex-direction: column; gap: 2px; }
+
+.icor-sqlv-index-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sqlv-s3);
+  padding: var(--sqlv-s2) var(--sqlv-s3);
+  border-radius: var(--sqlv-r-subtle);
+  cursor: pointer;
+}
+
+.icor-sqlv-index-row:hover { background: var(--sqlv-hover-wash); }
+
+.icor-sqlv-index-path { min-width: 0; color: var(--sqlv-fg); }
+
+.icor-sqlv-index-folder {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  overflow-wrap: anywhere;
+}
+
+.icor-sqlv-index-size {
+  flex: 0 0 auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.icor-sqlv-move-list {
+  margin: var(--sqlv-s3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sqlv-s2);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.icor-sqlv-move-row {
+  padding: var(--sqlv-s1) var(--sqlv-s2);
+  border: 1px solid var(--sqlv-hairline);
+  border-radius: var(--sqlv-r-subtle);
+  overflow-wrap: anywhere;
+  color: var(--sqlv-fg);
+}
+
+/* ---------------------------------------------------------------- touch -- */
+
+@media (pointer: coarse) {
+  .icor-sqlv-wizard-row { min-height: 44px; padding: var(--sqlv-s2) var(--sqlv-s3); }
+  .icor-sqlv-tile-action { width: 36px; height: 36px; }
+  .icor-sqlv-resize-handle { width: 32px; height: 32px; }
+  .icor-sqlv-add-tile { min-height: 120px; }
+  .icor-sqlv-dash-bar button,
+  .icor-sqlv-modal-bar button,
+  .icor-sqlv-edit-toggle { min-height: 44px; }
+  .icor-sqlv-tabs button { min-height: 44px; }
+  button.icor-sqlv-add-filter { min-height: 44px; }
+  button.icor-sqlv-advanced-toggle { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* ---------------------------------------------------- section divider -- */
+
+/* A section divider is not a card: no ground, no frame, no padding. It
+ * lives in a thin grid row (DIVIDER_ROW_PX) and spans the width it is
+ * given. The line runs through the heading's vertical centre, starts 6px
+ * in from the left edge, and leaves a real 3px gap either side of the
+ * heading (no fill behind it), so it works on any background. */
+.icor-sqlv-tile.is-divider,
+.icor-sqlv-tile.is-divider:hover,
+.icor-sqlv-tile.is-line,
+.icor-sqlv-tile.is-line:hover {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  overflow: hidden;
+}
+
+.icor-sqlv-divider {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.icor-sqlv-divider::before,
+.icor-sqlv-divider::after {
+  content: '';
+  border-top: 1px solid var(--sqlv-hairline-strong);
+}
+
+.icor-sqlv-divider::before { flex: 0 0 6px; }
+
+.icor-sqlv-divider::after { flex: 1 1 auto; min-width: 0; }
+
+.icor-sqlv-divider-heading {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0 3px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* In edit mode the divider shows its extent, and its controls fit the
+ * thin row: the buttons centre vertically, the handle resizes sideways. */
+.icor-sqlv-tile.is-divider.is-editing {
+  outline: 1.5px dashed var(--sqlv-hairline-strong);
+  outline-offset: -1px;
+  border-radius: var(--sqlv-r-subtle);
+}
+
+.icor-sqlv-tile.is-divider .icor-sqlv-tile-actions {
+  top: 50%;
+  right: 24px;
+  transform: translateY(-50%);
+}
+
+.icor-sqlv-tile.is-divider .icor-sqlv-tile-action { width: 22px; height: 22px; }
+
+.icor-sqlv-tile.is-divider .icor-sqlv-resize-handle {
+  top: 50%;
+  bottom: auto;
+  right: 2px;
+  transform: translateY(-50%);
+  cursor: ew-resize;
+}
+
+/* The form's preview shows the divider at its real thin height. */
+.icor-sqlv-tile.is-preview.is-divider { height: 24px; }
+
+
+/* ----------------------------------------- change over the period (chart) -- */
+
+/* A chart's title row can carry its change over the period at the right,
+ * styled like the stat caption. The title gives way first (ellipsis); the
+ * change stays whole on one line. */
+.icor-sqlv-tile-titlebar {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sqlv-s2);
+  min-width: 0;
+  flex: 0 0 auto;
+  margin-bottom: var(--sqlv-s3);
+}
+
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-bottom: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+/* A segments bar's level pill sits at the right of its title row, whole;
+ * a hint before it keeps the pill against the edge. */
+.icor-sqlv-tile-titlebar > .icor-sqlv-level-pill {
+  flex: 0 0 auto;
+  margin-left: auto;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint + .icor-sqlv-level-pill { margin-left: 0; }
+
+.icor-sqlv-head-delta {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A roll-up ("chartCaption") sits in the same corner, like the change:
+ * one line, never wrapped; the title gives way first (ellipsis), and
+ * only a roll-up wider than the whole row is cut, with an ellipsis. */
+.icor-sqlv-head-rollup {
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin-left: auto;
+  text-align: right;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+/* A heatmap: a grid of cells coloured by their value level, row labels at
+ * the left, column labels on top, a dot on marked cells, and the current
+ * column a step brighter. It scrolls inside its tile when it is taller or
+ * wider than the tile. */
+.icor-sqlv-heatmap { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
+
+.icor-sqlv-heatmap-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
+
+.icor-sqlv-heatmap-grid { display: grid; gap: 2px; align-items: center; }
+
+.icor-sqlv-heatmap-corner { height: 14px; }
+
+.icor-sqlv-heatmap-col,
+.icor-sqlv-heatmap-row {
+  font-family: var(--sqlv-font-mono);
+  font-size: 9px;
+  line-height: 14px;
+  color: var(--sqlv-fg-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.icor-sqlv-heatmap-col { text-align: center; }
+
+/* Labels wider than their cell turn to read upwards, and when even that is
+ * too tight every Nth is kept (fitHeatmapLabels). */
+.icor-sqlv-heatmap.has-turned-labels .icor-sqlv-heatmap-col {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  text-align: left;
+  line-height: 11px;
+  justify-self: center;
+}
+
+.icor-sqlv-heatmap-col.is-thinned { visibility: hidden; }
+
+.icor-sqlv-heatmap-col.is-current,
+.icor-sqlv-heatmap-row.is-current { color: var(--sqlv-fg); font-weight: 600; }
+
+.icor-sqlv-heatmap-row { text-align: right; padding-right: var(--sqlv-s2); }
+
+.icor-sqlv-heatmap-cell {
+  position: relative;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-heatmap-cell.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline-subtle); }
+
+.icor-sqlv-heatmap-cell.is-current { filter: brightness(1.3); }
+
+/* "cells": square cells as tall as they are wide, or rows that share the
+ * tile's height; the labels stay centred on their row. */
+.icor-sqlv-heatmap.is-square .icor-sqlv-heatmap-cell { height: auto; aspect-ratio: 1 / 1; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-grid { height: 100%; align-items: stretch; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-cell { height: auto; min-height: 13px; }
+
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-row,
+.icor-sqlv-heatmap.is-fill .icor-sqlv-heatmap-col { align-self: center; }
+
+.icor-sqlv-heatmap-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  border: 1px solid var(--sqlv-ground);
+  background: var(--sqlv-fg);
+}
+
+.icor-sqlv-heatmap-dot.is-legend { position: relative; top: 0; left: 0; margin: 0; display: inline-block; flex: 0 0 auto; }
+
+.icor-sqlv-heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--sqlv-s3);
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  flex: 0 0 auto;
+}
+
+.icor-sqlv-heatmap-legend .icor-sqlv-legend-chip.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline); }
+
+/* A year calendar: one square for each day, a week to a column, month
+ * names along the top and Mon, Wed and Fri down the side. Its legend is the
+ * heatmap's. It scrolls inside its tile when it is wider or taller. */
+.icor-sqlv-calendar { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
+
+.icor-sqlv-calendar-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
+
+.icor-sqlv-calendar-grid { display: grid; gap: 2px; min-width: 440px; }
+
+.icor-sqlv-calendar-month,
+.icor-sqlv-calendar-day {
+  font-family: var(--sqlv-font-mono);
+  font-size: 9px;
+  color: var(--sqlv-fg-faint);
+  white-space: nowrap;
+}
+
+.icor-sqlv-calendar-month { line-height: 12px; grid-row: 1; grid-column: var(--sqlv-col) / span 3; }
+
+/* A weekday name is no taller than a square, so a row that carries one is
+ * no taller than the rows without. */
+.icor-sqlv-calendar-day { grid-row: var(--sqlv-row); grid-column: 1; line-height: 8px; text-align: right; padding-right: var(--sqlv-s2); align-self: center; }
+
+.icor-sqlv-calendar-cell {
+  grid-row: var(--sqlv-row);
+  grid-column: var(--sqlv-col);
+  box-sizing: border-box;
+  min-width: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 2px;
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-calendar-cell.is-empty { background: transparent; border: 1px solid var(--sqlv-hairline-subtle); }
+
+/* A bullet chart: a label, a track shaded in bands, the actual value as a
+ * bar across it and the target as a mark through it, and the numbers at the
+ * right. The bands are the value levels, a little see-through so the bar
+ * stays the darkest thing in the track. */
+.icor-sqlv-bullet { --sqlv-band-opacity: 0.4; display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
+
+.icor-sqlv-bullet-rows {
+  display: grid;
+  grid-template-columns: fit-content(45%) minmax(0, 1fr) max-content;
+  align-content: start;
+  align-items: center;
+  gap: var(--sqlv-s3);
+  flex: 1 1 auto;
+  min-height: 28px;
+  overflow: auto;
+}
+
+.icor-sqlv-bullet-rows.is-unlabelled { grid-template-columns: minmax(0, 1fr) max-content; }
+
+.icor-sqlv-bullet-label,
+.icor-sqlv-bullet-value {
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-dim);
+  white-space: nowrap;
+}
+
+/* The label column is as wide as the longest label, up to 45% of the tile;
+ * a longer label wraps to a second line, and only a third line is cut. */
+.icor-sqlv-bullet-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+}
+
+.icor-sqlv-bullet-value { font-variant-numeric: tabular-nums; }
+
+.icor-sqlv-bullet-track {
+  position: relative;
+  height: 18px;
+  overflow: hidden;
+  border-radius: var(--sqlv-r-micro);
+  background: var(--sqlv-well);
+}
+
+.icor-sqlv-bullet-band { position: absolute; top: 0; bottom: 0; opacity: var(--sqlv-band-opacity); }
+
+.icor-sqlv-bullet-band.is-neutral { background: var(--sqlv-hairline); opacity: 1; }
+
+.icor-sqlv-bullet-actual {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 6px;
+  background: var(--sqlv-series-1);
+  border-radius: 0 var(--sqlv-r-micro) var(--sqlv-r-micro) 0;
+}
+
+.icor-sqlv-bullet-target {
+  position: absolute;
+  top: 2px;
+  height: 14px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--sqlv-fg);
+}
+
+.icor-sqlv-bullet-legend .icor-sqlv-legend-chip.is-band { opacity: var(--sqlv-band-opacity); }
+.icor-sqlv-legend-chip.is-target { width: 2px; height: 12px; border-radius: 0; background: var(--sqlv-fg); margin: 0 4px; }
+
+/* A sparkline in a table cell: a tiny line on its own scale, a dot on the
+ * last value, in the ink of the line chart. */
+.icor-sqlv-spark { display: block; width: 80px; height: 20px; overflow: visible; }
+
+.icor-sqlv-spark-line {
+  fill: none;
+  stroke: var(--sqlv-series-1);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icor-sqlv-spark-end { fill: var(--sqlv-fg); }
+
+/* The last sparkline column stays at the right edge while the other
+ * columns scroll under it, so a phone never hides the trends. A narrow
+ * screen also draws the line shorter and trims the text columns. */
+.icor-sqlv-table th.icor-sqlv-pinned,
+.icor-sqlv-table td.icor-sqlv-pinned {
+  position: sticky;
+  right: 0;
+  background: var(--sqlv-card);
+  border-left: 1px solid var(--sqlv-hairline-subtle);
+}
+.icor-sqlv-table th.icor-sqlv-pinned { z-index: 2; }
+.icor-sqlv-table tbody tr:hover td.icor-sqlv-pinned { background: var(--sqlv-hover-wash); }
+
+@media (max-width: 600px) {
+  .icor-sqlv-tile .icor-sqlv-spark { width: 56px; }
+  .icor-sqlv-tile .icor-sqlv-table th,
+  .icor-sqlv-tile .icor-sqlv-table td { max-width: 9em; }
+}
+
+/* A table in a tile of 400px or less shares the width it has instead of
+ * scrolling: the table is as wide as the tile, headers may wrap, text
+ * columns are trimmed, cells are tighter, and the sparkline column is the
+ * one that shrinks. Only a table that still cannot fit scrolls. */
+.icor-sqlv-tile-body.icor-sqlv-has-table-scroll { container-type: inline-size; }
+
+@container (max-width: 400px) {
+  .icor-sqlv-tile .icor-sqlv-table { width: 100%; }
+  .icor-sqlv-tile .icor-sqlv-table th,
+  .icor-sqlv-tile .icor-sqlv-table td { padding-left: var(--sqlv-s1); padding-right: var(--sqlv-s1); max-width: 6em; }
+  .icor-sqlv-tile .icor-sqlv-table thead th { white-space: normal; overflow-wrap: break-word; line-height: 1.2; vertical-align: bottom; }
+  .icor-sqlv-tile .icor-sqlv-spark { width: 40px; }
+}
+
+
+/* ------------------------------------------------------------ text -- */
+
+/* A text widget: plain paragraphs in the card. A text line is no card at
+ * Overall: one quiet line in a thin row, like a section divider's heading. */
+.icor-sqlv-text { overflow: auto; font-size: var(--font-ui-small, 13px); color: var(--sqlv-fg-dim); line-height: 1.5; }
+
+.icor-sqlv-text-para { margin: 0 0 var(--sqlv-s2); }
+
+.icor-sqlv-text-para:last-child { margin-bottom: 0; }
+
+.icor-sqlv-text-line {
+  width: 100%;
+  min-width: 0;
+  padding: 0 6px;
+  font-size: var(--font-ui-smaller, 12px);
+  color: var(--sqlv-fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icor-sqlv-tile.is-line.is-editing {
+  outline: 1.5px dashed var(--sqlv-hairline-strong);
+  outline-offset: -1px;
+  border-radius: var(--sqlv-r-subtle);
+}
+
+/* -------------------------------------------- hint and footnote -- */
+
+/* A hint at the right of the title row, quiet and mono like a caption.
+ * Title and hint both wrap to a second line before either is cut; the hint
+ * takes at most 45% of the row. A footnote under the widget, at most three
+ * lines; hovering shows it all. */
+.icor-sqlv-tile-titlebar > .icor-sqlv-tile-hint {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
+  margin-left: auto;
+  font-family: var(--sqlv-font-mono);
+  font-size: 11px;
+  color: var(--sqlv-fg-faint);
+  text-align: right;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+
+.icor-sqlv-tile-footnote {
+  flex: 0 0 auto;
+  margin-top: var(--sqlv-s2);
+  font-size: var(--font-ui-smaller, 12px);
+  line-height: 1.4;
+  color: var(--sqlv-fg-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------- samples in the help file -- */
+
+/* A sample widget drawn in a note by the help file's code blocks. The box
+ * has a fixed height, as a grid cell gives a tile on a dashboard, because
+ * the charts measure their box; the tile fills it. */
+.icor-sqlv-sample {
+  max-width: 640px;
+  margin: var(--sqlv-s2) 0 var(--sqlv-s4);
+}
+
+.icor-sqlv-sample.is-chart { height: 260px; }
+
+.icor-sqlv-sample.is-short { height: 180px; }
+
+.icor-sqlv-sample.is-thin { height: 32px; }
+
+.icor-sqlv-sample > .icor-sqlv-tile {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ------------------------------------------ a widget inside a note -- */
+
+/* A widget a code block draws in a note: the same fixed-height box as a
+ * help-file sample, because the charts measure it. */
+.icor-sqlv-block {
+  max-width: 640px;
+  margin: var(--sqlv-s2) 0 var(--sqlv-s4);
+}
+
+/* A block sizes to its content: the chart or grid keeps a floor and the
+ * block grows around it, so notes and hints never squeeze it out. */
+.icor-sqlv-block > .icor-sqlv-tile {
+  height: auto;
+  box-sizing: border-box;
+  min-height: 120px;
+}
+
+.icor-sqlv-block.is-thin > .icor-sqlv-tile { min-height: 32px; height: 100%; }
+.icor-sqlv-block.is-thin { height: 32px; }
+
+.icor-sqlv-block .icor-sqlv-tile-body { overflow: visible; flex: 0 0 auto; }
+.icor-sqlv-block .icor-sqlv-chart-box { height: auto; }
+.icor-sqlv-block .icor-sqlv-chart-host { flex: none; height: 180px; }
+.icor-sqlv-block .icor-sqlv-heatmap,
+.icor-sqlv-block .icor-sqlv-calendar,
+.icor-sqlv-block .icor-sqlv-bullet,
+.icor-sqlv-block .icor-sqlv-segments,
+.icor-sqlv-block .icor-sqlv-pie { height: auto; }
+.icor-sqlv-block .icor-sqlv-heatmap-scroll,
+.icor-sqlv-block .icor-sqlv-calendar-scroll,
+.icor-sqlv-block .icor-sqlv-bullet-rows { flex: none; min-height: 0; }
+.icor-sqlv-block .icor-sqlv-pie-svg { flex: none; height: 160px; width: 160px; }
+.icor-sqlv-block .icor-sqlv-pie-legend { max-height: none; overflow: visible; }
+
+.icor-sqlv-block-note { margin: var(--sqlv-s2) 0; }
+
+/* The muted words of a widget drawn in a note (a help sample or a block)
+ * lean a step toward the full ink so they read at 4.5 to 1 on the card. */
+.icor-sqlv-sample,
+.icor-sqlv-block {
+  --sqlv-fg-faint: color-mix(in srgb, var(--ink-paper-faint, var(--text-faint)) 55%, var(--sqlv-fg));
+}

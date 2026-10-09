@@ -43,6 +43,9 @@ open the pull request.
   readable in one pass gets merged; one that mixes concerns gets bounced
   with a `too-big` label.
 - Add or update tests for the behaviour you change.
+- Edit `src/main.js` and `src/styles.css`, never the root `main.js` or
+  `styles.css`: those are built. Run `npm run build` and commit the result
+  with your change; CI fails if the committed files differ from the build.
 - Run the gate locally and paste its output into the pull request:
   `npm test`.
 - Do not bump the version. Leave `manifest.json`, `package.json` and
