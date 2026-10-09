@@ -25,6 +25,7 @@ const source = readFileSync(resolve(repo, 'main.js'), 'utf8');
 const nodeRequire = createRequire(import.meta.url);
 
 export const notices = [];
+export const noticeObjects = [];
 
 /* ------------------------------------------------------------ fake DOM -- */
 
@@ -129,7 +130,7 @@ export function makeObsidian({ desktop = true } = {}) {
     PluginSettingTab: class { constructor(app, plugin) { this.app = app; this.plugin = plugin; this.containerEl = makeEl('div'); } },
     Setting: class { constructor() { return chain(); } },
     Modal: class { constructor(app) { this.app = app; this.contentEl = makeEl('div'); this.titleEl = makeEl('div'); this.modalEl = makeEl('div'); } open() { this.opened = true; if (this.onOpen) this.onOpen(); } close() { this.closed = true; if (this.onClose) this.onClose(); } },
-    Notice: class { constructor(msg) { this.msg = msg; notices.push(String(msg)); } },
+    Notice: class { constructor(msg) { this.msg = msg; this.noticeEl = makeEl('div'); this.hidden = false; notices.push(String(msg)); noticeObjects.push(this); } hide() { this.hidden = true; } },
     Platform: { isDesktopApp: desktop, isMobile: !desktop, isMobileApp: !desktop, isMacOS: true, isWin: false, isLinux: false },
     setIcon: (el, icon) => { el.attrs['data-icon'] = icon; },
     normalizePath: (p) => String(p).replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/|\/$/g, ''),
@@ -288,6 +289,13 @@ export function makeFakeAdapter(initialFiles = {}, initialBinaries = {}) {
     async read(p) { if (!files.has(p)) throw new Error('not found: ' + p); return files.get(p); },
     async write(p, text) { files.set(p, text); log.push(['write', p]); },
     async rename(from, to) {
+      if (binaries.has(from)) {
+        if (binaries.has(to) || files.has(to)) throw new Error('already exists: ' + to);
+        binaries.set(to, binaries.get(from));
+        binaries.delete(from);
+        log.push(['rename', from, to]);
+        return;
+      }
       if (!files.has(from)) throw new Error('not found: ' + from);
       if (files.has(to)) throw new Error('already exists: ' + to);
       files.set(to, files.get(from));

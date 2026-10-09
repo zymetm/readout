@@ -21,7 +21,7 @@ test('the config folder the vault names is skipped, and .git and .trash always',
   assert.deepEqual(lib.findDatabases(files).map((f) => f.path), ['Data/a.db', 'myconfig/plugins/x/cache.db'], 'no config folder given: the usual name');
 });
 
-test('the plugin walks the children of the database folder, skipping the vault config folder', async () => {
+test('the plugin walks folders from the root by default, or only the database folder, skipping the vault config folder', async () => {
   const fresh = loadPlugin();
   const file = (path) => ({ path, stat: { size: 1 } });
   const root = { path: '/', children: [
@@ -32,10 +32,10 @@ test('the plugin walks the children of the database folder, skipping the vault c
   const vault = { adapter: {}, configDir: 'myconfig', getRoot: () => root, getAbstractFileByPath: (p) => (p === 'Data' ? root.children[0] : null) };
   const plugin = fresh.makePlugin({ vault });
   plugin.app = { vault };
+  plugin.settings = { dataFolder: 'Data', searchScope: 'folder' };
+  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite'], 'with the search set to the folder, only that folder is walked');
   plugin.settings = { dataFolder: 'Data' };
-  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite'], 'only the database folder is walked');
-  plugin.settings = { dataFolder: '/' };
-  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite', 'Other/d.db'], 'the vault root is walked only when chosen');
-  plugin.settings = { dataFolder: 'Missing' };
+  assert.deepEqual(unwrap(plugin.vaultDatabases().map((f) => f.path)), ['Data/a.db', 'Data/x/b.sqlite', 'Other/d.db'], 'by default the whole vault is walked from the root');
+  plugin.settings = { dataFolder: 'Missing', searchScope: 'folder' };
   assert.deepEqual(unwrap(plugin.vaultDatabases()), []);
 });

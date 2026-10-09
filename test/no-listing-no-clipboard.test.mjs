@@ -34,18 +34,20 @@ async function session(files, binaries, data) {
   return { plugin, adapter, fresh };
 }
 
-test('databases are listed from the database folder only; the vault root is a choice', async () => {
+test('databases are found by walking folders: the whole vault by default, or only the databases folder', async () => {
   const bin = { '07 Databases/a.db': new Uint8Array(3), '07 Databases/sub/b.sqlite': new Uint8Array(2), 'Elsewhere/c.db': new Uint8Array(1), 'mypka.db': new Uint8Array(4) };
   const { plugin } = await session({}, bin);
   plugin.settings.dataFolder = '07 Databases';
+  plugin.settings.searchScope = 'folder';
   assert.deepEqual(unwrap(plugin.vaultDatabases().map((d) => d.path)), ['07 Databases/a.db', '07 Databases/sub/b.sqlite']);
-  plugin.settings.dataFolder = '/';
+  plugin.settings.searchScope = 'vault';
   assert.deepEqual(unwrap(plugin.vaultDatabases().map((d) => d.path)), ['07 Databases/a.db', '07 Databases/sub/b.sqlite', 'Elsewhere/c.db', 'mypka.db']);
 });
 
 test('a database outside the folder still opens when a dashboard names it', async () => {
   const { plugin } = await session({}, { 'Elsewhere/c.db': new Uint8Array(1) });
   plugin.settings.dataFolder = '07 Databases';
+  plugin.settings.searchScope = 'folder';
   assert.deepEqual(unwrap(plugin.vaultDatabases()), []);
   const choice = await plugin.query.engineFor('Elsewhere/c.db');
   assert.ok(choice.engine, 'the engine is chosen by path, not by the listing');

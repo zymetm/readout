@@ -224,6 +224,15 @@ const DEFAULT_SETTINGS = {
   dashboardFolder: PLAIN_FOLDERS.dashboardFolder,
   cacheFolder: PLAIN_FOLDERS.cacheFolder,
   dataFolder: PLAIN_FOLDERS.dataFolder,
+  /* Where databases are looked for: 'vault' (every folder, the default) or
+   * 'folder' (only the database folder above). The database folder is also
+   * where dashboards, exports and suggested moves go, so the two are
+   * separate settings. */
+  searchScope: 'vault',
+  /* A gentle note, once per file, when a database is opened directly from
+   * outside the database folder. The paths already noted are kept here. */
+  noteOutsideFolder: true,
+  outsideNoteSeen: {},
   /* The mobile catalog carries structure only unless this is on. */
   catalogIncludeValues: false,
   /* Off until the member turns it on: ReadOut then opens .json files in its
@@ -576,6 +585,14 @@ function walkDatabases(folder, configDir) {
   };
   visit(folder);
   return findDatabases(found, configDir);
+}
+
+/* Whether a vault path sits inside a folder setting (the vault root holds everything). */
+function isInsideFolder(path, folder) {
+  if (isVaultRootFolder(folder)) return true;
+  const f = normalizePath(folder);
+  const p = normalizePath(path);
+  return p === f || p.startsWith(f + '/');
 }
 
 /* The name of a saved result file: the database's stem, a stamp, ".csv". */
@@ -4812,6 +4829,7 @@ class SqliteBrowserView extends FileView {
 
   async setDatabase(dbPath) {
     this.dbPath = dbPath;
+    this.plugin.noteIfOutsideFolder(dbPath, (to) => { this.setDatabase(to); });
     this.tables = [];
     this.counts.clear();
     this.unreadable.clear();
@@ -7963,21 +7981,33 @@ class SqliteViewerSettingTab extends PluginSettingTab {
       }));
 
     new Setting(containerEl)
-      .setName('Database folder')
-      .setDesc('ReadOut lists the databases inside this folder (and its subfolders) in the database browser, the index and the widget form. Clicking any .db, .sqlite or .sqlite3 file anywhere still opens it, and a dashboard can name a database anywhere in the vault.')
-      .addText((t) => t.setValue(isVaultRootFolder(this.plugin.settings.dataFolder) ? '' : this.plugin.settings.dataFolder).setDisabled(isVaultRootFolder(this.plugin.settings.dataFolder)).onChange(async (v) => {
+      .setName('Search for databases in')
+      .setDesc('Where ReadOut looks for database files (.db, .sqlite, .sqlite3) to list them in the browser, the index and the widget form. "Whole vault" looks through every folder by name; it reads no note and no file other than a database you open. Clicking a database anywhere, or naming one in a dashboard, works either way.')
+      .addDropdown((d) => {
+        d.addOption('vault', 'Whole vault');
+        d.addOption('folder', 'Only the databases folder');
+        d.setValue(this.plugin.settings.searchScope === 'folder' ? 'folder' : 'vault');
+        d.onChange(async (v) => {
+          this.plugin.settings.searchScope = v === 'folder' ? 'folder' : 'vault';
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Databases folder')
+      .setDesc('The folder for dashboards, exports ("Save as CSV" goes into Exports inside it) and for moving a database into, when you choose to.')
+      .addText((t) => t.setValue(this.plugin.settings.dataFolder).onChange(async (v) => {
         if (isVaultRootFolder(v)) return;
         this.plugin.settings.dataFolder = normalizePath(v);
         await this.plugin.saveSettings();
       }));
 
     new Setting(containerEl)
-      .setName('Search the whole vault for databases')
-      .setDesc('Off by default. When on, ReadOut looks through every folder in the vault for database files instead of only the database folder above. It reads folder and file names, never the contents of any file except a database you open.')
-      .addToggle((t) => t.setValue(isVaultRootFolder(this.plugin.settings.dataFolder)).onChange(async (v) => {
-        this.plugin.settings.dataFolder = v ? '/' : folderDefaultsFor(await detectIcorScaffold(this.app.vault.adapter)).dataFolder;
+      .setName('Note when a database is outside the databases folder')
+      .setDesc('When you open a database that sits outside the databases folder, show a short note once for that file, with a button to move it. It only moves when you click. Dashboards never show it.')
+      .addToggle((t) => t.setValue(this.plugin.settings.noteOutsideFolder !== false).onChange(async (v) => {
+        this.plugin.settings.noteOutsideFolder = v;
         await this.plugin.saveSettings();
-        this.display();
       }));
 
     new Setting(containerEl)
@@ -10166,6 +10196,15 @@ class ReadOutPlugin extends Plugin {
     const saved = await this.loadData();
     const seeded = folderDefaultsFor(await detectIcorScaffold(this.app.vault.adapter));
     this.settings = Object.assign({}, DEFAULT_SETTINGS, seeded, saved);
+    /* 1.0.6 stored the vault root as the databases folder to mean "search the
+     * whole vault". The two are separate settings now: restore this vault's
+     * default databases folder and search the whole vault. */
+    if (saved && isVaultRootFolder(saved.dataFolder) && saved.searchScope === undefined) {
+      this.settings.dataFolder = seeded.dataFolder;
+      this.settings.searchScope = 'vault';
+      try { await this.saveSettings(); } catch (e) { /* the next change saves it */ }
+    }
+    this.settings.outsideNoteSeen = Object.assign({}, this.settings.outsideNoteSeen);
     this.settings.levels = normalizeLevels(this.settings.levels);
     this.settings.levelLooks = normalizeLevelLooks(this.settings.levelLooks);
     if (!CAL_WEEK_STARTS.includes(this.settings.weekStart)) this.settings.weekStart = DEFAULT_SETTINGS.weekStart;
@@ -10223,18 +10262,77 @@ class ReadOutPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
-  /* The databases ReadOut lists: those under the database folder setting,
-   * found by walking that folder's children. Never a listing of the whole
-   * vault, unless the setting is the vault root. A database anywhere in the
-   * vault still opens when you click it or a dashboard names it. */
+  /* The databases ReadOut lists. By default it searches the whole vault, by
+   * walking the folders from the vault root through the vault API (a folder's
+   * children, never a flat list of every file), skipping the config folder,
+   * .git and .trash. With the search set to the database folder it walks only
+   * that folder. A database anywhere in the vault opens when you click it or a
+   * dashboard names it, whatever the search covers. */
   vaultDatabases() {
     const vault = this.app.vault;
     if (!vault || typeof vault.getAbstractFileByPath !== 'function') return [];
-    const setting = this.settings ? this.settings.dataFolder : '';
+    const settings = this.settings || {};
+    const wholeVault = settings.searchScope !== 'folder' || isVaultRootFolder(settings.dataFolder);
     let folder = null;
-    if (isVaultRootFolder(setting)) folder = typeof vault.getRoot === 'function' ? vault.getRoot() : null;
-    else folder = vault.getAbstractFileByPath(normalizePath(setting));
+    if (wholeVault) folder = typeof vault.getRoot === 'function' ? vault.getRoot() : null;
+    else folder = vault.getAbstractFileByPath(normalizePath(settings.dataFolder));
     return walkDatabases(folder, vault.configDir);
+  }
+
+  /* Move one database (and its -wal and -shm files) into the database folder,
+   * only when asked, through the vault API, never over an existing file. */
+  async moveIntoDataFolder(dbPath) {
+    const vault = this.app.vault;
+    const folder = isVaultRootFolder(this.settings.dataFolder) ? '' : normalizePath(this.settings.dataFolder);
+    if (!folder) return { ok: false, reason: 'There is no database folder to move it into.' };
+    const file = vault.getAbstractFileByPath(dbPath);
+    if (!file || !(file instanceof TFile)) return { ok: false, reason: 'The file is gone.' };
+    const to = folder + '/' + baseName(dbPath);
+    if (vault.getAbstractFileByPath(to) || (await vault.adapter.exists(to))) {
+      return { ok: false, reason: 'A file named ' + baseName(dbPath) + ' already exists in ' + folder + ', so nothing was moved.' };
+    }
+    await ensureFolder(vault.adapter, folder);
+    const rename = async (f, target) => {
+      if (this.app.fileManager && typeof this.app.fileManager.renameFile === 'function') await this.app.fileManager.renameFile(f, target);
+      else await vault.rename(f, target);
+    };
+    await rename(file, to);
+    for (const suffix of ['-wal', '-shm']) {
+      const side = vault.getAbstractFileByPath(dbPath + suffix);
+      if (side instanceof TFile && !(await vault.adapter.exists(to + suffix))) await rename(side, to + suffix);
+    }
+    return { ok: true, to };
+  }
+
+  /* The gentle note for a database opened directly from outside the database
+   * folder: once per file, off with one setting, and the move happens only
+   * when the member clicks. Dashboards never trigger it. Returns whether a
+   * note was shown. */
+  noteIfOutsideFolder(dbPath, onMoved) {
+    const settings = this.settings;
+    if (!settings || settings.noteOutsideFolder === false) return false;
+    if (isInsideFolder(dbPath, settings.dataFolder)) return false;
+    if (!settings.outsideNoteSeen || typeof settings.outsideNoteSeen !== 'object') settings.outsideNoteSeen = {};
+    if (settings.outsideNoteSeen[dbPath]) return false;
+    settings.outsideNoteSeen[dbPath] = true;
+    this.saveSettings().catch(() => {});
+    const folder = normalizePath(settings.dataFolder);
+    const notice = new Notice('This database isn\'t in your databases folder. You can move it to ' + folder + ' to keep things together, but that may break any app that writes to it where it is now.', 20000);
+    const el = notice.noticeEl;
+    if (el && typeof el.createEl === 'function') {
+      const move = el.createEl('button', { text: 'Move to ' + folder });
+      move.addEventListener('click', async (ev) => {
+        if (ev && ev.stopPropagation) ev.stopPropagation();
+        move.disabled = true;
+        try {
+          const r = await this.moveIntoDataFolder(dbPath);
+          new Notice(r.ok ? 'Moved to ' + r.to + '.' : r.reason);
+          if (r.ok && typeof onMoved === 'function') onMoved(r.to);
+        } catch (e) { new Notice('Could not move it: ' + e.message); }
+        if (notice.hide) notice.hide();
+      });
+    }
+    return true;
   }
 
   /* Save a query result as a CSV file in the vault: <database folder>/Exports,
@@ -10672,7 +10770,7 @@ ReadOutPlugin.lib = {
   wasmTable, toCsv,
   quoteIdent, quoteLiteral, filterClause, buildBrowseQuery, buildCountQuery,
   isSidecarPath, isDbPath, isSkippedPath, findDatabases,
-  parseDashboardSpec, cachePathFor, dashCachePath, catalogPathFor, walkDatabases, isVaultRootFolder,
+  parseDashboardSpec, cachePathFor, dashCachePath, catalogPathFor, walkDatabases, isVaultRootFolder, isInsideFolder,
   niceScale, stackRows, statOf,
   validTimeframe, resolveTimeframe, timeframeConditions, sqlForWidget,
   pivotSeries, prepareTileForRender, checkWidgetSource, specToJson,
