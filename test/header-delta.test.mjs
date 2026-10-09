@@ -39,7 +39,7 @@ test('without N: the first plotted point against the last, one decimal, arrow an
   assert.equal(d.diff, -15.5);
   assert.equal(d.direction, 'down');
   assert.equal(d.text, '↘ −15.5 lb');
-  assert.equal(d.hover, 'From 103.0 lb (2026-03-01) to 87.5 lb (2026-03-20)');
+  assert.equal(d.hover, 'From 103 lb (2026-03-01) to 87.5 lb (2026-03-20)');
 });
 
 test('with N: each end is the average of the first and last N days of the plotted dates', () => {
@@ -55,20 +55,20 @@ test('with N: each end is the average of the first and last N days of the plotte
   assert.match(d.hover, /^From 98\.9 lb \(average of 7, 2026-03-01 to 2026-03-07\) to 91\.6 lb \(average of 7, 2026-03-14 to 2026-03-20\)$/);
   const gaps = lib.headerDeltaOf({ columns: ['day', 'weight'], rows: [['2026-03-01', 10], ['2026-03-09', 12], ['2026-03-30', 20]] }, Object.assign({}, LINE, { headerDeltaAverageDays: 7 }));
   assert.equal(gaps.first.count, 1, 'counted by dates, not by rows');
-  assert.equal(gaps.text, '↗ +10.0 lb');
+  assert.equal(gaps.text, '↗ +10 lb');
 });
 
 test('up, flat, no unit, datetime x, and nothing to compare', () => {
   const up = lib.headerDeltaOf({ columns: ['day', 'v'], rows: [['2026-01-01', 1], ['2026-01-02', 2.24]] }, { x: 'day', y: ['v'] });
   assert.equal(up.text, '↗ +1.2');
   const flat = lib.headerDeltaOf({ columns: ['day', 'v'], rows: [['2026-01-01', 5], ['2026-01-02', 5.04]] }, { x: 'day', y: ['v'], unit: 'lb' });
-  assert.equal(flat.text, '→ ±0.0 lb');
+  assert.equal(flat.text, '→ ±0 lb');
   assert.equal(flat.direction, 'flat');
   const stamps = lib.headerDeltaOf({ columns: ['at', 'v'], rows: [['2026-01-01T08:00', 1], ['2026-01-01T20:00', 3], ['2026-01-09T08:00', 9]] }, { x: 'at', y: ['v'], headerDeltaAverageDays: 1 });
   assert.equal(stamps.first.count, 2, 'datetimes count by their day');
-  assert.equal(stamps.text, '↗ +7.0');
+  assert.equal(stamps.text, '↗ +7');
   const words = lib.headerDeltaOf({ columns: ['k', 'v'], rows: [['a', 1], ['b', 4]] }, { x: 'k', y: ['v'], headerDeltaAverageDays: 7 });
-  assert.equal(words.text, '↗ +3.0', 'x values that are not dates: first and last point');
+  assert.equal(words.text, '↗ +3', 'x values that are not dates: first and last point');
   assert.equal(lib.headerDeltaOf({ columns: ['day', 'v'], rows: [['2026-01-01', 1]] }, { x: 'day', y: ['v'] }), null, 'one point: nothing to compare');
   assert.equal(lib.headerDeltaOf({ columns: ['day', 'v'], rows: [['2026-01-01', null], ['2026-01-02', 'n/a'], ['2026-01-03', 4]] }, { x: 'day', y: ['v'] }), null);
   assert.equal(lib.headerDeltaOf({ columns: ['day'], rows: [['2026-01-01']] }, { x: 'day', y: ['v'] }), null, 'a missing column: nothing');
@@ -204,4 +204,19 @@ test('the edit screen offers the checkbox and the N field, in both modes, and sa
   assert.equal(built.form.buildTile().tile.headerDelta, true);
   built.form.state.viz = 'stat';
   assert.equal(built.form.buildTile().tile.headerDelta, undefined, 'a stat carries none');
+});
+
+/* ------------------------------------------- no pointless decimals -- */
+
+test('a whole change has no ".0"; a real decimal stays; thousands get a comma', () => {
+  const rows = (a, b) => ({ columns: ['day', 'v'], rows: [['2026-03-01', a], ['2026-03-02', b]] });
+  const t = { title: 'T', viz: 'line', x: 'day', y: ['v'], unit: 'USD', headerDelta: true };
+  const d = lib.headerDeltaOf(rows(1000, 1361), t);
+  assert.equal(d.text, '↗ +361 USD', 'not +361.0 USD');
+  assert.equal(d.hover, 'From 1,000 USD (2026-03-01) to 1,361 USD (2026-03-02)', 'the ends follow the same rule');
+  assert.equal(lib.headerDeltaOf(rows(10, 14.55), t).text, '↗ +4.6 USD', 'a real decimal stays (one decimal)');
+  assert.equal(lib.headerDeltaOf(rows(10, 12.5), t).text, '↗ +2.5 USD');
+  assert.equal(lib.headerDeltaOf(rows(5, 5.04), t).text, '→ ±0 USD', 'rounds to nothing, so no ".0"');
+  assert.equal(lib.headerDeltaOf(rows(20000, 18639), t).text, '↘ −1,361 USD');
+  assert.equal(lib.chartCaptionOf(rows(1000, 1361), Object.assign({}, t, { chartCaption: 'change' })).text, '↗ +361 USD', 'the caption path gives the same text');
 });

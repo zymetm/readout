@@ -3191,11 +3191,17 @@ function deltaBadge(current, previous, favorable) {
 
 /* ---------------------------------------------- change over the period -- */
 
+/* A number to one decimal, without a pointless ".0": 361 not 361.0, 15.5 stays. */
+function oneDecimal(v) {
+  const r = Math.round(v * 10) / 10;
+  return Number.isInteger(r) ? r.toLocaleString('en-US') : r.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 /* How much a chart's one series moved over what it shows: the last end
  * minus the first. With averageDays, each end is the average of the
  * points within the first and the last N days of the plotted dates (a
  * weekly average instead of one noisy day); without it, or when the x
- * values are not dates, the first and last plotted points. One decimal,
+ * values are not dates, the first and last plotted points. One decimal (none when whole),
  * the same diagonal arrows as the stat chips, a typographic minus. Pure;
  * null when there is nothing to compare. */
 function headerDeltaOf(table, tile) {
@@ -3239,8 +3245,8 @@ function headerDeltaOf(table, tile) {
   const direction = diff > 0 ? 'up' : (diff < 0 ? 'down' : 'flat');
   const unit = tile.unit ? ' ' + tile.unit : '';
   const arrow = direction === 'up' ? '\u2197 +' : (direction === 'down' ? '\u2198 \u2212' : '\u2192 \u00b1');
-  const text = arrow + Math.abs(diff).toFixed(1) + unit;
-  const endText = (e) => e.v.toFixed(1) + unit + ' (' + (e.count > 1 ? 'average of ' + e.count + ', ' + e.from + ' to ' + e.to : String(e.from)) + ')';
+  const text = arrow + oneDecimal(Math.abs(diff)) + unit;
+  const endText = (e) => oneDecimal(e.v) + unit + ' (' + (e.count > 1 ? 'average of ' + e.count + ', ' + e.from + ' to ' + e.to : String(e.from)) + ')';
   return { diff, direction, text, first, last, hover: 'From ' + endText(first) + ' to ' + endText(last) };
 }
 
