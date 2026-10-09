@@ -2704,7 +2704,7 @@ function calendarIsoOf(ms) {
  * `months` are the labels along the top, as { col, name }, one where a month
  * starts, with at least three columns between two. Null when there is no
  * day to draw. Pure, in UTC, so no time zone moves a day. */
-function calendarOf(table, tile, defaultWeekStart) {
+function calendarOf(table, tile, defaultWeekStart, maxWeeks) {
   const di = columnIndex(table.columns, tile.date);
   const vi = columnIndex(table.columns, tile.value);
   if (di < 0 || vi < 0) return null;
@@ -2730,8 +2730,8 @@ function calendarOf(table, tile, defaultWeekStart) {
     from = weekStartOf(to) - (CAL_WEEKS - 1) * 7 * DAY_MS;
   }
   const firstWeek = weekStartOf(from);
-  const weeks = Math.round((weekStartOf(to) - firstWeek) / (7 * DAY_MS)) + 1;
-  const cells = [];
+  let weeks = Math.round((weekStartOf(to) - firstWeek) / (7 * DAY_MS)) + 1;
+  let cells = [];
   for (let ms = from; ms <= to; ms += DAY_MS) {
     const d = new Date(ms);
     cells.push({
@@ -2739,6 +2739,14 @@ function calendarOf(table, tile, defaultWeekStart) {
       row: (d.getUTCDay() - startDay + 7) % 7, weekday: d.getUTCDay(), day: d.getUTCDate(), month: d.getUTCMonth(),
       value: values.get(ms),
     });
+  }
+  /* Too narrow for every week: the newest weeks only, columns counted again from
+   * the left, so the month names fall on the weeks that are left. */
+  if (Number.isInteger(maxWeeks) && maxWeeks >= 1 && weeks > maxWeeks) {
+    const drop = weeks - maxWeeks;
+    cells = cells.filter((c) => c.col >= drop);
+    for (const c of cells) c.col -= drop;
+    weeks = maxWeeks;
   }
   const starts = cells.filter((c, i) => c.day === 1 || i === 0).map((c) => ({ col: c.col, name: CAL_MONTHS[c.month] }));
   const months = [];
@@ -2749,6 +2757,18 @@ function calendarOf(table, tile, defaultWeekStart) {
     months.push(m);
   });
   return { weeks, startDay, cells, months };
+}
+
+/* How many weeks of squares fit a box this wide: each week is a square of at
+ * least CAL_MIN_CELL px and a gap, after the column of weekday names. A box
+ * not measured yet (0) gets every week. */
+const CAL_MIN_CELL = 6;
+const CAL_GAP = 2;
+const CAL_LABEL_PX = 24;
+const CAL_MIN_WEEKS = 8;
+function calendarWeeksFit(width) {
+  if (!(width > 0)) return Infinity;
+  return Math.max(CAL_MIN_WEEKS, Math.floor((width - CAL_LABEL_PX) / (CAL_MIN_CELL + CAL_GAP)));
 }
 
 function renderCalendar(parentEl, table, tile, extras) {
@@ -2762,52 +2782,62 @@ function renderCalendar(parentEl, table, tile, extras) {
   const wrap = parentEl.createDiv({ cls: 'icor-sqlv-calendar' });
   const scroll = wrap.createDiv({ cls: 'icor-sqlv-calendar-scroll' });
   const el = scroll.createDiv({ cls: 'icor-sqlv-calendar-grid' });
-  el.style.setProperty('grid-template-columns', 'max-content repeat(' + cal.weeks + ', minmax(8px, 1fr))');
   el.setAttribute('role', 'img');
-  el.setAttribute('aria-label', 'Calendar, ' + cal.cells.length + ' days from ' + cal.cells[0].iso + ' to ' + cal.cells[cal.cells.length - 1].iso + '. Hover a day for its value.');
-  for (const m of cal.months) {
-    const label = el.createDiv({ cls: 'icor-sqlv-calendar-month', text: m.name });
-    label.style.setProperty('--sqlv-col', String(m.col + 2));
-  }
-  /* The rows the weekday names sit on: Monday, Wednesday and Friday. */
-  for (let row = 0; row < 7; row++) {
-    const weekday = (cal.startDay + row) % 7;
-    if (![1, 3, 5].includes(weekday)) continue;
-    const label = el.createDiv({ cls: 'icor-sqlv-calendar-day', text: WEEKDAYS[weekday].slice(0, 3).replace(/^./, (c) => c.toUpperCase()) });
-    label.style.setProperty('--sqlv-row', String(row + 2));
-  }
-  for (const c of cal.cells) {
-    const box = el.createDiv({ cls: 'icor-sqlv-calendar-cell' });
-    box.style.setProperty('--sqlv-row', String(c.row + 2));
-    box.style.setProperty('--sqlv-col', String(c.col + 2));
-    const empty = c.value === null || c.value === undefined || c.value === '';
-    const level = empty ? null : resolveLevel(c.value, tile, levels);
-    if (empty) box.addClass('is-empty');
-    else if (level && level.known && level.color) box.style.setProperty('background', level.color);
-    const parts = [c.iso, WEEKDAYS[c.weekday].replace(/^./, (ch) => ch.toUpperCase())];
-    parts.push(empty ? 'no data' : formatNumber(Number(c.value)) + unit);
-    if (level && (level.label || level.name)) parts.push(level.label || level.name);
-    box.setAttribute('title', parts.join(' · '));
-  }
-  revealNewestWeek(scroll, el, extras && extras.observers);
+  /* Drawn for the weeks that fit; a narrow phone shows the newest weeks and
+   * never scrolls sideways. */
+  const draw = (c) => {
+    el.empty();
+    el.style.setProperty('grid-template-columns', 'max-content repeat(' + c.weeks + ', minmax(0, 1fr))');
+    el.setAttribute('aria-label', 'Calendar, ' + c.cells.length + ' days from ' + c.cells[0].iso + ' to ' + c.cells[c.cells.length - 1].iso + '. Hover a day for its value.');
+    for (const m of c.months) {
+      const label = el.createDiv({ cls: 'icor-sqlv-calendar-month', text: m.name });
+      label.style.setProperty('--sqlv-col', String(m.col + 2));
+    }
+    /* The rows the weekday names sit on: Monday, Wednesday and Friday. */
+    for (let row = 0; row < 7; row++) {
+      const weekday = (c.startDay + row) % 7;
+      if (![1, 3, 5].includes(weekday)) continue;
+      const label = el.createDiv({ cls: 'icor-sqlv-calendar-day', text: WEEKDAYS[weekday].slice(0, 3).replace(/^./, (ch) => ch.toUpperCase()) });
+      label.style.setProperty('--sqlv-row', String(row + 2));
+    }
+    for (const cell of c.cells) {
+      const box = el.createDiv({ cls: 'icor-sqlv-calendar-cell' });
+      box.style.setProperty('--sqlv-row', String(cell.row + 2));
+      box.style.setProperty('--sqlv-col', String(cell.col + 2));
+      const empty = cell.value === null || cell.value === undefined || cell.value === '';
+      const level = empty ? null : resolveLevel(cell.value, tile, levels);
+      if (empty) box.addClass('is-empty');
+      else if (level && level.known && level.color) box.style.setProperty('background', level.color);
+      const parts = [cell.iso, WEEKDAYS[cell.weekday].replace(/^./, (ch) => ch.toUpperCase())];
+      parts.push(empty ? 'no data' : formatNumber(Number(cell.value)) + unit);
+      if (level && (level.label || level.name)) parts.push(level.label || level.name);
+      box.setAttribute('title', parts.join(' · '));
+    }
+  };
+  draw(cal);
+  fitCalendarWeeks(scroll, cal, (n) => calendarOf(table, tile, extras && extras.weekStart, n), draw, extras && extras.observers);
   renderRangeLegend(wrap.createDiv({ cls: 'icor-sqlv-heatmap-legend icor-sqlv-calendar-legend' }), tile, levels);
 }
 
-/* A calendar wider than its tile scrolls sideways, and the newest week is
- * at the right end: open it there, not on the oldest week. It stays there
- * while the tile is measured and resized, until the reader scrolls it. */
-function revealNewestWeek(scroll, grid, observers) {
-  let touched = false;
-  for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown']) scroll.addEventListener(type, () => { touched = true; });
-  const toNewest = () => { scroll.scrollLeft = scroll.scrollWidth; };
-  toNewest();
+/* A calendar never scrolls sideways: when its tile is too narrow for every
+ * week it is drawn again with the newest weeks that fit, and again whenever
+ * the tile is resized. Only a change in the number of weeks redraws. */
+function fitCalendarWeeks(scroll, full, fitOf, draw, observers) {
+  let shown = full.weeks;
+  const apply = () => {
+    const n = calendarWeeksFit(scroll.clientWidth);
+    const want = Math.min(n, full.weeks);
+    if (want === shown) return;
+    shown = want;
+    draw(want >= full.weeks ? full : fitOf(want));
+  };
+  apply();
   const observer = resizeObserverFor(scroll, () => {
     if (!scroll.isConnected) { observer.disconnect(); return; }
-    if (!touched) toNewest();
+    apply();
   });
   if (!observer) return;
   observer.observe(scroll);
-  observer.observe(grid);
   if (observers) observers.push(observer);
 }
 
@@ -10801,7 +10831,7 @@ ReadOutPlugin.lib = {
   checkBand, bandPaths, cellNumber,
   checkCombo,
   checkScatter, scatterOf, leastSquares, scatterXScale, renderScatterChart,
-  checkCalendar, calendarOf, calendarDayOf, renderCalendar,
+  checkCalendar, calendarOf, calendarWeeksFit, calendarDayOf, renderCalendar,
   checkBullet, bulletRowsOf, bulletScaleOf, bulletBands, renderBullet,
   checkSparklines, sparkValuesOf, renderResultTable,
   SQLITE_MAGIC, NOT_SQLITE_TEXT, hasSqliteHeader, UNREADABLE_TABLE_NOTE,

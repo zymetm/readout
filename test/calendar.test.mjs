@@ -132,7 +132,7 @@ test('month names sit where a month starts, at least three columns apart', () =>
 test('each day is a square placed by its week and its weekday, coloured by its level', () => {
   const el = draw(calTile());
   assert.equal(cells(el).length, 52 * 7 + 1);
-  assert.equal(byClass(el, 'icor-sqlv-calendar-grid')[0].style['grid-template-columns'], 'max-content repeat(53, minmax(8px, 1fr))');
+  assert.equal(byClass(el, 'icor-sqlv-calendar-grid')[0].style['grid-template-columns'], 'max-content repeat(53, minmax(0, 1fr))');
   const day = cellFor(el, '2026-01-17');
   assert.deepEqual([day.style['--sqlv-col'], day.style['--sqlv-row']], ['53', '8'], 'column 2 + 51, row 2 + 6');
   assert.equal(day.style.background, '#88aa44');
@@ -282,7 +282,35 @@ test('"value" is named for what it is: a heatmap or a calendar setting, never "o
 
 /* ------------------------------------------- opens at the newest week -- */
 
-test('a calendar wider than its tile opens scrolled to the newest week, and stays until the reader scrolls', () => {
+/* ------------------------------------------------ a narrow tile (phone) -- */
+
+test('how many weeks fit: a square of 6px and a gap each, after the weekday names; unmeasured shows all', () => {
+  assert.equal(lib.calendarWeeksFit(0), Infinity);
+  assert.equal(lib.calendarWeeksFit(undefined), Infinity);
+  assert.equal(lib.calendarWeeksFit(340), 39);
+  assert.equal(lib.calendarWeeksFit(450), 53);
+  assert.equal(lib.calendarWeeksFit(20), 8, 'never fewer than eight weeks');
+});
+
+test('too narrow for every week: the newest weeks only, month names on the weeks that are left', () => {
+  const full = lib.calendarOf(TABLE, { date: 'day', value: 'walks' });
+  const cal = lib.calendarOf(TABLE, { date: 'day', value: 'walks' }, undefined, 39);
+  assert.equal(cal.weeks, 39);
+  assert.equal(cal.cells[cal.cells.length - 1].iso, '2026-01-18', 'the newest day is kept');
+  assert.equal(cal.cells[0].row, 0, 'starts on a whole week');
+  assert.equal(cal.cells[0].col, 0);
+  assert.equal(cal.cells.length, 38 * 7 + 1);
+  assert.ok(cal.cells.every((c) => c.col >= 0 && c.col < 39));
+  assert.ok(cal.months.length && cal.months.every((m) => m.col < 39));
+  const firstMonth = CAL_MONTH_OF(cal.cells[0]);
+  assert.ok(cal.months.every((m) => cal.cells.some((c) => c.col === m.col && CAL_MONTH_OF(c) === m.name)), 'every label sits on a week that is shown');
+  assert.equal(cal.months[0].name, 'May', 'the partial first month (' + firstMonth + ', under three weeks) gives way to the next');
+  assert.ok(full.months.some((m) => m.name === 'Feb'), 'the full year labels months that the narrow one has dropped');
+  assert.equal(lib.calendarOf(TABLE, { date: 'day', value: 'walks' }, undefined, 99).weeks, 53, 'more room than weeks changes nothing');
+});
+const CAL_MONTH_OF = (c) => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][c.month];
+
+test('on a phone-width tile the calendar draws fewer weeks and does not scroll sideways', () => {
   const made = [];
   class FakeRO {
     constructor(cb) { this.cb = cb; this.watched = []; this.gone = false; made.push(this); }
@@ -294,35 +322,34 @@ test('a calendar wider than its tile opens scrolled to the newest week, and stay
   const observers = [];
   fresh.lib.renderTile(el, { viz: 'calendar', date: 'day', value: 'walks' }, TABLE, { observers });
   const scroll = byClass(el, 'icor-sqlv-calendar-scroll')[0];
-  assert.ok(scroll, 'the scrolling box');
+  const grid = byClass(el, 'icor-sqlv-calendar-grid')[0];
   scroll.isConnected = true;
-  const ro = made[0];
   assert.equal(observers.length, 1, 'the owner can release it');
-  assert.ok(ro.watched.includes(scroll), 'the box is measured');
-  /* The tile is laid out: the box is 900 wide inside, it is shown at its end. */
-  scroll.scrollWidth = 900;
-  ro.cb();
-  assert.equal(scroll.scrollLeft, 900, 'opened on the newest week, not the oldest');
-  scroll.scrollWidth = 1000;
-  ro.cb();
-  assert.equal(scroll.scrollLeft, 1000, 'follows a resize while untouched');
-  /* The reader scrolls: it is left where they put it. */
-  scroll.handlers.wheel[0]();
-  scroll.scrollLeft = 120;
-  scroll.scrollWidth = 1100;
-  ro.cb();
-  assert.equal(scroll.scrollLeft, 120, 'never pulled back once the reader has scrolled');
-  /* A tile that is gone releases its observer. */
+  assert.ok(made[0].watched.includes(scroll));
+  assert.equal(cells(el).length, 52 * 7 + 1, 'unmeasured: every week');
+  scroll.clientWidth = 340;
+  made[0].cb();
+  assert.equal(grid.style['grid-template-columns'], 'max-content repeat(39, minmax(0, 1fr))');
+  assert.equal(cells(el).length, 38 * 7 + 1);
+  assert.equal(cellFor(el, '2026-01-18').style['--sqlv-col'], '40', 'the newest day is still in the last column');
+  assert.equal(grid.getAttribute('aria-label').startsWith('Calendar, 267 days from '), true);
+  scroll.clientWidth = 340;
+  made[0].cb();
+  assert.equal(cells(el).length, 38 * 7 + 1, 'same width, not drawn again');
+  scroll.clientWidth = 700;
+  made[0].cb();
+  assert.equal(cells(el).length, 52 * 7 + 1, 'wide again: every week back');
   scroll.isConnected = false;
-  ro.cb();
-  assert.equal(ro.gone, true);
+  made[0].cb();
+  assert.equal(made[0].gone, true);
 });
 
-test('the first paint already sits at the newest week, before any measuring', () => {
-  const el = freshEl();
-  lib.renderTile(el, { viz: 'calendar', date: 'day', value: 'walks' }, TABLE, {});
-  const scroll = byClass(el, 'icor-sqlv-calendar-scroll')[0];
-  assert.ok('scrollLeft' in scroll, 'the box was asked to scroll');
+test('the calendar box never scrolls sideways', () => {
+  const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'styles.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const scrollRule = css.slice(css.indexOf('.icor-sqlv-calendar-scroll {'));
+  assert.match(scrollRule.slice(0, scrollRule.indexOf('}')), /overflow-x:\s*hidden/);
+  const gridRule = css.slice(css.indexOf('.icor-sqlv-calendar-grid {'));
+  assert.doesNotMatch(gridRule.slice(0, gridRule.indexOf('}')), /min-width/, 'no floor that forces a sideways scroll');
 });
 
 test('the static placement lives in styles.css, not in inline styles', () => {

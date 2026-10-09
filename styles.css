@@ -2043,12 +2043,12 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
 
 /* A year calendar: one square for each day, a week to a column, month
  * names along the top and Mon, Wed and Fri down the side. Its legend is the
- * heatmap's. It scrolls inside its tile when it is wider or taller. */
+ * heatmap's. It never scrolls sideways: a narrow tile shows the newest weeks that fit. */
 .icor-sqlv-calendar { display: flex; flex-direction: column; gap: var(--sqlv-s2); height: 100%; min-height: 0; min-width: 0; }
 
-.icor-sqlv-calendar-scroll { overflow: auto; min-height: 96px; flex: 1 1 auto; }
+.icor-sqlv-calendar-scroll { overflow-x: hidden; overflow-y: auto; min-height: 96px; flex: 1 1 auto; min-width: 0; }
 
-.icor-sqlv-calendar-grid { display: grid; gap: 2px; min-width: 440px; }
+.icor-sqlv-calendar-grid { display: grid; gap: 2px; }
 
 .icor-sqlv-calendar-month,
 .icor-sqlv-calendar-day {
