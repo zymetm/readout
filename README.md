@@ -8,15 +8,6 @@ numbers as dashboards you can open again. It is read-only, so it cannot
 change your data. Databases up to about a gigabyte open on the desktop, and
 your phone shows the same dashboards.
 
-> **Safe by design**
->
-> - ReadOut is read-only: it never writes to, changes or deletes your databases.
-> - It reads only databases inside your vault.
-> - It runs no programs, makes no network connections, and does not use the
->   clipboard.
-> - The only files it writes are its own (dashboards, guides, cache and CSV
->   exports), inside your vault, through Obsidian.
-
 ReadOut is forked from the
 [ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
 by myICOR, under its MIT licence, and credits its original authors (see
@@ -57,13 +48,12 @@ from a table with a few clicks, or you can write the SQL yourself.
 
 ## Where it keeps things
 
-- ReadOut lists the databases inside the database folder (by default
-  `Databases`, or `07 Databases` in an ICOR for Life vault), including its
-  subfolders. Clicking any `.db`, `.sqlite` or `.sqlite3` file anywhere in the
-  vault still opens it, and a dashboard can name a database anywhere in the
-  vault. If your databases sit all over, or at the top of the vault, switch on
-  "Search the whole vault for databases" in the settings (it looks through every
-  folder's file names, so it is off unless you choose it).
+- ReadOut finds databases by searching the whole vault for `.db`, `.sqlite`
+  and `.sqlite3` files. The setting "Search for databases in" can narrow that
+  to the databases folder only. Clicking any database file opens it, and a
+  dashboard can name a database anywhere in the vault.
+- The databases folder (by default `Databases`, or `07 Databases` in an ICOR for
+  Life vault) is where dashboards, exports and any move you choose go.
 - A query result can be saved as a CSV file with "Save as CSV": it goes into an
   `Exports` folder inside the database folder, and ReadOut tells you where.
 - Dashboards are plain JSON files in the dashboards folder, and the desktop
@@ -526,22 +516,18 @@ column where a heatmap reads a row and a column.
 
 ## What ReadOut can access, and why
 
-ReadOut makes **no network connection and downloads nothing.** Obsidian's
+ReadOut makes no network connection and downloads nothing. Obsidian's
 community-plugin scan lists a few kinds of access; here is each one, and what
 it is for.
 
-- **Looking for databases.** ReadOut does not list the files in your vault.
-  It looks only inside the database folder you set (by default `Databases`, or
-  `07 Databases` in an ICOR for Life vault), walking that folder's contents
-  through Obsidian's folder API for files ending in `.db`, `.sqlite` or
-  `.sqlite3`. It looks at file names and sizes only: it reads no note and no
-  other file to do this. A database anywhere else still opens when you click it
-  or when a dashboard you wrote names it. If you want ReadOut to look through the
-  whole vault, you turn on "Search the whole vault for databases" in the
-  settings; it is off otherwise.
+- **Looking for databases.** ReadOut scans the whole vault for files ending in
+  `.db`, `.sqlite` or `.sqlite3`. It walks the folders from the vault root
+  through Obsidian's folder API, skipping the configuration folder, `.git` and
+  `.trash`, and looks at file names and sizes only. It reads no note and no
+  other file to do this. The setting "Search for databases in" can limit the
+  search to the databases folder.
 - **Reading and writing inside your vault.** It reads the databases you open,
-  read-only; it can never change them. It writes only its own files, as
-  ordinary files in your vault: the dashboards you save, the small caches that
+  read-only. It writes its own files, as ordinary files in your vault: the dashboards you save, the small caches that
   let a phone show them, the two guides (`README.md` and
   `AI-WIDGET-GUIDE.md`) in the dashboards folder, and only when you ask, and a
   CSV file when you click "Save as CSV" on a query result (in an `Exports`
@@ -549,9 +535,13 @@ it is for.
   starting. A database path must be a
   real file inside the vault: a path with `..`, an absolute path, or one inside
   a hidden or configuration folder is refused.
-- **The clipboard.** ReadOut does not use the clipboard at all, neither to
-  read it nor to write to it. A query result is saved as a CSV file in your vault
-  ("Save as CSV"); copy from there if you want it elsewhere.
+- **The clipboard.** ReadOut does not use the clipboard. A query result is
+  saved as a CSV file in your vault ("Save as CSV").
+- **Moving a database.** When you open a database that is outside the databases
+  folder, ReadOut shows a short note, once for that file, with a "Move" button.
+  It moves the file (and its `-wal` and `-shm` files) into the databases folder
+  only when you click it, through Obsidian, and never over an existing file. The
+  note can be turned off in the settings. Dashboards never show it.
 - **No other program and no outside files.** ReadOut starts no program and uses
   no file access outside Obsidian's own vault API. On every device the engine
   is the SQLite build embedded in ReadOut (sql.js, WebAssembly), working on a

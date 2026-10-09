@@ -6,6 +6,29 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.7] - 2026-10-09
+
+### Changed
+- **ReadOut searches the whole vault for databases again, by default.** It walks
+  the folders from the vault root through Obsidian's folder API, skipping the
+  configuration folder, `.git` and `.trash`. A new setting, "Search for databases
+  in", can limit this to the databases folder. The search scope and the
+  databases folder are now separate settings: the databases folder is where
+  dashboards, exports and any move you choose go.
+- **Settings from 1.0.6 are carried over.** If 1.0.6 stored the vault root as
+  the databases folder, it is restored to the vault's usual databases folder
+  (`Databases`, or `07 Databases` in an ICOR for Life vault) and the whole vault
+  is searched.
+- The README no longer opens with a "Safe by design" box. "What ReadOut can
+  access" says plainly what it does, including that it scans the whole vault.
+
+### Added
+- **A note for a database outside the databases folder.** When you open one
+  directly (a click, the browser or the index), a short note appears once for
+  that file, with a "Move" button. It moves the file and its `-wal` and `-shm`
+  files into the databases folder only when you click it, and never over an
+  existing file. Dashboards never show it. A setting turns the notes off.
+
 ## [1.0.6] - 2026-10-09
 
 Changes from the Obsidian community plugin scan of 1.0.5, and a real build.
@@ -18,17 +41,16 @@ Changes from the Obsidian community plugin scan of 1.0.5, and a real build.
   `styles.css` stay committed because Obsidian installs them, and the checks on
   every pull request and release fail if a fresh build differs from them.
 - **ReadOut no longer lists every file in your vault.** It looks for databases
-  only inside the database folder (`Databases`, or `07 Databases` in an ICOR for
+  by walking the database folder (`Databases`, or `07 Databases` in an ICOR for
   Life vault) and its subfolders. Clicking any database file anywhere still opens
   it, and a dashboard can name a database anywhere in the vault. A new setting,
   "Database folder", names the folder, and "Search the whole vault for databases"
-  (off by default) widens the search to every folder if you choose it.
+  widens the search to every folder. (1.0.7 makes the whole vault the default
+  again.)
 - **ReadOut no longer uses the clipboard.** "Copy as CSV" on a query result is
   now "Save as CSV": it writes a `.csv` file into an `Exports` folder inside the
   database folder, never over an existing file, and a notice opens it. The JSON
   viewer's "Copy JSON" button is gone; the JSON is already a file in your vault.
-- The README opens with a short "Safe by design" summary of what ReadOut does and
-  does not do.
 
 ### Removed
 - **The "Move databases into ..." button.** It needed a listing of the whole

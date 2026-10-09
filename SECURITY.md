@@ -80,12 +80,14 @@ catalog carries RAW VALUES of small text columns only when the member
 turns on "Include category values in the mobile catalog", which is off by
 default; the setting says in plain words what gets written. "Save as CSV"
 writes one new CSV file into an Exports folder inside the database folder
-when the member clicks it, never over an existing file. ReadOut never moves,
-renames or deletes a database file, never lists the files of the whole vault
-(it walks only the database folder, unless the member turns on searching the
-whole vault), and never touches the clipboard.
+when the member clicks it, never over an existing file. ReadOut moves a database file
+only when the member clicks "Move" on the note shown for a database outside
+the databases folder (through Obsidian, into the databases folder, never over
+an existing file), and never deletes one. It finds databases by walking the
+vault's folders from the root (or only the databases folder, if the member
+chooses) and does not use the clipboard.
 
-**Where it connects.** Nowhere. No remote host, no telemetry, no analytics.
+**Where it connects.** Nowhere: no remote host, no telemetry, no analytics.
 
 **In scope, and we want to hear about it:**
 
