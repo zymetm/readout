@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
+import { patchSqlJs, embeddedSource, checkEmbedded, BEGIN, END } from '../embedded-sqljs.mjs';
 import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault } from './harness.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -136,21 +137,28 @@ test('Engine B end to end: real bytes through the plugin loader, on the mobile p
 
 /* -------------------------------------- the embedded runtime (0.5.3) -- */
 
-test('the embedded sql.js source and binary are byte-identical to the vendored files, and nothing is built from a string', () => {
+test('the embedded sql.js equals the vendored file with the one Node-branch patch applied, the binary is byte-identical, and nothing is built from a string', () => {
   const main = readFileSync(resolve(repo, 'main.js'), 'utf8');
-  const begin = '/* BEGIN vendored sql-wasm.js */\nfunction vendoredSqlJs(module, exports, require, __dirname, __filename) {\n';
-  const end = '\n}\n/* END vendored sql-wasm.js */';
-  const a = main.indexOf(begin);
-  const b = main.indexOf(end);
-  assert.ok(a > 0 && b > a, 'the vendored source markers are in main.js');
-  const pasted = main.slice(a + begin.length, b);
-  assert.equal(pasted, readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8').replace(/\s+$/, ''),
-    'the pasted sql-wasm.js drifted from the vendored file; paste it again between the markers');
+  const a = main.indexOf(BEGIN);
+  assert.ok(a > 0 && main.indexOf(END) > a, 'the vendored source markers are in main.js');
+  assert.equal(embeddedSource(main), patchSqlJs(readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8')),
+    'the pasted sql.js drifted from sql-wasm.js plus the patch in embedded-sqljs.mjs; paste it again between the markers');
   /* The old way compiled a base64 string with new Function; it must stay gone. */
   assert.doesNotMatch(main.slice(0, a), /new Function\(|\beval\(|EMBEDDED_SQL_WASM_JS_B64/);
   const embeddedWasm = Buffer.from(lib.bytesOfB64(lib.EMBEDDED_SQL_WASM_B64));
   assert.ok(embeddedWasm.equals(readFileSync(resolve(repo, 'sql-wasm.wasm'))),
     'embedded sql-wasm.wasm drifted from the vendored file; regenerate per the comment in main.js');
+  assert.deepEqual(checkEmbedded(repo), []);
+});
+
+test('the patch removes exactly the Node branch: what is left of the vendored text is unchanged', () => {
+  const vendored = readFileSync(resolve(repo, 'sql-wasm.js'), 'utf8');
+  const patched = patchSqlJs(vendored);
+  assert.ok(vendored.includes('require("fs")') && vendored.includes('require("crypto")'), 'the vendored file still has the Node branch to remove');
+  assert.ok(patched.length < vendored.length && vendored.length - patched.length < 1100, 'a small, mechanical cut');
+  assert.doesNotMatch(patched, /require\(\s*["'](fs|path|crypto)["']/);
+  assert.match(patched, /crypto\.getRandomValues/);
+  assert.throws(() => patchSqlJs('var nothing = 1;'), /anchor/, 'a patch that no longer applies fails loudly');
 });
 
 test('Engine B on a three-file install: the embedded sql.js answers with no standalone files present', async () => {

@@ -11,13 +11,20 @@ ReadOut bundles one third-party component.
 ## sql.js
 
 `sql-wasm.js` and `sql-wasm.wasm` are sql.js version 1.13.0, a WebAssembly
-build of SQLite, vendored unmodified from
-https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/. It is the engine
+build of SQLite, vendored from
+https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/. The files in the
+repository are the originals; the copy pasted into `main.js` carries one
+patch (below). It is the engine
 that reads databases on every device. The files ship two ways, and nothing is ever downloaded:
 
 - `sql-wasm.js` is pasted into `main.js` as plain, readable source inside
-  one function (between two marker comments), unmodified. It runs as
-  ordinary code, never through `eval` or `new Function`, and no
+  one function (between two marker comments). **Modified: Node.js loading
+  branch removed.** The original loads Node's file system, path and crypto
+  modules when it detects Node outside a renderer, and reads stdin in the same
+  case. The pasted copy has that branch cut, and random bytes come from
+  `crypto.getRandomValues` only; the browser path and everything else are
+  unchanged. The patch is four mechanical text edits, kept as a script
+  (`embedded-sqljs.mjs`). It runs as ordinary code, never through `eval` or `new Function`, and no
   JavaScript is ever read from the plugin folder.
 - `sql-wasm.wasm` is data: the standalone file in the plugin folder is used
   when it is installed there (manual installs), otherwise the copy embedded
@@ -25,11 +32,14 @@ that reads databases on every device. The files ship two ways, and nothing is ev
   Obsidian's community-directory installer downloads only `main.js`,
   `manifest.json` and `styles.css`.
 
-A test gate asserts the pasted source and the embedded binary are
-byte-identical to the vendored files kept in the repository.
+A test gate asserts the pasted source equals the vendored `sql-wasm.js`
+with exactly that patch applied, that `main.js` contains no `require` of a
+Node module, and that the embedded binary is byte-identical to the vendored
+`sql-wasm.wasm`. `npm run build` runs the same check.
 
 SHA-256 of the vendored standalone files (unchanged since 0.5.0; the
-embedded copies are the same bytes):
+embedded `.wasm` is the same bytes, and the embedded `.js` is the same text
+less the removed Node branch):
 
 - `sql-wasm.js` `694ca5b36aa3e6e71f417819d7df390b65343665fcfa5c69015ca33d93d291b3`
 - `sql-wasm.wasm` `0734155c83e493983d1f2ff5b09a4fab6e35a32e9449c7e4e545756439f62d73`

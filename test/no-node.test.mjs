@@ -7,10 +7,11 @@
  * a whole session (start, a query, a big-file refusal) asks `require` for
  * nothing but 'obsidian', with `process` as Obsidian's window has it.
  *
- * The vendored sql.js itself still holds the text require("fs") in its Node
- * branch. That branch is taken only when process.type is not "renderer"; in
- * Obsidian it is "renderer", so it never runs (the session test below uses
- * the same process shape and a require that refuses everything).
+ * The vendored sql.js used to hold the text require("fs") in its Node branch
+ * (dead code in Obsidian). Since 1.0.5 that branch is cut from the pasted copy
+ * (see embedded-sqljs.mjs), so the whole of main.js, vendored part included,
+ * names no Node module. The session test below also uses a require that
+ * refuses everything.
  */
 
 import test from 'node:test';
@@ -62,4 +63,12 @@ test('a session on a desktop asks require for no Node module: start, a query, an
   assert.equal(big.engine, null);
   assert.match(big.reason, /too big/);
   assert.deepEqual(asked, [], 'nothing but obsidian was ever required');
+});
+
+test('all of main.js, the pasted sql.js included, names no Node module and makes no file-system or process call', () => {
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.doesNotMatch(src, /require\(\s*["'](fs|path|crypto|child_process|os|electron|http|https|net)["']\s*\)/);
+  assert.doesNotMatch(src, /child_process/);
+  assert.doesNotMatch(code, /\bfs\.\w+\(/);
+  assert.doesNotMatch(code, /\bprocess\.(argv|exitCode|stdin|exit)\b/);
 });
