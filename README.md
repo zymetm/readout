@@ -529,7 +529,7 @@ it is for.
   real file inside the vault: a path with `..`, an absolute path, or one inside
   a hidden or configuration folder is refused.
 - **The clipboard.** ReadOut writes to the clipboard only when you click a copy
-  button (copy a result as CSV, copy a dashboard as text), and then it puts just
+  button ("Copy as CSV" on a query result, "Copy JSON" in the JSON viewer), and then it puts just
   that text there. It never reads what is on your clipboard.
 - **No other program and no outside files.** ReadOut starts no program and uses
   no file access outside Obsidian's own vault API. On every device the engine
