@@ -8044,7 +8044,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Size cap for the built-in engine (MB)')
-      .setDesc('The built-in engine loads the whole database file into memory, and needs roughly three times the file size in free memory while it does. Files over this cap are not loaded; their dashboards render from the cache the desktop wrote instead. The most ReadOut can load is ' + MAX_CAP_MB + ' MB. The default is ' + DESKTOP_CAP_MB + ' MB on a desktop and ' + PHONE_CAP_MB + ' MB on a phone or tablet.')
+      .setDesc('The built-in engine loads the whole database file into memory, and needs roughly three times the file size in free memory while it does. Files over this cap are not loaded; their dashboards render from the cache the desktop wrote instead. Databases up to about 2 GB (' + MAX_CAP_MB + ' MB) can be opened; larger files will not open, whatever the cap. The default is ' + DESKTOP_CAP_MB + ' MB on a desktop and ' + PHONE_CAP_MB + ' MB on a phone or tablet.')
       .addText((t) => t.setValue(String(this.plugin.settings.mobileCapMb)).onChange(async (v) => {
         const n = parseInt(v, 10);
         if (Number.isFinite(n) && n >= 1 && n <= MAX_CAP_MB) { this.plugin.settings.mobileCapMb = n; await this.plugin.saveSettings(); }

@@ -515,9 +515,10 @@ ReadOut makes **no network connection and downloads nothing.** Obsidian's
 community-plugin scan lists a few kinds of access; here is each one, and what
 it is for.
 
-- **Listing the files in your vault.** ReadOut looks through the vault's file
-  list to find the databases (files ending in `.db`, `.sqlite` or
-  `.sqlite3`), so it can offer them to you. It reads no note and no other file
+- **Listing the files in your vault.** Databases can be anywhere in your vault,
+  and ReadOut finds them for you. To do that it looks through the vault's file
+  list for files ending in `.db`, `.sqlite` or `.sqlite3` and offers them to
+  you. It only looks at file names and sizes: it reads no note and no other file
   to do this.
 - **Reading and writing inside your vault.** It reads the databases you open,
   read-only; it can never change them. It writes only its own files, as
@@ -527,9 +528,9 @@ it is for.
   creates no folder and no file just by starting. A database path must be a
   real file inside the vault: a path with `..`, an absolute path, or one inside
   a hidden or configuration folder is refused.
-- **The clipboard.** Only when you press a copy button (copy a result as CSV, copy a
-  dashboard as text), ReadOut puts that text on the clipboard. It never reads the
-  clipboard.
+- **The clipboard.** ReadOut writes to the clipboard only when you click a copy
+  button (copy a result as CSV, copy a dashboard as text), and then it puts just
+  that text there. It never reads what is on your clipboard.
 - **No other program and no outside files.** ReadOut starts no program and uses
   no file access outside Obsidian's own vault API. On every device the engine
   is the SQLite build embedded in ReadOut (sql.js, WebAssembly), working on a
@@ -540,6 +541,9 @@ it is for.
 
 ## Good to know
 
+- **Databases up to about 2 GB; larger files won't open.** (The default limit is
+  1500 MB on a desktop and 200 MB on a phone or tablet; you can raise it to 2000 MB
+  in the settings.)
 - **Read-only is a design decision, not a limitation to be lifted.** A viewer
   that can write is a viewer that can lose your data.
 - **Desktop and mobile**, with the phone reading a cache rather than the whole
