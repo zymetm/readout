@@ -109,10 +109,8 @@ saved the last time it drew them.
 
 ## On a phone
 
-(The short version is at the top.) On a phone, ReadOut draws each dashboard
-from the answers your desktop saved the last time it drew that dashboard, and
-says "Computed on desktop" on the screen. The phone shows the last saved answers: to
-refresh them, open the dashboard on the desktop and let Obsidian Sync finish.
+On a phone, ReadOut draws each dashboard from the answers your desktop saved the last time it drew that dashboard, and
+says "Computed on desktop" on the screen. The phone shows the last saved answers: to refresh them, open the dashboard on the desktop and let Obsidian Sync finish.
 
 Browsing tables and running queries need the database file itself on the
 device. Default Obsidian Sync does not carry it: it leaves out other file types,
