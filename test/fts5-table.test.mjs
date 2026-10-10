@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
-import { loadPlugin, makeFakeAdapter, makeFakeVault, unwrap } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, makeFakeVault, unwrap, noteJson } from './harness.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const nodeRequire = createRequire(import.meta.url);
@@ -77,7 +77,7 @@ test('the catalog writes, with the unreadable table marked, and no error is logg
   assert.deepEqual(logged, []);
   const written = [...adapter.files.entries()].find(([p]) => /Dashboard Cache.*\.json$/.test(p) || /catalog/i.test(p));
   assert.ok(written, 'a catalog file was written');
-  const catalog = JSON.parse(written[1]);
+  const catalog = noteJson(written[1]);
   const fts = catalog.tables.find((t) => t.name === 'notes_fts');
   assert.deepEqual(fts.columns, []);
   assert.equal(fts.unreadable, true);

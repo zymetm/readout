@@ -164,7 +164,7 @@ test('a combo survives the spec file with its series and right axis, and no "y"'
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/cb.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/cb.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/cb.md';
 const SPEC = { id: 'cb', title: 'Combo', database: '07 Databases/x.db', tiles: [comboTile()] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

@@ -133,7 +133,7 @@ test('a heatmap survives the spec file', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/hm.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/hm.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/hm.md';
 const SPEC = { id: 'hm', title: 'Heat', database: '07 Databases/x.db', tiles: [heatTile({ marker: 'flag' })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

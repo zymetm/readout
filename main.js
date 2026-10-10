@@ -1939,7 +1939,7 @@ function cachePathFor(cacheFolder, dbPath, dashboardId) {
 }
 
 function dashCachePath(cacheFolder, dashboardId, ext) {
-  return normalizePath(cacheFolder + '/dashboards/' + dashboardId + '.' + (ext || 'json'));
+  return normalizePath(cacheFolder + '/dashboards/' + dashboardId + '.' + (ext || 'md'));
 }
 
 /* The catalog a desktop writes next to the cache: enough schema for the
@@ -1974,7 +1974,7 @@ function bytesOfB64(b64) {
 }
 
 function catalogPathFor(cacheFolder, dbPath, ext) {
-  return normalizePath(cacheFolder + '/catalogs/' + dbKeyOf(dbPath) + '.' + (ext || 'json'));
+  return normalizePath(cacheFolder + '/catalogs/' + dbKeyOf(dbPath) + '.' + (ext || 'md'));
 }
 
 /* Where a 0.5.0 catalog lived, read as a fallback until it regenerates. */
@@ -10123,7 +10123,7 @@ const BLOCK_SPEC_PASS_MS = 2000;
 const BLOCK_CACHE_MAX_AGE_DAYS = 60;
 
 function blockCachePath(cacheFolder, key, ext) {
-  return normalizePath(cacheFolder + '/notes/' + key + '.' + (ext || 'json'));
+  return normalizePath(cacheFolder + '/notes/' + key + '.' + (ext || 'md'));
 }
 
 class WidgetBlockChild extends MarkdownRenderChild {
@@ -10769,15 +10769,39 @@ class ReadOutPlugin extends Plugin {
   async writeDashboardCache(spec, tiles) {
     const adapter = this.app.vault.adapter;
     const path = dashCachePath(this.settings.cacheFolder, spec.id);
-    const folder = path.slice(0, path.lastIndexOf('/'));
-    await ensureFolder(adapter, folder);
     const payload = {
       dashboardId: spec.id,
       title: spec.title,
       computedAt: new Date().toISOString(),
       tiles,
     };
-    await adapter.write(path, JSON.stringify(payload, null, 2));
+    await this.writeCacheNote(path, JSON.stringify(payload, null, 2));
+  }
+
+  /* A cache entry is a ReadOut note (kind cache), so default Obsidian Sync
+   * carries it. It is machine-written: always written afresh. */
+  async writeCacheNote(path, jsonText) {
+    const adapter = this.app.vault.adapter;
+    await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
+    await adapter.write(path, writeReadoutNote('cache', jsonText));
+  }
+
+  /* The JSON a cache path holds, or null: a note is read as a ReadOut note,
+   * a .json (what versions before 1.1 wrote) as plain JSON. A file that is
+   * missing, unreadable or not JSON reads as none, never as an error. */
+  async readCachedJson(path) {
+    const adapter = this.app.vault.adapter;
+    try {
+      if (!(await adapter.exists(path))) return null;
+      const text = await adapter.read(path);
+      if (/\.md$/i.test(path)) {
+        const note = readReadoutNote(text, 'cache');
+        return note.ok ? JSON.parse(note.json) : null;
+      }
+      return JSON.parse(text);
+    } catch (e) {
+      return null;
+    }
   }
 
   /* The desktop result of a widget written out in a note, filed by a key
@@ -10789,10 +10813,8 @@ class ReadOutPlugin extends Plugin {
     if (this.keptBlocks.has(key)) return;
     this.keptBlocks.add(key);
     (async () => {
-      const adapter = this.app.vault.adapter;
       const path = blockCachePath(this.settings.cacheFolder, key);
-      await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
-      await adapter.write(path, JSON.stringify({ computedAt: new Date().toISOString(), result }));
+      await this.writeCacheNote(path, JSON.stringify({ computedAt: new Date().toISOString(), result }));
     })().catch((e) => {
       this.keptBlocks.delete(key);
       console.error(safeLogLine('the note block cache write failed', e));
@@ -10801,7 +10823,8 @@ class ReadOutPlugin extends Plugin {
 
   /* A block's cache file is rewritten once per session in which its note is
    * shown, so a file nobody has touched for BLOCK_CACHE_MAX_AGE_DAYS belongs
-   * to a block that was edited or removed. Only .json files directly inside
+   * to a block that was edited or removed. Only the cache notes (.md marked
+   * readout: cache) and the .json files of earlier versions directly inside
    * <cache>/notes/ are considered; the dashboard cache is never touched.
    * Returns how many files went. A file that cannot be read or removed is
    * skipped, never an error. */
@@ -10818,10 +10841,13 @@ class ReadOutPlugin extends Plugin {
     const cutoff = Date.now() - BLOCK_CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
     let removed = 0;
     for (const path of (listing && listing.files) || []) {
-      if (!/\.json$/i.test(path)) continue;
+      const isNote = /\.md$/i.test(path);
+      if (!isNote && !/\.json$/i.test(path)) continue;
       try {
         const stat = await adapter.stat(path);
         if (!stat || typeof stat.mtime !== 'number' || stat.mtime >= cutoff) continue;
+        /* A note of the member's own in this folder is not ours to remove. */
+        if (isNote && !readReadoutNote(await adapter.read(path), 'cache').marked) continue;
         await adapter.remove(path);
         removed++;
       } catch (e) {
@@ -10832,26 +10858,23 @@ class ReadOutPlugin extends Plugin {
   }
 
   async readBlockCache(key) {
-    const adapter = this.app.vault.adapter;
-    const path = blockCachePath(this.settings.cacheFolder, key);
-    if (!(await adapter.exists(path))) return null;
-    try {
-      const c = JSON.parse(await adapter.read(path));
+    for (const ext of ['md', 'json']) {
+      const c = await this.readCachedJson(blockCachePath(this.settings.cacheFolder, key, ext));
       if (c && typeof c.computedAt === 'string' && c.result && Array.isArray(c.result.columns) && Array.isArray(c.result.rows)) return c;
-    } catch (e) { /* an unreadable cache reads as none */ }
+    }
     return null;
   }
 
   async readDashboardCache(spec) {
-    const adapter = this.app.vault.adapter;
-    const candidates = [dashCachePath(this.settings.cacheFolder, spec.id)];
+    /* The note first, then what versions before 1.1 wrote. */
+    const candidates = [
+      dashCachePath(this.settings.cacheFolder, spec.id, 'md'),
+      dashCachePath(this.settings.cacheFolder, spec.id, 'json'),
+    ];
     if (spec.database) candidates.push(cachePathFor(this.settings.cacheFolder, spec.database, spec.id));
     for (const path of candidates) {
-      if (!(await adapter.exists(path))) continue;
-      try {
-        const cache = JSON.parse(await adapter.read(path));
-        if (cache && Array.isArray(cache.tiles) && typeof cache.computedAt === 'string') return cache;
-      } catch (e) { /* an unreadable cache reads as no cache */ }
+      const cache = await this.readCachedJson(path);
+      if (cache && Array.isArray(cache.tiles) && typeof cache.computedAt === 'string') return cache;
     }
     return null;
   }
@@ -10958,19 +10981,16 @@ class ReadOutPlugin extends Plugin {
   }
 
   async readCatalog(dbPath) {
-    const adapter = this.app.vault.adapter;
     const candidates = [
-      catalogPathFor(this.settings.cacheFolder, dbPath),
+      catalogPathFor(this.settings.cacheFolder, dbPath, 'md'),
+      catalogPathFor(this.settings.cacheFolder, dbPath, 'json'),
       legacyCatalogPathFor(this.settings.cacheFolder, dbPath),
     ];
     for (const path of candidates) {
-      if (!(await adapter.exists(path))) continue;
-      try {
-        const catalog = JSON.parse(await adapter.read(path));
-        /* A legacy stem-keyed file may belong to a same-named database in
-         * another folder; trust it only when it names this database. */
-        if (catalog && Array.isArray(catalog.tables) && (!catalog.database || catalog.database === dbPath)) return catalog;
-      } catch (e) { /* an unreadable catalog reads as none */ }
+      const catalog = await this.readCachedJson(path);
+      /* A legacy stem-keyed file may belong to a same-named database in
+       * another folder; trust it only when it names this database. */
+      if (catalog && Array.isArray(catalog.tables) && (!catalog.database || catalog.database === dbPath)) return catalog;
     }
     return null;
   }
@@ -11011,10 +11031,8 @@ class ReadOutPlugin extends Plugin {
         }
       }
     }
-    const adapter = this.app.vault.adapter;
     const path = catalogPathFor(this.settings.cacheFolder, dbPath);
-    await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
-    await adapter.write(path, JSON.stringify({
+    await this.writeCacheNote(path, JSON.stringify({
       database: dbPath,
       computedAt: new Date().toISOString(),
       tables: schema.tables,

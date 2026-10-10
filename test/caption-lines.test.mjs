@@ -151,7 +151,7 @@ test('named lines drop from the last one up until the stat fits, and come back o
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/cl.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/cl.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/cl.md';
 const SPEC = { id: 'cl', title: 'Lines', database: '07 Databases/x.db', tiles: [statTile({ captions: ['window', 'change'] })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

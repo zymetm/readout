@@ -131,7 +131,7 @@ test('the fields survive the spec file, on an SQL tile and on a built widget, an
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/zn.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/zn.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/zn.md';
 const SPEC = { id: 'zn', title: 'Zones', database: '07 Databases/x.db', tiles: [lineTile({ zones: [{ from: 25, to: 32, color: '#51af6f' }], refLines: [{ y: 28, dash: '4 3' }] })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

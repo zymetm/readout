@@ -105,7 +105,7 @@ test('a text widget survives the spec file', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/tx.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/tx.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/tx.md';
 const SPEC = {
   id: 'tx', title: 'Words', database: '07 Databases/x.db',
   tiles: [

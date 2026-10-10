@@ -162,7 +162,7 @@ test('a "fit" stat tile measures itself; a tile with a fixed size or none adds n
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/ns.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/ns.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/ns.md';
 const SPEC = { id: 'ns', title: 'Sizes', database: '07 Databases/x.db', tiles: [statTile({ valueSize: 48 })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

@@ -220,7 +220,7 @@ test('the cache round-trips through the adapter, keyed by dashboard id, and a 0.
   const spec = { id: 'health-overview', title: 'Health', database: '07 Databases/mypka-health.db', tiles: [] };
   const tiles = [{ title: 'T', viz: 'stat', x: '', y: ['n'], unit: '', stack: false, columns: ['n'], rows: [[42]] }];
   await plugin.writeDashboardCache(spec, tiles);
-  const path = plugin.settings.cacheFolder + '/dashboards/health-overview.json';
+  const path = plugin.settings.cacheFolder + '/dashboards/health-overview.md';
   assert.equal(adapter.files.has(path), true, 'expected ' + path);
   const cache = await plugin.readDashboardCache(spec);
   assert.equal(cache.dashboardId, 'health-overview');

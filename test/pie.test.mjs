@@ -185,7 +185,7 @@ test('the edit form builds a pie field for field, and reads one back', async () 
 /* ------------------------------------------------ the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/pc.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/pc.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/pc.md';
 const SPEC = { id: 'pc', title: 'Pies', database: '07 Databases/x.db', tiles: [pieTile({ doughnut: true, segmentColors: { Shop: '#51af6f' } })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

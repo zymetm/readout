@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, noteJson } from './harness.mjs';
 
 const { lib, obsidian } = loadPlugin();
 
@@ -100,7 +100,7 @@ test('a rangeColumn survives the spec file', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/rc.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/rc.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/rc.md';
 const SPEC = { id: 'rc', title: 'Score', database: '07 Databases/x.db', tiles: [pairTile({ ranges: BANDS, rangeColumn: 'score' })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
@@ -123,7 +123,7 @@ test('the desktop caches the score with the result, and a phone judges it at ren
   await settle();
   assert.match(byClass(desk.view.contentEl, 'is-level')[0].getAttribute('aria-label'), /level Watch/);
   const cache = desk.adapter.files.get(CACHE);
-  assert.equal(JSON.parse(cache).tiles[0].rangeColumn, 'score');
+  assert.equal(noteJson(cache).tiles[0].rangeColumn, 'score');
 
   const phone = await makeView({ [DASH]: JSON.stringify(SPEC), [CACHE]: cache }, { '07 Databases/x.db': new Uint8Array([1]) }, { desktop: false });
   phone.plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big for this device.' });

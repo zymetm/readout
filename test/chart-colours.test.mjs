@@ -126,7 +126,7 @@ test('a built widget draws in its colours', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/cc.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/cc.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/cc.md';
 const SPEC = { id: 'cc', title: 'Colours', database: '07 Databases/x.db', tiles: [lineTile({ color: '#df8f48', guideColor: '#cccccc' })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

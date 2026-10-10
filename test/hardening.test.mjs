@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, noteJson } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -45,7 +45,7 @@ test('M2: by default the catalog holds structure only, no raw values', async () 
   stubSchemaQueries(plugin);
   await plugin.writeCatalog('07 Databases/moods.db');
   const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/moods.db');
-  const catalog = JSON.parse(adapter.files.get(path));
+  const catalog = noteJson(adapter.files.get(path));
   assert.equal(catalog.tables[0].name, 'health_mood', 'the structure is there');
   assert.deepEqual(unwrap(catalog.values), {}, 'no value of any column reaches the synced file by default');
 });
@@ -58,7 +58,7 @@ test('M2: with the setting on, small text columns are harvested as before', asyn
   plugin.settings.catalogIncludeValues = true;
   await plugin.writeCatalog('07 Databases/moods.db');
   const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/moods.db');
-  const catalog = JSON.parse(adapter.files.get(path));
+  const catalog = noteJson(adapter.files.get(path));
   assert.deepEqual(unwrap(catalog.values['health_mood.mood']), ['fine', 'great', 'low']);
 });
 
@@ -85,7 +85,7 @@ test('L4: same-named databases in different folders get different catalog paths'
   const a = lib.catalogPathFor('C', 'A/health.db');
   const b = lib.catalogPathFor('C', 'B/health.db');
   assert.notEqual(a, b);
-  assert.match(a, /catalogs\/health-[0-9a-f]{8}\.json$/);
+  assert.match(a, /catalogs\/health-[0-9a-f]{8}\.md$/);
   assert.equal(lib.catalogPathFor('C', 'A/health.db'), a, 'the key is stable');
 });
 

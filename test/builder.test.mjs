@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, makeFakeVault, noteJson } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -271,7 +271,7 @@ test('the desktop writes a catalog: tables, columns, and the values of small tex
   await plugin.writeCatalog('07 Databases/x.db');
   const path = lib.catalogPathFor(plugin.settings.cacheFolder, '07 Databases/x.db');
   assert.equal(adapter.files.has(path), true, 'expected ' + path);
-  const catalog = JSON.parse(adapter.files.get(path));
+  const catalog = noteJson(adapter.files.get(path));
   assert.equal(catalog.tables[0].name, 'health_metric');
   assert.deepEqual(catalog.values['health_metric.metric_name'], ['heart_rate', 'step_count']);
   assert.equal(catalog.values['health_metric.local_date'], undefined, 'a column with over 200 values stays out');

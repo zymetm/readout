@@ -112,7 +112,7 @@ test('the band survives the spec file and an edit from the form', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/bd.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/bd.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/bd.md';
 const SPEC = { id: 'bd', title: 'Band', database: '07 Databases/x.db', tiles: [lineTile({ band: { low: 'lo', high: 'hi' } })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

@@ -16,7 +16,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter, unwrap } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, unwrap, noteJson } from './harness.mjs';
 
 const { lib } = loadPlugin();
 
@@ -83,7 +83,7 @@ test('a widget is found by its number from 1 or by its title, dividers counted',
   assert.equal(lib.widgetIndexIn(spec, 'nothing'), -1);
   assert.deepEqual(['divider', 'text', 'stat', 'bar', 'table', 'pie'].map((viz) => lib.blockSizeFor({ viz })), ['thin', 'short', 'short', 'chart', 'chart', 'chart']);
   assert.equal(lib.blockSizeFor({ viz: 'text', line: true }), 'thin');
-  assert.equal(lib.blockCachePath('Databases/Dashboard Cache', 'abc12345'), 'Databases/Dashboard Cache/notes/abc12345.json');
+  assert.equal(lib.blockCachePath('Databases/Dashboard Cache', 'abc12345'), 'Databases/Dashboard Cache/notes/abc12345.md');
 });
 
 /* ------------------------------------------------------- in a vault -- */
@@ -176,9 +176,9 @@ test('a written-out widget draws, keeps one small cache of its own on the deskto
   assert.equal(byClass(el, 'icor-sqlv-block').length, 1);
   assert.ok(byClass(el, 'icor-sqlv-chart-box').length >= 1, 'the bar chart');
   const key = lib.parseWidgetBlock(INLINE).key;
-  const path = '07 Databases/Dashboard Cache/notes/' + key + '.json';
+  const path = '07 Databases/Dashboard Cache/notes/' + key + '.md';
   assert.ok(desk.adapter.files.has(path), 'filed by the block\'s key');
-  const written = JSON.parse(desk.adapter.files.get(path));
+  const written = noteJson(desk.adapter.files.get(path));
   assert.deepEqual(written.result.rows, ROWS.rows);
   assert.equal(desk.adapter.log.filter(([op, p]) => op === 'write' && p === path).length, 1);
   /* Drawn again in the same session: not written again. */

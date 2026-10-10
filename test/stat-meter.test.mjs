@@ -101,7 +101,7 @@ test('the meter survives the spec file, on an SQL tile and on a built widget, an
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/mt.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/mt.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/mt.md';
 const SPEC = { id: 'mt', title: 'Meter', database: '07 Databases/x.db', tiles: [statTile({ meter: { min: 0, max: 60, target: 36 } })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

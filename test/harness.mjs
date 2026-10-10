@@ -208,6 +208,16 @@ export const FIXTURE_DASHBOARD = {
 };
 export const FIXTURE_DASHBOARD_FILES = { [FIXTURE_DASHBOARD_PATH]: JSON.stringify(FIXTURE_DASHBOARD, null, 2) + '\n' };
 
+/* The JSON inside a ReadOut note, read the plain way (no plugin code): the
+ * frontmatter, then the first fenced json block. The gates read what the
+ * desktop wrote with this, so a mistake in the plugin's own reader cannot
+ * hide a mistake in its writer. */
+export function noteJson(text) {
+  const m = /^---\nreadout: (?:cache|dashboard)\n---\n[\s\S]*?\n(`{3,})json\n([\s\S]*)\n\1\n$/.exec(String(text));
+  if (!m) throw new Error('not a ReadOut note: ' + String(text).slice(0, 80));
+  return JSON.parse(m[2]);
+}
+
 /* Deep-copy a sandbox-realm value into the test realm so deepEqual works. */
 export function unwrap(value) { return JSON.parse(JSON.stringify(value)); }
 
@@ -313,4 +323,10 @@ export function makeFakeAdapter(initialFiles = {}, initialBinaries = {}) {
       return out;
     },
   };
+}
+
+/* A cache note built the plain way, for the gates that hand a phone a
+ * cache it did not write itself. */
+export function cacheNote(value) {
+  return '---\nreadout: cache\n---\n\n```json\n' + JSON.stringify(value, null, 2) + '\n```\n';
 }

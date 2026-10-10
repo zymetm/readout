@@ -111,7 +111,7 @@ test('a segments bar survives the spec file', () => {
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/sg.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/sg.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/sg.md';
 const SPEC = { id: 'sg', title: 'Split', database: '07 Databases/x.db', tiles: [segTile({ segmentColors: { Busy: '#51af6f' } })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

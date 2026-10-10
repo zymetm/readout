@@ -14,7 +14,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter, unwrap } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, unwrap, noteJson, cacheNote } from './harness.mjs';
 
 const { lib, obsidian } = loadPlugin();
 
@@ -109,7 +109,7 @@ test('the divider draws a line with an optional heading, marked as a separator',
 
 const VIEW = 'readout-dashboards';
 const DASH = '07 Databases/Dashboards/mixed.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/mixed.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/mixed.md';
 const MIXED = {
   id: 'mixed', title: 'Mixed', database: '07 Databases/x.db',
   tiles: [
@@ -142,7 +142,7 @@ test('the desktop draws a divider without a query, keeps its cache slot, and giv
   assert.equal(byClass(divider, 'icor-sqlv-error').length, 0, 'no "names no database" error');
   assert.equal(view.gridState.grid.style.gridTemplateRows, '24px minmax(170px, auto)', 'thin row, then a full one that grows to hold its content');
   assert.match(byClass(view.contentEl, 'icor-sqlv-dash-status')[0].textContent, /^1 query in/);
-  const cache = JSON.parse(adapter.files.get(CACHE));
+  const cache = noteJson(adapter.files.get(CACHE));
   assert.equal(cache.tiles[0].viz, 'divider', 'the divider keeps index 0 in the cache');
   assert.deepEqual(cache.tiles[1].rows, [[7]], 'so the stat stays at index 1');
 });
@@ -152,7 +152,7 @@ test('a phone draws the divider with nothing to compute and the next widget from
     dashboardId: 'mixed', title: 'Mixed', computedAt: new Date().toISOString(),
     tiles: [Object.assign({}, MIXED.tiles[0]), Object.assign({}, MIXED.tiles[1], { y: [], columns: ['value'], rows: [[7]], ghost: null })],
   };
-  const { plugin, view } = await makeView({ [DASH]: JSON.stringify(MIXED), [CACHE]: JSON.stringify(cache) }, { desktop: false });
+  const { plugin, view } = await makeView({ [DASH]: JSON.stringify(MIXED), [CACHE]: cacheNote(cache) }, { desktop: false });
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big.' });
   await view.onOpen();
   await new Promise((r) => setTimeout(r, 20));

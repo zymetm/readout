@@ -131,7 +131,7 @@ test('the fields survive the spec file, on an SQL tile and on a built widget, an
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/ax.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/ax.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/ax.md';
 const SPEC = { id: 'ax', title: 'Axis', database: '07 Databases/x.db', tiles: [lineTile({ yMin: 40, yMax: 200, yTicks: [54, 70, 130, 180, 200], xLabelEvery: 8 })] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 

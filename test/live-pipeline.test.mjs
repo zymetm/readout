@@ -24,7 +24,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { join, dirname } from 'node:path';
 import os from 'node:os';
 
-import { loadPlugin } from './harness.mjs';
+import { loadPlugin, noteJson } from './harness.mjs';
 
 const vaultPath = process.env.ICOR_SQLV_VAULT;
 const GUI_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
@@ -95,9 +95,9 @@ test('the full dashboard pipeline against the real vault, on the GUI PATH', { sk
       /* The cache folder is whatever the plugin resolved for THIS vault
        * (Databases, or 07 Databases in an ICOR for Life vault) - derived,
        * never hardcoded, so both vault names pass. */
-      const cacheFile = join(overlay, ...plugin.settings.cacheFolder.split('/'), 'dashboards', spec.id + '.json');
+      const cacheFile = join(overlay, ...plugin.settings.cacheFolder.split('/'), 'dashboards', spec.id + '.md');
       assert.ok(existsSync(cacheFile), 'the cache must be written for ' + spec.id);
-      const cache = JSON.parse(readFileSync(cacheFile, 'utf8'));
+      const cache = noteJson(readFileSync(cacheFile, 'utf8'));
       assert.equal(cache.tiles.length, spec.tiles.length);
     }
   } finally {

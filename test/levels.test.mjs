@@ -16,7 +16,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, unwrap, makeFakeAdapter } from './harness.mjs';
+import { loadPlugin, unwrap, makeFakeAdapter, noteJson, cacheNote } from './harness.mjs';
 
 const { lib, obsidian } = loadPlugin();
 
@@ -240,7 +240,7 @@ async function makeView(files, binaries, { desktop = true } = {}) {
 }
 
 const DASH = '07 Databases/Dashboards/lv.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/lv.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/lv.md';
 const LV_SPEC = { id: 'lv', title: 'Levels', database: '07 Databases/x.db', tiles: [statTile({ ranges: BANDS })] };
 
 test('the desktop writes the ranges into the cache with the result', async () => {
@@ -251,7 +251,7 @@ test('the desktop writes the ranges into the cache with the result', async () =>
   await settle();
   const levelled = byClass(view.contentEl, 'is-level');
   assert.equal(levelled.length, 1, 'the live tile is marked');
-  const cache = JSON.parse(adapter.files.get(CACHE));
+  const cache = noteJson(adapter.files.get(CACHE));
   assert.deepEqual(cache.tiles[0].ranges, BANDS, 'the ranges ride in the cache');
 });
 
@@ -260,7 +260,7 @@ test('a phone judges the cached number at render time, from the cached ranges', 
     dashboardId: 'lv', title: 'Levels', computedAt: new Date().toISOString(),
     tiles: [Object.assign(statTile({ ranges: BANDS }), { y: [], columns: ['value'], rows: [['12.0']], ghost: null })],
   };
-  const { plugin, view } = await makeView({ [DASH]: JSON.stringify(LV_SPEC), [CACHE]: JSON.stringify(cache) }, { '07 Databases/x.db': new Uint8Array([1]) }, { desktop: false });
+  const { plugin, view } = await makeView({ [DASH]: JSON.stringify(LV_SPEC), [CACHE]: cacheNote(cache) }, { '07 Databases/x.db': new Uint8Array([1]) }, { desktop: false });
   plugin.query.engineFor = async () => ({ engine: null, reason: 'Too big for this device.' });
   await view.onOpen();
   await settle();

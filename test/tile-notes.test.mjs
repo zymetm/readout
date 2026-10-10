@@ -103,7 +103,7 @@ test('they survive the spec file, on an SQL tile and on a built widget, and a bu
 /* ---------------------------------------------- the view and the cache -- */
 
 const DASH = '07 Databases/Dashboards/nt.json';
-const CACHE = '07 Databases/Dashboard Cache/dashboards/nt.json';
+const CACHE = '07 Databases/Dashboard Cache/dashboards/nt.md';
 const SPEC = { id: 'nt', title: 'Notes', database: '07 Databases/x.db', tiles: [{ title: 'W', viz: 'line', x: 'day', y: 'km', sql: 'SELECT 1', hint: 'km per day', footnote: 'One dot per walk.' }] };
 const settle = () => new Promise((r) => setTimeout(r, 20));
 
