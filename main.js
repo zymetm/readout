@@ -10803,8 +10803,51 @@ class ReadOutPlugin extends Plugin {
     if (!parsed.ok) return;
     /* The member may have moved on while this read. */
     if (leaf.view !== view) return;
-    mode.from.add(file.path);
-    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true, state: { activeId: parsed.spec.id } });
+    this.convertWhenSettled(leaf, file.path, parsed.spec.id, 0);
+  }
+
+  /* The conversion waits until the open that fired 'file-open' has finished:
+   * that open is still running (a link opened in a new tab sets its view and
+   * its state again after the event), and swapping the view under it can undo
+   * the swap or leave the open waiting. So it runs on a later turn, only if
+   * the pane still shows that note and nobody asked for the note as a note;
+   * and a little later it looks again: if the opener put the note back, the
+   * memory of the conversion is dropped and it is tried again (twice at most),
+   * so nothing stale is left behind. */
+  convertWhenSettled(leaf, path, id, attempt) {
+    if (!this.pendingLeaves) this.pendingLeaves = new WeakSet();
+    if (attempt === 0) {
+      if (this.pendingLeaves.has(leaf)) return;
+      this.pendingLeaves.add(leaf);
+    }
+    const settle = typeof this.settleMs === 'number' ? this.settleMs : 120;
+    const done = () => { this.pendingLeaves.delete(leaf); };
+    const isNote = () => {
+      const v = leaf.view;
+      return !!v && typeof v.getViewType === 'function' && v.getViewType() === 'markdown' && !!v.file && v.file.path === path;
+    };
+    window.setTimeout(async () => {
+      try {
+        const st = this.leafState(leaf);
+        if (!isNote() || st.note === path) { done(); return; }
+        st.from.add(path);
+        await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true, state: { activeId: id } });
+        window.setTimeout(async () => {
+          try {
+            if (isNote() && attempt < 2) {
+              st.from.delete(path);
+              this.convertWhenSettled(leaf, path, id, attempt + 1);
+              return;
+            }
+            if (isNote()) st.from.delete(path);
+          } catch { st.from.delete(path); }
+          done();
+        }, settle);
+      } catch {
+        this.leafState(leaf).from.delete(path);
+        done();
+      }
+    }, 0);
   }
 
   async openDashboards(activeId) {

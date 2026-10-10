@@ -36,7 +36,8 @@ async function setup(files, saved) {
   plugin.app = app;
   await plugin.onload();
   plugin.query.cli = { ok: false, reason: 'gate' };
-  const tick = () => new Promise((r) => setTimeout(r, 12));
+  plugin.settleMs = 10;
+  const tick = () => new Promise((r) => setTimeout(r, 45));
 
   /* One pane, with a history. */
   const history = [];
@@ -55,10 +56,19 @@ async function setup(files, saved) {
   };
   leaf.setViewState = async (s) => { states.push(unwrap(s)); history.length = at + 1; history.push(unwrap(s)); at++; await show(s); };
   leaf.openFile = async (f) => { history.length = at + 1; history.push({ type: 'markdown', path: f.path }); at++; await show(history[at]); };
+  /* A link opened in a new tab: the pane shows the note and fires file-open,
+   * then the opener applies the note's view state again, once per delay. */
+  const openLink = async (path, delays) => {
+    history.length = at + 1; history.push({ type: 'markdown', path }); at++;
+    leaf.view = note(path);
+    handlers['file-open'](new fresh.obsidian.TFile(path));
+    for (const d of delays) setTimeout(() => { leaf.view = note(path); }, d);
+    await new Promise((r) => setTimeout(r, Math.max(...delays) + 5));
+  };
   const back = async () => { at--; await show(history[at]); };
   const forward = async () => { at++; await show(history[at]); };
   const open = async (path, state) => { history.length = at + 1; history.push({ type: 'markdown', path, state }); at++; await show(history[at]); return leaf; };
-  return { plugin, adapter, fresh, states, handlers, frontmatter, leaf, open, back, forward, fire, layoutChange, show, reads, tick, history: () => history.map((h) => (h.type === 'markdown' ? h.path : h.type + ':' + (h.state && h.state.activeId))) };
+  return { plugin, adapter, fresh, states, handlers, frontmatter, leaf, open, openLink, back, forward, fire, layoutChange, show, reads, tick, history: () => history.map((h) => (h.type === 'markdown' ? h.path : h.type + ':' + (h.state && h.state.activeId))) };
 }
 
 const TWO = () => ({ [DIR + '/shop.md']: dash(), [DIR + '/other.md']: dash(Object.assign({}, SPEC, { id: 'other', title: 'Other' })) });
@@ -163,7 +173,7 @@ test('the request belongs to its own pane: another pane opening the same note st
   const saved = ctx.leaf;
   ctx.plugin.app.workspace.getMostRecentLeaf = () => second;
   second.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
-  second.setViewState = async (s) => { ctx.states.push(unwrap(s)); };
+  second.setViewState = async (s) => { ctx.states.push(unwrap(s)); second.view = { getViewType: () => s.type }; };
   await ctx.fire(DIR + '/shop.md');
   assert.equal(ctx.states.length, 1);
   assert.ok(saved);
@@ -270,4 +280,64 @@ test('the file menu of a dashboard note offers the dashboard and the note', asyn
   for (const fn of menus) fn(menu, new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
   assert.equal(titles.includes('Open as dashboard'), true);
   assert.equal(titles.includes('Open as note'), true);
+});
+
+/* ---------------------------------------- a link opened in a new tab -- */
+
+test('a dashboard note opened in a new tab (a link, ctrl-click) ends as the dashboard, although the opener sets the note state again after file-open', async () => {
+  const ctx = await setup(TWO());
+  await ctx.openLink(DIR + '/other.md', [0]);
+  await ctx.tick();
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+  assert.equal(ctx.leaf.view.activeId, 'other');
+  assert.equal(ctx.states.length, 1);
+  assert.deepEqual([...ctx.plugin.leafState(ctx.leaf).from], [DIR + '/other.md'], 'what Back needs');
+});
+
+test('the opener may undo the conversion later: it is tried again, and the memory of it is dropped, never left stale', async () => {
+  const ctx = await setup(TWO());
+  ctx.plugin.settleMs = 40;
+  await ctx.openLink(DIR + '/other.md', [0, 15]);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards', 'put back, converted again');
+  assert.equal(ctx.states.length, 2);
+
+  /* An opener that always wins: three tries, then it is left as the note with nothing remembered. */
+  const stubborn = await setup(TWO());
+  stubborn.plugin.settleMs = 10;
+  stubborn.leaf.setViewState = async (s) => { stubborn.states.push(unwrap(s)); };
+  await stubborn.openLink(DIR + '/other.md', [0]);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(stubborn.states.length, 3);
+  assert.equal(stubborn.leaf.view.getViewType(), 'markdown');
+  assert.equal(stubborn.plugin.leafState(stubborn.leaf).from.size, 0, 'nothing stale: the next open converts');
+});
+
+test('the conversion does not touch the pane during the open that started it: openFile settles, and a pane that moved on or was asked for as a note is left', async () => {
+  const ctx = await setup(TWO());
+  let during = null;
+  ctx.leaf.openFile = async (f) => {
+    ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(f.path), getState: () => ({}) };
+    ctx.handlers['file-open'](f);
+    await new Promise((r) => setTimeout(r, 1));
+    during = ctx.leaf.view.getViewType(); /* the open is still running: untouched */
+  };
+  await Promise.race([ctx.leaf.openFile(new ctx.fresh.obsidian.TFile(DIR + '/shop.md')), new Promise((_, no) => setTimeout(() => no(new Error('openFile hung')), 1000))]);
+  assert.equal(during, 'markdown');
+  await ctx.tick();
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+
+  const moved = await setup(TWO());
+  moved.leaf.view = { getViewType: () => 'markdown', file: new moved.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  moved.handlers['file-open'](new moved.fresh.obsidian.TFile(DIR + '/shop.md'));
+  moved.leaf.view = { getViewType: () => 'markdown', file: new moved.fresh.obsidian.TFile(DIR + '/README.md'), getState: () => ({}) };
+  await moved.tick();
+  assert.deepEqual(moved.states, [], 'the pane moved on before the turn came');
+
+  const raw = await setup(TWO());
+  raw.leaf.view = { getViewType: () => 'markdown', file: new raw.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  raw.handlers['file-open'](new raw.fresh.obsidian.TFile(DIR + '/shop.md'));
+  raw.plugin.leafState(raw.leaf).note = DIR + '/shop.md';
+  await raw.tick();
+  assert.deepEqual(raw.states, [], 'asked for as a note in the meantime');
 });
