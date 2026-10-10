@@ -183,3 +183,42 @@ test('a cache write never replaces a note that is not ReadOut\'s, and the dashbo
   await plugin.writeDashboardCache(SPEC, TILES);
   assert.equal(noteJson(adapter.files.get(path)).dashboardId, 'shop');
 });
+
+test('cache notes are written compact: the JSON is one line', async () => {
+  const { plugin, adapter } = await boot();
+  await plugin.writeDashboardCache(SPEC, TILES);
+  plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
+  plugin.query.query = async (db, sql) => (/sqlite_master/.test(sql)
+    ? { columns: ['name'], rows: [['orders']], ms: 1 }
+    : { columns: ['cid', 'name', 'type'], rows: [[0, 'id', 'INTEGER']], ms: 1 });
+  await plugin.writeCatalog(DB);
+  for (const path of [...adapter.files.keys()].filter((p) => p.endsWith('.md'))) {
+    const text = adapter.files.get(path);
+    const body = text.split('```json\n')[1].split('\n```')[0];
+    assert.equal(body.includes('\n'), false, path + ' is one line');
+    assert.equal(/\n {2}"/.test(text), false, path + ' is not indented');
+  }
+  assert.equal(adapter.files.size, 2);
+});
+
+test('a cache note over about 4 MB adds a plain line to the desktop status; a smaller one does not; nothing is cut', async () => {
+  const MB = 1024 * 1024;
+  const statusFor = async (bytes) => {
+    const { plugin, adapter } = await boot({ '07 Databases/Dashboards/shop.md': lib.writeReadoutNote('dashboard', JSON.stringify(SPEC)) });
+    plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
+    plugin.query.query = async () => ({ columns: ['n'], rows: [['x'.repeat(bytes)]], ms: 1 });
+    const view = plugin.viewFactories['readout-dashboards']({ app: plugin.app });
+    view.app = plugin.app;
+    await view.onOpen();
+    await new Promise((r) => setTimeout(r, 60));
+    const text = [];
+    const walk = (el) => { text.push(el.textContent || ''); for (const c of el.children || []) walk(c); };
+    walk(view.contentEl);
+    return { all: text.join(' '), adapter };
+  };
+  const big = await statusFor(5 * MB);
+  assert.match(big.all, /This dashboard's cache is 5\.\d MB; Obsidian Sync Standard carries files up to 5 MB, so your phone may not get it\. Fewer rows in big tables will fix it\./);
+  assert.equal(noteJson(big.adapter.files.get(CACHE + '/dashboards/shop.md')).tiles[0].rows[0][0].length, 5 * MB, 'written whole');
+  const small = await statusFor(1000);
+  assert.doesNotMatch(small.all, /Obsidian Sync Standard/);
+});

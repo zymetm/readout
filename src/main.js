@@ -5985,7 +5985,10 @@ class SqliteDashboardsView extends ItemView {
      * run is worth freezing; anything less would overwrite a good cache. */
     if (!failed && !fromCache && Platform.isDesktopApp) {
       try {
-        await this.plugin.writeDashboardCache(spec, cachedTiles);
+        const kept = await this.plugin.writeDashboardCache(spec, cachedTiles);
+        if (kept && kept.bytes > CACHE_NOTE_WARN_BYTES) {
+          line += ' This dashboard\'s cache is ' + (kept.bytes / MB).toFixed(1) + ' MB; Obsidian Sync Standard carries files up to 5 MB, so your phone may not get it. Fewer rows in big tables will fix it.';
+        }
       } catch (e) {
         line += ' The cache could not be written: ' + e.message;
       }
@@ -10155,6 +10158,10 @@ const BLOCK_SPEC_PASS_MS = 2000;
 /* How long a note-block cache file may sit unused before it is removed. */
 const BLOCK_CACHE_MAX_AGE_DAYS = 60;
 
+/* A cache note this big is warned about on the desktop: Obsidian Sync
+ * Standard carries files up to 5 MB. */
+const CACHE_NOTE_WARN_BYTES = 4 * MB;
+
 function blockCachePath(cacheFolder, key, ext) {
   return normalizePath(cacheFolder + '/notes/' + key + '.' + (ext || 'md'));
 }
@@ -10845,13 +10852,13 @@ class ReadOutPlugin extends Plugin {
       computedAt: new Date().toISOString(),
       tiles,
     };
-    await this.writeCacheNote(path, JSON.stringify(payload, null, 2));
+    return this.writeCacheNote(path, JSON.stringify(payload));
   }
 
   /* A cache entry is a ReadOut note (kind cache), so default Obsidian Sync
    * carries it. It is machine-written, so it is written afresh, but never
    * over a note that is not ReadOut's: that throws, and the dashboards view
-   * says so in its status line. */
+   * says so in its status line. Returns { bytes }, the size of the note. */
   async writeCacheNote(path, jsonText) {
     const adapter = this.app.vault.adapter;
     await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
@@ -10860,7 +10867,9 @@ class ReadOutPlugin extends Plugin {
       try { existing = await adapter.read(path); } catch { existing = null; }
       if (existing !== null && !readReadoutNote(existing, 'cache').marked) throw new Error(path.split('/').pop() + ' is not a ReadOut note');
     }
-    await adapter.write(path, writeReadoutNote('cache', jsonText));
+    const note = writeReadoutNote('cache', jsonText);
+    await adapter.write(path, note);
+    return { bytes: new TextEncoder().encode(note).length };
   }
 
   /* The JSON a cache path holds, or null: a note is read as a ReadOut note,
@@ -11187,7 +11196,7 @@ class ReadOutPlugin extends Plugin {
       computedAt: new Date().toISOString(),
       tables: schema.tables,
       values,
-    }, null, 2));
+    }));
   }
 }
 
