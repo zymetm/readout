@@ -10346,6 +10346,9 @@ class ReadOutPlugin extends Plugin {
      * button in the settings). */
     this.app.workspace.onLayoutReady(() => {
       this.refreshExistingGuideFiles().catch(() => {});
+      /* Whichever device holds the .json files writes their notes, so the
+       * other devices (a phone on default Sync) can have them. */
+      this.migrateJsonToNotes().catch(() => {});
       /* The desktop is the only writer of the note-block cache, so it is the
        * only one that tidies it. */
       if (Platform.isDesktopApp) this.pruneBlockCache().catch(() => {});
@@ -10819,6 +10822,57 @@ class ReadOutPlugin extends Plugin {
       this.keptBlocks.delete(key);
       console.error(safeLogLine('the note block cache write failed', e));
     });
+  }
+
+  /* Dashboards and cache files that earlier versions saved as .json get
+   * their note (.md twin) written beside them, so default Obsidian Sync
+   * carries them to a phone. Safe to run on any device, at any time:
+   *
+   * - a .json with a note of the same name is skipped, whatever the note
+   *   holds (the note wins, and a member's edit to it is never touched);
+   * - a .json that is not valid, or is JSON that is not a dashboard (or not
+   *   the cache entry it sits among), gets no note;
+   * - the .json is never rewritten, moved or removed;
+   * - only the dashboards folder and <cache>/dashboards, /catalogs and
+   *   /notes are looked at, and only the files directly inside them;
+   * - nothing here can fail the plugin: a folder or file that cannot be
+   *   listed, read or written is skipped.
+   *
+   * Returns how many notes it wrote. Running it again writes none. */
+  async migrateJsonToNotes() {
+    const adapter = this.app.vault.adapter;
+    const cache = this.settings.cacheFolder;
+    const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+    const places = [
+      { folder: this.settings.dashboardFolder, kind: 'dashboard', accept: () => true, valid: (text) => parseDashboardSpec(text).ok },
+      { folder: normalizePath(cache + '/dashboards'), kind: 'cache', accept: () => true, valid: (text) => { const v = JSON.parse(text); return isObject(v) && Array.isArray(v.tiles); } },
+      /* A 0.5.0 catalog is keyed by the database's stem alone and is only
+       * ever read as a fallback; it is not carried over. */
+      { folder: normalizePath(cache + '/catalogs'), kind: 'cache', accept: (path) => /-[0-9a-f]{8}\.json$/i.test(path), valid: (text) => { const v = JSON.parse(text); return isObject(v) && Array.isArray(v.tables); } },
+      { folder: normalizePath(cache + '/notes'), kind: 'cache', accept: () => true, valid: (text) => { const v = JSON.parse(text); return isObject(v) && isObject(v.result) && Array.isArray(v.result.columns); } },
+    ];
+    let written = 0;
+    for (const { folder, kind, accept, valid } of places) {
+      try {
+        if (!(await adapter.exists(folder))) continue;
+        const listing = await adapter.list(folder);
+        for (const path of ((listing && listing.files) || []).slice().sort()) {
+          if (!/\.json$/i.test(path) || !accept(path)) continue;
+          try {
+            const twin = noteTwinOf(path);
+            if (await adapter.exists(twin)) continue;
+            const text = await adapter.read(path);
+            if (!valid(text)) continue;
+            /* Sync may have brought the note while this was reading. */
+            if (await adapter.exists(twin)) continue;
+            await adapter.write(twin, writeReadoutNote(kind, text.replace(/\s+$/, '')));
+            written++;
+          } catch (e) { /* this file is left for the next start */ }
+        }
+      } catch (e) { /* this folder is left for the next start */ }
+    }
+    if (written) this.blockSpecCache = null;
+    return written;
   }
 
   /* A block's cache file is rewritten once per session in which its note is

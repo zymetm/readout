@@ -226,7 +226,7 @@ test('the dashboards view shows a change made as text in another pane, and ignor
   view.specs[0].title = 'Shop, from the form';
   await view.saveAndRender(view.specs[0]);
   /* Since 1.1 a dashboard read from a .json is saved as its note. */
-  const TWIN = PATH.replace(/.json$/, '.md');
+  const TWIN = PATH.replace(/\.json$/, '.md');
   await ctx.fire(TWIN);
   await settle();
   assert.equal(reloads, 0, 'its own save is not a change from elsewhere');
