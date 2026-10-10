@@ -2207,7 +2207,6 @@ button.icor-sqlv-advanced-toggle:focus-visible { outline: 2px solid var(--sqlv-m
   .icor-sqlv-tile .icor-sqlv-table td.icor-sqlv-num { max-width: none; overflow: visible; text-overflow: clip; }
   .icor-sqlv-tile .icor-sqlv-spark { width: 28px; }
 }
-}
 
 
 /* ------------------------------------------------------------ text -- */

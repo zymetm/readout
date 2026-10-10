@@ -41,3 +41,17 @@ test('the duplicate-property check does catch a repeat (and ignores comments, ne
   assert.equal(duplicateProperties('a { background: url("data:image/svg+xml;utf8,<svg/>"); color: red; }').length, 0);
   assert.equal(duplicateProperties('@container (max-width: 1px) { a { height: 1px; } .b { height: 2px; } }').length, 0);
 });
+
+/* The 1.0.8 scan failed on "Unexpected }": one closing brace too many after a
+ * container block, which also made the browser drop the rule after it. Every
+ * brace closes one that was opened, and every opened brace is closed. */
+test('every brace in styles.css is balanced', () => {
+  let depth = 0;
+  css.split('\n').forEach((text, i) => {
+    for (const ch of text.replace(/"[^"]*"|'[^']*'/g, '')) {
+      if (ch === '{') depth++;
+      if (ch === '}') { depth--; assert.ok(depth >= 0, 'unexpected } on line ' + (i + 1) + ' (comments removed)'); }
+    }
+  });
+  assert.equal(depth, 0);
+});
