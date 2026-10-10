@@ -6,6 +6,14 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.9] - 2026-10-09
+
+### Fixed
+- **Text widgets have their styling back.** One stray closing brace in the
+  stylesheet made Obsidian skip the rule after it, so a text widget's
+  paragraphs lost their size, colour and spacing in 1.0.8. A test now checks
+  that every brace in the stylesheet is balanced.
+
 ## [1.0.8] - 2026-10-09
 
 ### Fixed
