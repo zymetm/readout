@@ -3,7 +3,7 @@
   "name": "ReadOut",
   "version": "1.0.10",
   "minAppVersion": "1.7.2",
-  "description": "Read-only dashboards and a database browser for the SQLite databases in your vault. Browse tables, run your own read-only queries, and draw charts, tables and big numbers from your data on desktop and phone.",
+  "description": "Read-only dashboards and a database browser for the SQLite databases in your vault. On desktop, browse tables, run your own queries and build charts, tables and big numbers. On your phone, view those dashboards, kept current by your desktop.",
   "author": "Matt Zymet",
   "authorUrl": "https://github.com/zymetm",
   "isDesktopOnly": false
