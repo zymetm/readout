@@ -1913,15 +1913,20 @@ function readReadoutNote(text, kind) {
 }
 
 /* A note's text with only the JSON inside its block replaced, so whatever a
- * member wrote around the block survives a save from the builder. A note
- * that cannot be read this way, or JSON that needs a longer fence, comes
- * back written afresh. */
+ * member wrote around the block survives a save from the builder. A fence
+ * that is too short for the new JSON (or a tilde fence) is swapped for a
+ * backtick fence that fits; the rest of the note is kept. A note that cannot
+ * be read at all comes back written afresh. */
 function rewriteReadoutNote(existingText, kind, jsonText) {
   const at = locateReadoutNote(existingText, kind);
   const text = String(jsonText);
   const needs = Math.max(3, ...(text.match(/`+/g) || []).map((r) => r.length + 1));
-  if (!at.marked || !at.ok || at.fence[0] !== '`' || at.fence.length < needs) return writeReadoutNote(kind, text);
-  return at.head + at.lines.slice(0, at.open + 1).concat(text.split('\n'), at.lines.slice(at.close)).join('\n');
+  if (!at.marked || !at.ok) return writeReadoutNote(kind, text);
+  const fits = at.fence[0] === '`' && at.fence.length >= needs;
+  const fence = fits ? null : '`'.repeat(needs);
+  const open = fence ? fence + 'json' : at.lines[at.open];
+  const close = fence ? fence : at.lines[at.close];
+  return at.head + at.lines.slice(0, at.open).concat([open], text.split('\n'), [close], at.lines.slice(at.close + 1)).join('\n');
 }
 
 /* The .md twin of a .json path, in the same folder. */
@@ -10627,6 +10632,11 @@ class ReadOutPlugin extends Plugin {
       const file = this.app.vault.getAbstractFileByPath(note);
       if (file instanceof TFile && typeof target.openFile === 'function') {
         await target.openFile(file);
+        return;
+      }
+      /* A note is never handed to the JSON view, which opens .json only. */
+      if (/\.md$/i.test(note)) {
+        new Notice('Obsidian has not listed ' + note.split('/').pop() + ' yet. Try again in a moment.');
         return;
       }
     }

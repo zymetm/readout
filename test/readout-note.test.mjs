@@ -129,3 +129,16 @@ test('the notes live where the .json files lived, with .md; the old paths stay n
   assert.equal(lib.noteTwinOf('A/B/sleep.json'), 'A/B/sleep.md');
   assert.equal(lib.noteTwinOf('A/B/sleep.JSON'), 'A/B/sleep.md');
 });
+
+test('a save that needs a longer fence, or over a tilde fence, swaps the fence lines and keeps the words around the block', () => {
+  const prose = (open, close) => '---\ntags: [x]\nreadout: dashboard\n---\n\nMy words above.\n\n' + open + '\n{"a":1}\n' + close + '\n\nMy words below.\n';
+  const withTicks = JSON.stringify({ title: 'a ' + TICKS + ' b' });
+  for (const [open, close] of [[TICKS + 'json', TICKS], ['~~~json', '~~~']]) {
+    const out = lib.rewriteReadoutNote(prose(open, close), 'dashboard', withTicks);
+    assert.equal(out.startsWith('---\ntags: [x]\nreadout: dashboard\n---\n\nMy words above.\n\n````json\n'), true, open);
+    assert.equal(out.endsWith('\n````\n\nMy words below.\n'), true, open);
+    assert.equal(lib.readReadoutNote(out, 'dashboard').json, withTicks, open);
+  }
+  const plain = lib.rewriteReadoutNote(prose('~~~json', '~~~'), 'dashboard', '{"b":2}');
+  assert.equal(plain.includes('\n```json\n{"b":2}\n```\n\nMy words below.'), true, 'a tilde fence becomes a backtick fence of the usual length');
+});

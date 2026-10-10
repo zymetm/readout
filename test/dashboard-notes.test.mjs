@@ -267,3 +267,12 @@ test('"Check this note as a dashboard" says whether the open note reads, in plai
   assert.match((await say(DIR + '/plain.md')).said[0], /not a ReadOut dashboard/);
   assert.ok(adapter);
 });
+
+test('"Open as text" on a note Obsidian has not listed yet says so, and never hands a note to the JSON view', async () => {
+  const { plugin, leaf, opened } = await setup({});
+  plugin.app.vault.getAbstractFileByPath = () => null;
+  notices.length = 0;
+  await plugin.openDashboardAsText(DIR + '/new.md', leaf);
+  assert.deepEqual(opened, []);
+  assert.equal(notices.some((n) => /has not listed new.md yet/.test(n)), true);
+});
