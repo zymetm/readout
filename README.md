@@ -59,13 +59,22 @@ from a table with a few clicks, or you can write the SQL yourself.
 - Dashboards are Markdown notes in the dashboards folder. Each time the desktop
   draws a dashboard with no failed widget, it saves the answers as a note in the
   cache folder, and that is what a phone shows. Both kinds are ordinary notes,
-  so default Obsidian Sync carries them. They also appear in search and in the
-  graph; to keep them out, add the two folders under Settings, Files and links,
-  Excluded files.
+  so default Obsidian Sync carries them. They also appear in search, the graph
+  and unlinked mentions. To keep them out, add the cache folder (and, if you
+  like, the dashboards folder) under Settings → Files and links → Excluded
+  files. Excluded notes are hidden from search, the graph, unlinked mentions
+  and the Properties and Tags views, and are only pushed lower in the Quick
+  switcher and link suggestions. They still show in the file explorer and
+  still sync.
 - Earlier versions saved dashboards and the cache as `.json` files. ReadOut
-  still reads them, and each time it loads it writes a note beside every
-  `.json` that has none. It never changes or deletes the `.json`. Where a note
-  and a `.json` share a name, the note is the one that counts.
+  still reads them, and each time the desktop loads it writes a note beside
+  every `.json` that has none. It never changes or deletes the `.json`. Where
+  a note and a `.json` share a name, the note is the one that counts, unless
+  the cache `.json` is newer. Update ReadOut on every device: a desktop still
+  on 1.0.x keeps writing `.json`, which 1.1 devices ignore once a note exists.
+- If Obsidian Sync's merge ever breaks a dashboard note, it shows as an error
+  at the top of the dashboards view, and Version history or File recovery
+  brings back the last good copy.
 - The first time ReadOut runs it picks the folders: `Databases`,
   `Databases/Dashboards` and `Databases/Dashboard Cache`. In a vault that has
   the ICOR for Life scaffold it picks the vault's own Databases room
@@ -572,7 +581,9 @@ it is for.
   search to the databases folder.
 - **Reading and writing inside your vault.** It reads the databases you open,
   read-only. It writes its own files, as ordinary files in your vault: the dashboards you save, the small caches that
-  let a phone show them, the two guides (`README.md` and
+  let a phone show them (notes in the cache folder; when you switch on
+  "Include category values in the mobile catalog", the catalog note holds
+  those values and is searchable like any note), the two guides (`README.md` and
   `AI-WIDGET-GUIDE.md`) in the dashboards folder, and only when you ask, and a
   CSV file when you click "Save as CSV" on a query result (in an `Exports`
   folder inside the database folder). It creates no folder and no file just by
