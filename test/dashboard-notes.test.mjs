@@ -388,3 +388,29 @@ test('a pane closed while its dashboard is still drawing stops quietly; a failur
     console.error = realError;
   }
 });
+
+test('a pane closed while the dashboards folder is being read draws nothing: no render, no observer, no query', async () => {
+  const { plugin } = await setup({ [DIR + '/shop.md']: note(lib, SPEC) });
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const real = plugin.loadDashboardSpecs.bind(plugin);
+  plugin.loadDashboardSpecs = async () => { const out = await real(); await gate; return out; };
+  let queries = 0;
+  plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
+  plugin.query.query = async () => { queries++; return { columns: ['n'], rows: [[1]], ms: 1 }; };
+  const view = plugin.viewFactories['readout-dashboards']({ app: plugin.app });
+  view.app = plugin.app;
+  let renders = 0;
+  const render = view.render.bind(view);
+  view.render = () => { renders++; return render(); };
+  const reloading = view.reload();
+  await view.onClose();
+  release();
+  await reloading;
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(renders, 0);
+  assert.equal(view.gridRO, null, 'no observer left running');
+  assert.deepEqual(unwrap(view.tileROs), []);
+  assert.equal(queries, 0);
+  assert.deepEqual(unwrap(view.specs), [], 'the late read is not taken either');
+});

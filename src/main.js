@@ -5476,6 +5476,9 @@ class SqliteDashboardsView extends ItemView {
     this.reloadPending = false;
     if (this.closed) return;
     const { specs, errors } = await this.plugin.loadDashboardSpecs();
+    /* A pane closed while the folder was read draws nothing: a draw now would
+     * leave observers and queries running for a pane that is gone. */
+    if (this.closed) return;
     this.specs = specs;
     this.errors = errors;
     if (!this.activeId || !this.specs.some((s) => s.id === this.activeId)) {
