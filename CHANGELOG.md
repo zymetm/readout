@@ -6,6 +6,26 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-10-10
+
+### Added
+- **Opening a dashboard note shows the dashboard**, on desktop and phone: from
+  the file list, the quick switcher, a link or a new tab. "Open as note" in
+  the file menu, or "Open as text" on the dashboard, shows the note itself,
+  and Back returns to it. A setting turns this off.
+- **The command "Remove old .json dashboards and cache files".** Once every
+  device runs ReadOut 1.1, it sends the old .json copies where your deleted
+  files go. It only moves a .json whose note exists and matches it.
+
+### Changed
+- The README and the in-vault help say plainly what ReadOut does on a phone
+  and why dashboards are notes, and the install section leads with Community
+  plugins (the manual install is still there).
+- A dashboards tab remembers which dashboard it shows when Obsidian restarts.
+
+### Fixed
+- A dashboards tab closed while it is still drawing stops quietly.
+
 ## [1.1.0] - 2026-10-09
 
 ### Changed
