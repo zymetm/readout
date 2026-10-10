@@ -10409,6 +10409,7 @@ class ReadOutPlugin extends Plugin {
     /* A dashboard note opens in Obsidian's own editor, which cannot say
      * whether the dashboard still reads; this does, in the same words the
      * text editor of the JSON view uses. */
+    this.addCommand({ id: 'remove-old-json', name: 'Remove old .json dashboards and cache files', callback: () => this.removeOldJsonWithNotice() });
     this.addCommand({
       id: 'check-dashboard-note',
       name: 'Check this note as a dashboard',
@@ -10433,7 +10434,7 @@ class ReadOutPlugin extends Plugin {
        * on default Sync can have them. A phone writes nothing. */
       if (Platform.isDesktopApp) {
         this.migrateJsonToNotes().then((n) => {
-          if (n > 0) new Notice('ReadOut wrote ' + n + (n === 1 ? ' note' : ' notes') + ' beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged; you can delete them once every device runs ReadOut 1.1.');
+          if (n > 0) new Notice('ReadOut wrote ' + n + (n === 1 ? ' note' : ' notes') + ' beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged. Once every device runs ReadOut 1.1, run "Remove old .json dashboards and cache files".');
         }).catch(() => {});
       }
       /* The desktop is the only writer of the note-block cache, so it is the
@@ -11044,6 +11045,29 @@ class ReadOutPlugin extends Plugin {
    *
    * Returns how many notes it wrote. Running it again writes none. */
   async migrateJsonToNotes() {
+    return this.migrateOrRemove(false);
+  }
+
+  /* Moves the old .json dashboards and cache files to the trash, once their
+   * note is there. Only a .json whose .md twin exists, is marked as
+   * ReadOut's (the right kind) and holds the same id (dashboardId, or
+   * database, for a cache entry that has one) is touched, and only through
+   * the Vault API's trash, so it can be got back. A file that is not in the
+   * vault's index is left. Nothing here is automatic: the command runs it.
+   * Returns how many files went. */
+  async removeOldJsonFiles() {
+    return this.migrateOrRemove(true);
+  }
+
+  async removeOldJsonWithNotice() {
+    const n = await this.removeOldJsonFiles();
+    new Notice(n === 0
+      ? 'No old .json dashboards or cache files have a note beside them yet, so nothing was moved to the trash.'
+      : 'Moved ' + n + ' old .json ' + (n === 1 ? 'file' : 'files') + ' to the trash. Their notes are what ReadOut uses.');
+    return n;
+  }
+
+  async migrateOrRemove(remove) {
     const adapter = this.app.vault.adapter;
     const cache = this.settings.cacheFolder;
     const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -11064,6 +11088,23 @@ class ReadOutPlugin extends Plugin {
           if (!/\.json$/i.test(path) || !accept(path)) continue;
           try {
             const twin = noteTwinOf(path);
+            if (remove) {
+              if (!(await adapter.exists(twin))) continue;
+              const note = readReadoutNote(await adapter.read(twin), kind);
+              if (!note.marked || !note.ok) continue;
+              let mine;
+              let theirs;
+              try { mine = JSON.parse(await adapter.read(path)); theirs = JSON.parse(note.json); } catch { continue; }
+              if (!isObject(mine) || !isObject(theirs)) continue;
+              const keys = ['id', 'dashboardId', 'database'].filter((k) => mine[k] !== undefined);
+              if (kind === 'dashboard' && !keys.includes('id')) continue;
+              if (keys.some((k) => mine[k] !== theirs[k])) continue;
+              const file = this.app.vault.getAbstractFileByPath(path);
+              if (!(file instanceof TFile) || typeof this.app.vault.trash !== 'function') continue;
+              try { await this.app.vault.trash(file, true); } catch { await this.app.vault.trash(file, false); }
+              written++;
+              continue;
+            }
             if (await adapter.exists(twin)) continue;
             const text = await adapter.read(path);
             if (!valid(text)) continue;

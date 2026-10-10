@@ -188,7 +188,7 @@ test('it runs when the workspace is ready on the desktop, once, with one line sa
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(desk.adapter.files.has(DASH + '/shop.md'), true);
   assert.equal(desk.adapter.files.has(CACHE + '/dashboards/shop.md'), true);
-  assert.deepEqual(notices.filter((n) => /^ReadOut wrote/.test(n)), ['ReadOut wrote 4 notes beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged; you can delete them once every device runs ReadOut 1.1.']);
+  assert.deepEqual(notices.filter((n) => /^ReadOut wrote/.test(n)), ['ReadOut wrote 4 notes beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged. Once every device runs ReadOut 1.1, run "Remove old .json dashboards and cache files".']);
 
   /* Nothing left to write: no notice. */
   notices.length = 0;
@@ -244,4 +244,78 @@ test('after migration the dashboards view lists each dashboard once, from its no
   assert.deepEqual(unwrap(specs.map((s) => [s.id, s.path])), [['shop', DASH + '/shop.md']]);
   assert.deepEqual(unwrap(errors), []);
   assert.deepEqual(unwrap((await plugin.readDashboardCache(specs[0])).tiles), CACHED.tiles);
+});
+
+/* ------------------------------------------- removing the old .json -- */
+
+async function withTrash(files, opts) {
+  const ctx = await boot(files, opts);
+  const trashed = [];
+  const vault = ctx.plugin.app.vault;
+  vault.trash = async (file, system) => { trashed.push([file.path, system]); ctx.adapter.files.delete(file.path); };
+  return Object.assign(ctx, { trashed });
+}
+
+test('"Remove old .json dashboards and cache files" moves a .json to the trash once its note is there, and never hard-deletes', async () => {
+  const { plugin, adapter, trashed } = await withTrash(everything());
+  assert.equal(await plugin.removeOldJsonFiles(), 0, 'no note yet: nothing goes');
+  await plugin.migrateJsonToNotes();
+  adapter.log.length = 0;
+  assert.equal(await plugin.removeOldJsonFiles(), 4);
+  assert.deepEqual(trashed.map(([p]) => p).sort(), Object.keys(everything()).sort());
+  assert.deepEqual(trashed.map(([, system]) => system), [true, true, true, true], 'the system trash first');
+  assert.deepEqual(adapter.log.filter(([op]) => op === 'remove'), [], 'no hard delete');
+  assert.equal([...adapter.files.keys()].every((p) => p.endsWith('.md') || p === DB), true);
+  const { specs } = await plugin.loadDashboardSpecs();
+  assert.deepEqual(unwrap(specs.map((s) => s.id)), ['shop'], 'the dashboard is still there');
+});
+
+test('only a .json whose note is ReadOut\'s, of the right kind, and holds the same id is removed', async () => {
+  const other = lib.writeReadoutNote('dashboard', JSON.stringify(Object.assign({}, SPEC, { id: 'different' })));
+  const files = {
+    [DASH + '/same.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'same' })), [DASH + '/same.md']: lib.writeReadoutNote('dashboard', JSON.stringify(Object.assign({}, SPEC, { id: 'same' }))),
+    [DASH + '/lone.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'lone' })),
+    [DASH + '/mine.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'mine' })), [DASH + '/mine.md']: '# my own note\n',
+    [DASH + '/moved.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'moved' })), [DASH + '/moved.md']: other,
+    [DASH + '/broken.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'broken' })), [DASH + '/broken.md']: lib.writeReadoutNote('dashboard', '{ nope'),
+    [DASH + '/wrongkind.json']: JSON.stringify(Object.assign({}, SPEC, { id: 'wrongkind' })), [DASH + '/wrongkind.md']: lib.writeReadoutNote('cache', JSON.stringify(Object.assign({}, SPEC, { id: 'wrongkind' }))),
+    [DASH + '/noid.json']: JSON.stringify({ title: 'x', tiles: [] }), [DASH + '/noid.md']: lib.writeReadoutNote('dashboard', JSON.stringify({ title: 'x', tiles: [] })),
+    [CACHE + '/dashboards/c.json']: JSON.stringify({ dashboardId: 'c', computedAt: 'x', tiles: [] }), [CACHE + '/dashboards/c.md']: lib.writeReadoutNote('cache', JSON.stringify({ dashboardId: 'other', computedAt: 'x', tiles: [] })),
+    [CACHE + '/catalogs/shop.json']: JSON.stringify(CATALOG), [CACHE + '/catalogs/shop.md']: lib.writeReadoutNote('cache', JSON.stringify(CATALOG)),
+  };
+  const { plugin, trashed, adapter } = await withTrash(files);
+  assert.equal(await plugin.removeOldJsonFiles(), 1);
+  assert.deepEqual(trashed.map(([p]) => p), [DASH + '/same.json']);
+  assert.equal(adapter.files.has(DASH + '/lone.json'), true);
+  assert.equal(adapter.files.has(CACHE + '/catalogs/shop.json'), true, 'the 0.5.0 stem catalog is never part of it');
+});
+
+test('a .json Obsidian does not index, or a vault with no trash, is left; the command says what it did', async () => {
+  const files = everything();
+  const a = await withTrash(files);
+  await a.plugin.migrateJsonToNotes();
+  a.plugin.app.vault.getAbstractFileByPath = () => null;
+  assert.equal(await a.plugin.removeOldJsonFiles(), 0);
+  const b = await boot(files);
+  await b.plugin.migrateJsonToNotes();
+  assert.equal(await b.plugin.removeOldJsonFiles(), 0, 'no trash in the vault API: nothing is deleted another way');
+  assert.equal(b.adapter.files.has(DASH + '/shop.json'), true);
+
+  const c = await withTrash(files);
+  await c.plugin.migrateJsonToNotes();
+  const command = c.plugin.commands.find((x) => x.id === 'remove-old-json');
+  assert.equal(command.name, 'Remove old .json dashboards and cache files');
+  notices.length = 0;
+  await c.plugin.removeOldJsonWithNotice();
+  assert.deepEqual(notices, ['Moved 4 old .json files to the trash. Their notes are what ReadOut uses.']);
+  notices.length = 0;
+  await c.plugin.removeOldJsonWithNotice();
+  assert.match(notices[0], /nothing was moved/);
+});
+
+test('nothing is removed by itself: starting the plugin, with notes and .json side by side, trashes nothing', async () => {
+  const ctx = await withTrash(everything(), { desktop: true, onLayoutReady: (fn) => fn() });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(ctx.trashed, []);
+  assert.equal(ctx.adapter.files.has(DASH + '/shop.json'), true);
 });
