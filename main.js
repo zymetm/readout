@@ -5397,6 +5397,7 @@ class SqliteDashboardsView extends ItemView {
   }
 
   async onOpen() {
+    this.closed = false;
     /* A dashboard file changed on disk (an edit as text in another pane,
      * or one that arrived through Sync): show it, rather than keep a spec
      * the next save would write over it. The gates' fake vaults have no
@@ -5473,6 +5474,7 @@ class SqliteDashboardsView extends ItemView {
 
   async reload() {
     this.reloadPending = false;
+    if (this.closed) return;
     const { specs, errors } = await this.plugin.loadDashboardSpecs();
     this.specs = specs;
     this.errors = errors;
@@ -5485,6 +5487,10 @@ class SqliteDashboardsView extends ItemView {
   /* A dashboard is never allowed to fail into a blank pane. Whatever went
    * wrong is written into the view, in plain words plus the raw detail. */
   showFailure(e, host) {
+    /* A pane closed while it was still drawing: what the draw trips over
+     * afterwards is not a plugin problem and has nobody to be shown to. A
+     * failure in a pane that is open is always shown and logged. */
+    if (this.closed) return;
     const el = (host || this.contentEl).createDiv({ cls: 'icor-sqlv-error' });
     el.createDiv({ text: 'The dashboards could not be drawn. This is a plugin problem, not a data problem.' });
     el.createDiv({ text: String((e && e.message) || e) });
@@ -5614,6 +5620,7 @@ class SqliteDashboardsView extends ItemView {
   }
 
   async onClose() {
+    this.closed = true;
     this.guideUi = null;
     if (this.gridRO) { this.gridRO.disconnect(); this.gridRO = null; }
     this.releaseTileObservers();

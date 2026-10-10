@@ -357,3 +357,34 @@ test('the dashboards view carries the dashboard it shows in its view state, so a
   await plugin.openDashboards('b');
   assert.deepEqual(set, [{ type: 'readout-dashboards', active: true, state: { activeId: 'b' } }]);
 });
+
+test('a pane closed while its dashboard is still drawing stops quietly; a failure in an open pane is still shown and logged', async () => {
+  const logged = [];
+  const realError = console.error;
+  console.error = (...a) => logged.push(a.join(' '));
+  try {
+    const drawing = async (closeFirst) => {
+      const { plugin } = await setup({ [DIR + '/shop.md']: note(lib, SPEC) });
+      let release;
+      const gate = new Promise((r) => { release = r; });
+      plugin.readDashboardCache = async () => { await gate; throw new TypeError('a draw that trips after its pane is gone'); };
+      plugin.query.engineFor = async () => ({ engine: null, reason: 'x' });
+      const view = plugin.viewFactories['readout-dashboards']({ app: plugin.app });
+      view.app = plugin.app;
+      await view.onOpen();
+      await new Promise((r) => setTimeout(r, 10));
+      if (closeFirst) await view.onClose();
+      release();
+      await new Promise((r) => setTimeout(r, 30));
+      return view;
+    };
+    await drawing(true);
+    assert.deepEqual(logged, [], 'closed: nothing logged');
+    const open = await drawing(false);
+    assert.equal(logged.length, 1, 'open: a real failure is logged');
+    assert.match(logged[0], /dashboards failed to render/);
+    assert.equal(open.contentEl.children.length > 0, true);
+  } finally {
+    console.error = realError;
+  }
+});
