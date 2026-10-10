@@ -1833,16 +1833,113 @@ function specToJson(spec) {
   return JSON.stringify(out, null, 2) + '\n';
 }
 
+/* ------------------------------------------------------ ReadOut notes -- */
+
+/* Dashboards and the phone cache are saved as Markdown notes, because the
+ * notes Obsidian Sync carries by default are .md files: a .json file is an
+ * "other file type", which default Sync leaves behind, so a phone on default
+ * settings would show no dashboards at all.
+ *
+ * A ReadOut note is plain Markdown:
+ *
+ *   ---
+ *   readout: dashboard        (or: cache)
+ *   ---
+ *
+ *   One line saying what the note is.
+ *
+ *   ```json
+ *   { ...the JSON, exactly as it used to be a .json file... }
+ *   ```
+ *
+ * The frontmatter marks the file as ReadOut's, so a README or a note of the
+ * member's in the same folder is never mistaken for one. The JSON sits in a
+ * fenced block, so it reads as code, can be edited in Obsidian's own editor,
+ * and comes back byte for byte: the fence is made longer than any run of
+ * backticks inside the JSON, and everything outside the block (the line of
+ * explanation, extra properties, a member's own words) is ignored when
+ * reading. */
+const READOUT_NOTE_PROPERTY = 'readout';
+const READOUT_NOTE_LEAD = {
+  dashboard: 'A ReadOut dashboard. Open it with the "Open dashboards" command or the chart icon in the left ribbon; the JSON below is the dashboard itself.',
+  cache: 'The last answers ReadOut drew, kept so a phone can show them. ReadOut rewrites this note each time the desktop draws; change the dashboard, not this note.',
+};
+
+/* The note's text for some JSON text. Exact: readReadoutNote gives the same
+ * text back. */
+function writeReadoutNote(kind, jsonText) {
+  const text = String(jsonText);
+  let longest = 0;
+  for (const run of text.match(/`+/g) || []) longest = Math.max(longest, run.length);
+  const fence = '`'.repeat(Math.max(3, longest + 1));
+  return '---\n' + READOUT_NOTE_PROPERTY + ': ' + kind + '\n---\n\n' + READOUT_NOTE_LEAD[kind] + '\n\n' + fence + 'json\n' + text + '\n' + fence + '\n';
+}
+
+/* Where the first json block sits in a note's text, or why there is none.
+ * { marked: false } for a text that is not a ReadOut note of this kind (no
+ * frontmatter, no `readout:` property, or another kind); { marked: true,
+ * ok: false, reason } for one that is but cannot be read; otherwise
+ * { marked: true, ok: true, raw, lines, open, close, fence }, raw being the
+ * text with line endings made "\n" and lines what follows the frontmatter.
+ * Pure; never throws. */
+function locateReadoutNote(text, kind) {
+  const raw = String(text === undefined || text === null ? '' : text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  const fm = /^---\n(?:([\s\S]*?)\n)?---[ \t]*(?:\n|$)/.exec(raw);
+  if (!fm) return { marked: false };
+  const mark = /^readout[ \t]*:[ \t]*["']?([A-Za-z]+)["']?[ \t]*$/m.exec(fm[1] || '');
+  if (!mark || mark[1].toLowerCase() !== kind) return { marked: false };
+  const lines = raw.slice(fm[0].length).split('\n');
+  let open = -1;
+  let fence = '';
+  for (let i = 0; i < lines.length && open < 0; i++) {
+    const m = /^ {0,3}(`{3,}|~{3,})[ \t]*json[ \t]*$/i.exec(lines[i]);
+    if (m) { open = i; fence = m[1]; }
+  }
+  if (open < 0) return { marked: true, ok: false, reason: 'This ReadOut note has no json block.' };
+  const closer = new RegExp('^ {0,3}' + fence[0] + '{' + fence.length + ',}[ \\t]*$');
+  let close = -1;
+  for (let i = open + 1; i < lines.length && close < 0; i++) if (closer.test(lines[i])) close = i;
+  if (close < 0) return { marked: true, ok: false, reason: 'The json block in this ReadOut note is not closed.' };
+  return { marked: true, ok: true, raw, head: raw.slice(0, raw.length - lines.join('\n').length), lines, open, close, fence };
+}
+
+/* The JSON text inside a ReadOut note of this kind: { marked, ok, json }, or
+ * the reason it cannot be read. */
+function readReadoutNote(text, kind) {
+  const at = locateReadoutNote(text, kind);
+  if (!at.marked || !at.ok) return at;
+  return { marked: true, ok: true, json: at.lines.slice(at.open + 1, at.close).join('\n') };
+}
+
+/* A note's text with only the JSON inside its block replaced, so whatever a
+ * member wrote around the block survives a save from the builder. A note
+ * that cannot be read this way, or JSON that needs a longer fence, comes
+ * back written afresh. */
+function rewriteReadoutNote(existingText, kind, jsonText) {
+  const at = locateReadoutNote(existingText, kind);
+  const text = String(jsonText);
+  const needs = Math.max(3, ...(text.match(/`+/g) || []).map((r) => r.length + 1));
+  if (!at.marked || !at.ok || at.fence[0] !== '`' || at.fence.length < needs) return writeReadoutNote(kind, text);
+  return at.head + at.lines.slice(0, at.open + 1).concat(text.split('\n'), at.lines.slice(at.close)).join('\n');
+}
+
+/* The .md twin of a .json path, in the same folder. */
+function noteTwinOf(path) {
+  return String(path).replace(/\.json$/i, '.md');
+}
+
 /* Where a dashboard's computed results live in the vault, so Obsidian Sync
  * carries them to devices that cannot open the database itself. Since
  * 0.2.0 a dashboard can read several databases, so the cache is keyed by
- * dashboard id; cachePathFor stays for reading a 0.1.x cache. */
+ * dashboard id; cachePathFor stays for reading a 0.1.x cache. The notes
+ * (.md) are what is written and read first; the .json paths are what
+ * versions before 1.1 wrote, still read as a fallback. */
 function cachePathFor(cacheFolder, dbPath, dashboardId) {
   return normalizePath(cacheFolder + '/' + stemOf(dbPath) + '/' + dashboardId + '.json');
 }
 
-function dashCachePath(cacheFolder, dashboardId) {
-  return normalizePath(cacheFolder + '/dashboards/' + dashboardId + '.json');
+function dashCachePath(cacheFolder, dashboardId, ext) {
+  return normalizePath(cacheFolder + '/dashboards/' + dashboardId + '.' + (ext || 'json'));
 }
 
 /* The catalog a desktop writes next to the cache: enough schema for the
@@ -1876,8 +1973,8 @@ function bytesOfB64(b64) {
   return out;
 }
 
-function catalogPathFor(cacheFolder, dbPath) {
-  return normalizePath(cacheFolder + '/catalogs/' + dbKeyOf(dbPath) + '.json');
+function catalogPathFor(cacheFolder, dbPath, ext) {
+  return normalizePath(cacheFolder + '/catalogs/' + dbKeyOf(dbPath) + '.' + (ext || 'json'));
 }
 
 /* Where a 0.5.0 catalog lived, read as a fallback until it regenerates. */
@@ -10025,8 +10122,8 @@ const BLOCK_SPEC_PASS_MS = 2000;
 /* How long a note-block cache file may sit unused before it is removed. */
 const BLOCK_CACHE_MAX_AGE_DAYS = 60;
 
-function blockCachePath(cacheFolder, key) {
-  return normalizePath(cacheFolder + '/notes/' + key + '.json');
+function blockCachePath(cacheFolder, key, ext) {
+  return normalizePath(cacheFolder + '/notes/' + key + '.' + (ext || 'json'));
 }
 
 class WidgetBlockChild extends MarkdownRenderChild {
@@ -10843,6 +10940,7 @@ ReadOutPlugin.lib = {
   niceScale, stackRows, statOf,
   validTimeframe, resolveTimeframe, timeframeConditions, sqlForWidget,
   pivotSeries, prepareTileForRender, checkWidgetSource, specToJson,
+  writeReadoutNote, readReadoutNote, rewriteReadoutNote, noteTwinOf,
   tileDatabase, tileSql, isNumericType, isTextType, guessTimeColumn,
   matchesNeedle, colsForWidth, defaultSpanFor, clampLayout, rectsCollide,
   findSpot, packLayout, normalizeLayout, showAddTile, seriesPaletteFor, barPath,
