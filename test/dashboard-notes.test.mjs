@@ -326,3 +326,34 @@ test('a save goes through the Vault API: process for a note Obsidian has, create
   assert.equal(adapter.files.get(DIR + '/shop.md'), arrived);
   assert.ok(notices.some((n) => /changed on disk/.test(n)));
 });
+
+test('the dashboards view carries the dashboard it shows in its view state, so a restored pane, Back or Forward shows the right one', async () => {
+  const two = { [DIR + '/a.md']: note(lib, Object.assign({}, SPEC, { id: 'a', title: 'A' })), [DIR + '/b.md']: note(lib, Object.assign({}, SPEC, { id: 'b', title: 'B' })) };
+  const { plugin } = await setup(two);
+  plugin.query.cli = { ok: false, reason: 'gate' };
+  const open = async (state) => {
+    const view = plugin.viewFactories['readout-dashboards']({ app: plugin.app });
+    view.app = plugin.app;
+    if (state) await view.setState(state, {});
+    await view.onOpen();
+    await new Promise((r) => setTimeout(r, 15));
+    return view;
+  };
+  const before = await open({ activeId: 'b' });
+  assert.equal(before.activeId, 'b', 'state arriving before the folder is read');
+  const after = await open();
+  assert.equal(after.activeId, 'a');
+  await after.setState({ activeId: 'b' }, {});
+  assert.equal(after.activeId, 'b', 'state arriving after the folder is read');
+  assert.equal(unwrap(after.getState()).activeId, 'b');
+  await after.setState({ activeId: 'gone' }, {});
+  await after.reload();
+  assert.equal(after.activeId, 'a', 'a dashboard that is no longer there falls back to the first');
+
+  /* A new pane for a dashboard gets it in the state, not by a second read. */
+  const set = [];
+  plugin.app.workspace.getLeaf = () => ({ setViewState: async (s) => { set.push(unwrap(s)); } });
+  plugin.app.workspace.revealLeaf = () => {};
+  await plugin.openDashboards('b');
+  assert.deepEqual(set, [{ type: 'readout-dashboards', active: true, state: { activeId: 'b' } }]);
+});

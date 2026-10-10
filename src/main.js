@@ -5366,6 +5366,23 @@ class SqliteDashboardsView extends ItemView {
   getIcon() { return 'bar-chart-3'; }
   getDisplayText() { return 'Dashboards'; }
 
+  /* The dashboard shown rides the view state, like any Obsidian view option,
+   * so a pane that is restored, or reached by Back or Forward, shows the
+   * dashboard it was showing. */
+  getState() {
+    const state = super.getState ? super.getState() : {};
+    if (this.activeId) state.activeId = this.activeId;
+    return state;
+  }
+
+  async setState(state, result) {
+    if (state && typeof state.activeId === 'string' && state.activeId) {
+      this.activeId = state.activeId;
+      if (this.specs.length && this.specs.some((sp) => sp.id === this.activeId)) this.render();
+    }
+    if (super.setState) await super.setState(state, result);
+  }
+
   /* The pane's "More options" menu: the open dashboard's file as text,
    * for any setting the edit form has no field for. */
   onPaneMenu(menu, source) {
@@ -10757,13 +10774,8 @@ class ReadOutPlugin extends Plugin {
       return;
     }
     const leaf = this.app.workspace.getLeaf(true);
-    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
+    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true, state: activeId ? { activeId } : {} });
     this.app.workspace.revealLeaf(leaf);
-    const view = leaf.view;
-    if (activeId && view && typeof view.reload === 'function') {
-      view.activeId = activeId;
-      await view.reload();
-    }
   }
 
   /* The dashboards for the widget blocks of a note: a note with several blocks
