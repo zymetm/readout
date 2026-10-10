@@ -10337,6 +10337,20 @@ class ReadOutPlugin extends Plugin {
     this.addCommand({ id: 'list-databases', name: 'List databases', callback: () => new DatabaseIndexModal(this).open() });
     this.addCommand({ id: 'open-browser', name: 'Open database browser', callback: () => this.openBrowserFor(null) });
     this.addCommand({ id: 'write-guide-files', name: 'Write the guide files', callback: () => this.writeGuideFilesWithNotice() });
+    /* A dashboard note opens in Obsidian's own editor, which cannot say
+     * whether the dashboard still reads; this does, in the same words the
+     * text editor of the JSON view uses. */
+    this.addCommand({
+      id: 'check-dashboard-note',
+      name: 'Check this note as a dashboard',
+      checkCallback: (checking) => {
+        const ws = this.app.workspace;
+        const file = ws && typeof ws.getActiveFile === 'function' ? ws.getActiveFile() : null;
+        if (!file || typeof file.path !== 'string' || !/\.md$/i.test(file.path)) return false;
+        if (!checking) this.checkDashboardNote(file).catch(() => {});
+        return true;
+      },
+    });
 
     this.addSettingTab(new SqliteViewerSettingTab(this.app, this));
 
@@ -10931,6 +10945,28 @@ class ReadOutPlugin extends Plugin {
       if (cache && Array.isArray(cache.tiles) && typeof cache.computedAt === 'string') return cache;
     }
     return null;
+  }
+
+  /* Says in a notice whether a note reads as a dashboard, and returns what
+   * it said. */
+  async checkDashboardNote(file) {
+    let message;
+    try {
+      const note = readReadoutNote(await this.app.vault.read(file), 'dashboard');
+      if (!note.marked) message = 'This note is not a ReadOut dashboard: its properties need "readout: dashboard".';
+      else if (!note.ok) message = 'The dashboard will not open like this: ' + note.reason;
+      else {
+        const parsed = parseDashboardSpec(note.json);
+        const n = parsed.ok ? parsed.spec.tiles.length : 0;
+        message = parsed.ok
+          ? 'The dashboard reads fine: ' + n + (n === 1 ? ' widget.' : ' widgets.')
+          : 'The dashboard will not open like this: ' + parsed.reason;
+      }
+    } catch (e) {
+      message = 'This note could not be read: ' + (e && e.message ? e.message : 'unknown error') + '.';
+    }
+    new Notice(message);
+    return message;
   }
 
   /* The two guide files in the dashboards folder: written when missing,

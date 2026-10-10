@@ -242,3 +242,28 @@ test('folders typed by hand with a trailing slash, a backslash or doubled slashe
   assert.deepEqual([...adapter.files.keys()], ['My Stuff/Dash/boards/dashboard-1.md']);
   assert.equal(lib.readReadoutNote(adapter.files.get('My Stuff/Dash/boards/dashboard-1.md'), 'dashboard').ok, true);
 });
+
+test('"Check this note as a dashboard" says whether the open note reads, in plain words', async () => {
+  const { plugin, adapter, fresh } = await setup({
+    [DIR + '/good.md']: note(lib, SPEC),
+    [DIR + '/no-tiles.md']: lib.writeReadoutNote('dashboard', JSON.stringify({ id: 'x', title: 'X' })),
+    [DIR + '/no-block.md']: '---\nreadout: dashboard\n---\n\nwords\n',
+    [DIR + '/plain.md']: '# not ours\n',
+  });
+  const command = plugin.commands.find((c) => c.id === 'check-dashboard-note');
+  assert.ok(command, 'the command is registered');
+  const say = async (path) => {
+    plugin.app.workspace.getActiveFile = () => (path ? new fresh.obsidian.TFile(path) : null);
+    notices.length = 0;
+    const available = command.checkCallback(true);
+    if (available) { command.checkCallback(false); await new Promise((r) => setTimeout(r, 10)); }
+    return { available, said: notices.slice() };
+  };
+  assert.deepEqual(await say(null), { available: false, said: [] });
+  assert.equal((await say(DIR + '/image.png')).available, false, 'only notes');
+  assert.deepEqual(unwrap((await say(DIR + '/good.md')).said), ['The dashboard reads fine: 1 widget.']);
+  assert.match((await say(DIR + '/no-tiles.md')).said[0], /^The dashboard will not open like this: .*"tiles"/);
+  assert.match((await say(DIR + '/no-block.md')).said[0], /^The dashboard will not open like this: .*no json block/);
+  assert.match((await say(DIR + '/plain.md')).said[0], /not a ReadOut dashboard/);
+  assert.ok(adapter);
+});
