@@ -299,3 +299,30 @@ test('with no file named after the id, the first of the files with that id is ke
   assert.match(errors[0].reason, /^Has the same id as a-board\.md; /);
   assert.equal(errors[0].path, DIR + '/b-board.md');
 });
+
+test('a save goes through the Vault API: process for a note Obsidian has, create for a new one, with the checks on the text at the moment of writing', async () => {
+  const { plugin, adapter, vault } = await setup({ [DIR + '/shop.md']: note(lib, SPEC) });
+  const calls = [];
+  const process = vault.process.bind(vault);
+  const create = vault.create.bind(vault);
+  vault.process = async (f, fn) => { calls.push(['process', f.path]); return process(f, fn); };
+  vault.create = async (p, t) => { calls.push(['create', p]); return create(p, t); };
+  const { specs } = await plugin.loadDashboardSpecs();
+  specs[0].title = 'Renamed';
+  assert.equal(await plugin.saveDashboardSpec(specs[0]), true);
+  await plugin.createDashboard();
+  assert.deepEqual(calls, [['process', DIR + '/shop.md'], ['create', DIR + '/dashboard-1.md']]);
+  assert.equal(JSON.parse(lib.readReadoutNote(adapter.files.get(DIR + '/shop.md'), 'dashboard').json).title, 'Renamed');
+
+  /* The file changes after the early check but before the write: the write
+   * sees it inside process and leaves it alone. */
+  const { specs: again } = await plugin.loadDashboardSpecs();
+  const target = again.find((s) => s.id === 'shop');
+  const arrived = note(lib, Object.assign({}, SPEC, { title: 'Arrived at the last moment' }));
+  vault.process = async (f, fn) => { adapter.files.set(f.path, arrived); return process(f, fn); };
+  target.title = 'From a stale form';
+  notices.length = 0;
+  assert.equal(await plugin.saveDashboardSpec(target), false);
+  assert.equal(adapter.files.get(DIR + '/shop.md'), arrived);
+  assert.ok(notices.some((n) => /changed on disk/.test(n)));
+});

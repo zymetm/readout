@@ -10488,8 +10488,8 @@ class ReadOutPlugin extends Plugin {
         try { raw = JSON.parse(note.json); } catch { continue; }
         const changed = renameLevelInDashboard(raw, from, to);
         if (!changed) continue;
-        await adapter.write(path, rewriteReadoutNote(text, kind, JSON.stringify(raw, null, 2)));
-        if (kind === 'dashboard') widgets += changed;
+        const wrote = await this.writeNoteText(path, (current) => (current === text ? rewriteReadoutNote(text, kind, JSON.stringify(raw, null, 2)) : null));
+        if (wrote && kind === 'dashboard') widgets += changed;
       }
       for (const path of jsons) {
         let raw;
@@ -10803,8 +10803,19 @@ class ReadOutPlugin extends Plugin {
       this.blockSpecCache = null;
       return true;
     }
-    const note = existing === null ? writeReadoutNote('dashboard', json) : rewriteReadoutNote(existing, 'dashboard', json);
-    await adapter.write(target, note);
+    /* The checks run again on the text as it is at the moment of writing. */
+    let conflict = false;
+    let note = null;
+    await this.writeNoteText(target, (current) => {
+      if (current !== null) {
+        const moved = target === spec.path && loaded !== undefined && current !== loaded;
+        const notOurs = target !== spec.path || (loaded === undefined && !readReadoutNote(current, 'dashboard').marked);
+        if (moved || notOurs) { conflict = true; return null; }
+      }
+      note = current === null ? writeReadoutNote('dashboard', json) : rewriteReadoutNote(current, 'dashboard', json);
+      return note;
+    });
+    if (conflict) return changedNotice(target);
     spec.path = target;
     DASHBOARD_LOADED_TEXT.set(spec, note);
     this.blockSpecCache = null;
@@ -10870,6 +10881,39 @@ class ReadOutPlugin extends Plugin {
     const note = writeReadoutNote('cache', jsonText);
     await adapter.write(path, note);
     return { bytes: new TextEncoder().encode(note).length };
+  }
+
+  /* Writes a note's text. When Obsidian has the file, through Vault.process,
+   * so `make` sees the text as it is at the moment of writing; a new file
+   * through Vault.create; otherwise (a folder Obsidian does not index, or no
+   * Vault API) through the adapter. `make(current)` gets the text or null
+   * and returns the new text, or null to leave the file alone. Returns
+   * whether it wrote. */
+  async writeNoteText(path, make) {
+    const vault = this.app.vault;
+    const adapter = vault.adapter;
+    const indexed = typeof vault.getAbstractFileByPath === 'function' ? vault.getAbstractFileByPath(path) : null;
+    if (indexed instanceof TFile && typeof vault.process === 'function') {
+      let wrote = false;
+      await vault.process(indexed, (current) => {
+        const next = make(current);
+        if (next === null) return current;
+        wrote = true;
+        return next;
+      });
+      return wrote;
+    }
+    let current = null;
+    if (await adapter.exists(path)) {
+      try { current = await adapter.read(path); } catch { current = null; }
+    }
+    const next = make(current);
+    if (next === null) return false;
+    if (current === null && !indexed && typeof vault.create === 'function') {
+      try { await vault.create(path, next); return true; } catch { /* the adapter below */ }
+    }
+    await adapter.write(path, next);
+    return true;
   }
 
   /* The JSON a cache path holds, or null: a note is read as a ReadOut note,
