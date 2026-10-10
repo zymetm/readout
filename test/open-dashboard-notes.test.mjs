@@ -341,3 +341,63 @@ test('the conversion does not touch the pane during the open that started it: op
   await raw.tick();
   assert.deepEqual(raw.states, [], 'asked for as a note in the meantime');
 });
+
+/* ------------------------------------ turns scheduled before an unload -- */
+
+test('unloading the plugin during the wait cancels the conversion, the retry, and the JSON view\'s hand-off', async () => {
+  const ctx = await setup(TWO());
+  ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
+  await new Promise((r) => setTimeout(r, 1)); /* the read is done, the turn is scheduled */
+  ctx.plugin.onunload();
+  await ctx.tick();
+  assert.deepEqual(ctx.states, [], 'no setViewState after unload');
+
+  /* Unloaded between the conversion and its second look: no retry. */
+  const late = await setup(TWO());
+  late.plugin.settleMs = 30;
+  late.leaf.setViewState = async (s) => { late.states.push(unwrap(s)); };
+  late.leaf.view = { getViewType: () => 'markdown', file: new late.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  late.handlers['file-open'](new late.fresh.obsidian.TFile(DIR + '/shop.md'));
+  await new Promise((r) => setTimeout(r, 15));
+  assert.equal(late.states.length, 1);
+  late.plugin.onunload();
+  await new Promise((r) => setTimeout(r, 120));
+  assert.equal(late.states.length, 1, 'the retry did not come');
+
+  /* The JSON view hands a dashboard file to the dashboards view on a later turn; not after unload. */
+  const json = await setup({ [DIR + '/old.json']: JSON.stringify(SPEC) });
+  const set = [];
+  const jleaf = { app: json.plugin.app, setViewState: async (s) => { set.push(s); } };
+  const jview = json.plugin.viewFactories['readout-json'](jleaf);
+  jview.app = json.plugin.app;
+  jview.leaf = jleaf;
+  jview.handToDashboards('shop');
+  json.plugin.onunload();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.deepEqual(set, []);
+});
+
+test('a pane that was closed during the wait is left alone', async () => {
+  const ctx = await setup(TWO());
+  ctx.plugin.app.workspace.getLeavesOfType = () => [ctx.leaf];
+  ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
+  await new Promise((r) => setTimeout(r, 1));
+  ctx.plugin.app.workspace.getLeavesOfType = () => []; /* closed */
+  await ctx.tick();
+  assert.deepEqual(ctx.states, []);
+});
+
+test('opening note B in the pane within the wait for note A still converts B', async () => {
+  const ctx = await setup(TWO());
+  ctx.plugin.settleMs = 60;
+  const noteOf = (p) => ({ getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(p), getState: () => ({}) });
+  ctx.leaf.view = noteOf(DIR + '/shop.md');
+  ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
+  await new Promise((r) => setTimeout(r, 1));
+  ctx.leaf.view = noteOf(DIR + '/other.md');
+  ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/other.md'));
+  await new Promise((r) => setTimeout(r, 200));
+  assert.deepEqual(ctx.states.map((s) => s.state.activeId), ['other']);
+});

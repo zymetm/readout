@@ -8457,6 +8457,7 @@ class JsonFileView extends FileView {
   handToDashboards(id) {
     const leaf = this.leaf;
     window.setTimeout(async () => {
+      if (this.plugin.unloaded) return;
       try {
         await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
         const view = leaf.view;
@@ -10492,6 +10493,8 @@ class ReadOutPlugin extends Plugin {
   }
 
   onunload() {
+    /* Turns that were scheduled before this do nothing when they come. */
+    this.unloaded = true;
     if (this.query && this.query.wasm) this.query.wasm.closeAll();
   }
 
@@ -10825,26 +10828,36 @@ class ReadOutPlugin extends Plugin {
    * memory of the conversion is dropped and it is tried again (twice at most),
    * so nothing stale is left behind. */
   convertWhenSettled(leaf, path, id, attempt) {
-    if (!this.pendingLeaves) this.pendingLeaves = new WeakSet();
+    if (!this.pendingLeaves) this.pendingLeaves = new WeakMap();
+    let pending = this.pendingLeaves.get(leaf);
+    if (!pending) { pending = new Set(); this.pendingLeaves.set(leaf, pending); }
     if (attempt === 0) {
-      if (this.pendingLeaves.has(leaf)) return;
-      this.pendingLeaves.add(leaf);
+      if (pending.has(path)) return;
+      pending.add(path);
     }
     const settle = typeof this.settleMs === 'number' ? this.settleMs : 120;
-    const done = () => { this.pendingLeaves.delete(leaf); };
+    const done = () => { pending.delete(path); };
+    /* Still in the workspace: a pane closed while this waited is left alone. */
+    const attached = () => {
+      const ws = this.app.workspace;
+      if (!ws || typeof ws.getLeavesOfType !== 'function') return true;
+      return ws.getLeavesOfType('markdown').includes(leaf) || ws.getLeavesOfType(VIEW_DASHBOARDS).includes(leaf);
+    };
     const isNote = () => {
       const v = leaf.view;
       return !!v && typeof v.getViewType === 'function' && v.getViewType() === 'markdown' && !!v.file && v.file.path === path;
     };
     window.setTimeout(async () => {
+      if (this.unloaded) return;
       try {
         const st = this.leafState(leaf);
-        if (!isNote() || st.note === path) { done(); return; }
+        if (!attached() || !isNote() || st.note === path) { done(); return; }
         st.from.add(path);
         await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true, state: { activeId: id } });
         window.setTimeout(async () => {
+          if (this.unloaded) return;
           try {
-            if (isNote() && attempt < 2) {
+            if (attached() && isNote() && attempt < 2) {
               st.from.delete(path);
               this.convertWhenSettled(leaf, path, id, attempt + 1);
               return;
