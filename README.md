@@ -1,10 +1,10 @@
 # ReadOut
 
-**Read the SQLite databases in your Obsidian vault: browse and query on the desktop, view dashboards on your phone.**
+**Read the SQLite databases in your Obsidian vault: browse and query on the desktop, build and view dashboards on your desktop and phone.**
 
 - Browse tables and rows, with sorting and filtering.
 - Run your own read-only SQL queries and save results as CSV.
-- Build dashboards of charts, tables and big numbers, and open them on your phone.
+- Build dashboards of charts, tables and big numbers, viewable on desktop or phone.
 
 ReadOut is a fork of the
 [ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
