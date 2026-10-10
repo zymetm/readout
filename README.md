@@ -1,12 +1,12 @@
 # ReadOut
 
-**Read the databases in your vault, on any device.**
+**Read the databases in your vault: browse and query on the desktop, view dashboards on your phone.**
 
 ReadOut opens the SQLite files that live next to your notes: browse the
 tables, run your own read-only queries, and keep charts, tables and big
 numbers as dashboards you can open again. It is read-only, so it cannot
-change your data. Databases up to about a gigabyte open on the desktop, and
-your phone shows the same dashboards.
+change your data. Databases up to about a gigabyte open on the desktop. On a
+phone, ReadOut is a dashboard viewer (see "On a phone" below).
 
 ReadOut is forked from the
 [ICOR for Life SQLite Viewer](https://github.com/myICOR/icor-for-life-sqlite-viewer)
@@ -56,9 +56,16 @@ from a table with a few clicks, or you can write the SQL yourself.
   Life vault) is where dashboards, exports and any move you choose go.
 - A query result can be saved as a CSV file with "Save as CSV": it goes into an
   `Exports` folder inside the database folder, and ReadOut tells you where.
-- Dashboards are plain JSON files in the dashboards folder, and the desktop
-  writes a small cache next to them so a phone can show a database that is
-  too large to sync.
+- Dashboards are Markdown notes in the dashboards folder. Each time the desktop
+  draws a dashboard with no failed widget, it saves the answers as a note in the
+  cache folder, and that is what a phone shows. Both kinds are ordinary notes,
+  so default Obsidian Sync carries them. They also appear in search and in the
+  graph; to keep them out, add the two folders under Settings, Files and links,
+  Excluded files.
+- Earlier versions saved dashboards and the cache as `.json` files. ReadOut
+  still reads them, and each time it loads it writes a note beside every
+  `.json` that has none. It never changes or deletes the `.json`. Where a note
+  and a `.json` share a name, the note is the one that counts.
 - The first time ReadOut runs it picks the folders: `Databases`,
   `Databases/Dashboards` and `Databases/Dashboard Cache`. In a vault that has
   the ICOR for Life scaffold it picks the vault's own Databases room
@@ -66,9 +73,11 @@ from a table with a few clicks, or you can write the SQL yourself.
   folder does not sync, a `07 Databases` folder with no `Databases` folder
   beside it counts too. That choice is only made once, on a fresh install.
   After that, whatever is in Settings wins.
-- ReadOut does not open `.json` files by default. Switch on "Open JSON files in the vault"
-  in the settings if you want a dashboard file to open as its
-  dashboard.
+- ReadOut does not open `.json` files by default. Dashboards are notes now, so
+  "Open JSON files in the vault" in the settings is only for dashboards that
+  are still `.json` files, and for reading other JSON in your vault: with it
+  on, clicking a `.json` file opens a dashboard as its dashboard and any other
+  JSON in a read-only viewer.
 
 ## What you can do
 
@@ -82,13 +91,31 @@ from a table with a few clicks, or you can write the SQL yourself.
 dashboard, read-only. The language word after the three backticks is
 `readout`, and the block names the dashboard and the widget.
 
-**On your phone**, see the same dashboards from a synced cache, so a database
-too large to sync still shows you its answers.
+**On your phone**, see your dashboards, drawn from the answers your desktop
+saved the last time it drew them.
+
+## On a phone
+
+On a phone, ReadOut is a dashboard viewer. It draws each dashboard from the
+answers your desktop saved the last time it drew that dashboard, and says
+"Computed on desktop" on the screen. The phone shows the last saved answers: to
+refresh them, open the dashboard on the desktop and let Obsidian Sync finish.
+
+Browsing tables and running queries need the database file itself on the
+device. Default Obsidian Sync does not carry it: it leaves out other file types,
+which includes `.db` and `.sqlite` files, and it has a size limit per file.
+
+The dashboards and the saved answers are notes, so they reach the phone with
+default Obsidian Sync settings. You do not need to turn on syncing of other
+file types.
 
 ## Dashboard files
 
-A dashboard is one JSON file in the dashboards folder. The edit panel
-writes it, and every widget type and setting below can be set there.
+A dashboard is one Markdown note in the dashboards folder: properties that say
+`readout: dashboard`, and the dashboard's JSON in a code block. The reference
+below shows a whole note. The edit panel writes it, and every widget type and
+setting below can be set there. After editing a note by hand, open it and run
+the command "Check this note as a dashboard".
 
 ReadOut can write two guides into the dashboards folder, mirrored here:
 
@@ -109,7 +136,17 @@ it still matches (nobody has edited it); an edited copy is never
 overwritten. Delete a copy and run the command again to get the newest text.
 
 <!-- field reference -->
-### The file
+### The dashboard note
+
+A dashboard is a Markdown note in the dashboards folder, named after its
+`id` (`shop.md`). The properties mark it as ReadOut's, and the dashboard is
+the JSON in the note's one json code block. Notes are what default Obsidian Sync
+carries to a phone; a `.json` file would stay behind.
+
+````markdown
+---
+readout: dashboard
+---
 
 ```json
 {
@@ -123,8 +160,13 @@ overwritten. Delete a copy and run the command again to get the newest text.
   ]
 }
 ```
+````
 
-- `id`: lowercase letters, digits and hyphens. Also names the cache file.
+Anything else in the note, such as a line of your own words above or below
+the block, or more properties, is kept and ignored. Below, "the file" means
+this JSON.
+
+- `id`: lowercase letters, digits and hyphens. Also names the cache note.
   Renaming the title is safe; the id stays.
 - `title`: the dashboard's name.
 - `database`: the path of the database inside the vault. Every SQL widget
@@ -133,9 +175,9 @@ overwritten. Delete a copy and run the command again to get the newest text.
   (`7d`, `30d`, `90d`, `12m`, `all`) or `{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}`.
 - `tiles`: the widgets, in any order; each one's place is its `layout`.
 
-A file the plugin cannot read is listed at the top of the dashboards view
+A note the plugin cannot read is listed at the top of the dashboards view
 with a plain sentence naming the widget and the setting. A setting the
-plugin does not know is dropped the next time the panel saves the file.
+plugin does not know is dropped the next time the panel saves the dashboard.
 
 ### Panel label to file setting
 

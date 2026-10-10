@@ -25,13 +25,23 @@ newest text; it is written again on the next load or on "New dashboard".
 
 ## 1. What a dashboard is and where it lives
 
-- A dashboard is one JSON file. The plugin reads every file ending in
-  `.json` directly in its dashboards folder (not in subfolders). The folder
-  is the plugin setting "Dashboards folder" (`dashboardFolder` in the
-  plugin's settings); this guide is written into that folder, so the
-  folder holding this file is the one.
-- Any `.json` file there that does not read as a dashboard is listed as an
-  error at the top of the dashboards view. Never put other JSON there.
+- A dashboard is one Markdown note (`.md`), named after its `id` (`shop.md`),
+  directly in the dashboards folder (not in subfolders). Its properties say
+  `readout: dashboard`, and the dashboard itself is the JSON in the note's
+  one json code block; the field reference ("The dashboard note") shows a
+  whole note. The folder is the plugin setting "Dashboards folder"
+  (`dashboardFolder` in the plugin's settings); this guide is written into
+  that folder, so the folder holding this file is the one.
+- Create a note, never a `.json` file. Obsidian Sync carries notes by
+  default and leaves `.json` files behind, so a dashboard saved as `.json`
+  does not reach a phone on default settings. A `.json` dashboard (from an
+  earlier version, or made by hand) still opens, and the plugin writes its
+  note beside it the next time it loads; from then on the note is the
+  dashboard and the `.json` is no longer read.
+- Other notes in that folder, this guide included, are not dashboards and
+  are left alone. A note with `readout: dashboard` that does not read as a
+  dashboard is listed as an error at the top of the dashboards view, with
+  the file's name and the reason.
 - A dashboard holds `id`, `title`, `database`, an optional
   `globalTimeframe`, and `tiles` (the widgets). A widget is a "tile" in the
   file and a "widget" on screen.
@@ -75,11 +85,12 @@ newest text; it is written again on the next load or on "New dashboard".
    The plugin itself does this for built widgets. It does no date
    arithmetic for an SQL widget: the dashboard's "Range" picker does not
    reach an SQL widget, so the window is written in the query.
-8. **Only fields the plugin knows.** The edit panel rewrites the whole file
-   on every save, and a key the plugin does not know is dropped then. Use
-   only the fields in the field reference.
+8. **Only fields the plugin knows.** The edit panel rewrites the
+   dashboard's JSON on every save, and a key the plugin does not know is
+   dropped then (what is written around the JSON block stays). Use only the
+   fields in the field reference.
 9. **Never leave test widgets in a user's dashboard.** Test in a copy (a
-   separate dashboard file with its own `id`) and delete it when done, or
+   separate dashboard note with its own `id`) and delete it when done, or
    remove any test widget before you finish.
 
 ## 3. The procedure
@@ -100,12 +111,14 @@ newest text; it is written again on the next load or on "New dashboard".
    plugin place the widget, or give a free spot (`{"x":0,"y":0,"w":2,"h":2}`
    in grid cells; the grid is 2 columns wide on a phone and up to 6 on a
    wide pane, about 5 on a typical one; a widget wider than the columns on screen
-   is narrowed to fit). Keep the file valid JSON.
-4. **Validate.** Open the dashboard, press "Edit", then "Open as text". The line
-   under the text says "The dashboard reads fine: N widgets." or "The
-   dashboard will not open like this:" with the reason, naming the widget
-   ("Tile 3") and the setting. Fix until it reads fine. The same reasons
-   show at the top of the dashboards view for a file that does not read.
+   is narrowed to fit). Keep the JSON in the block valid, and leave the
+   properties and the block's fence lines as they are.
+4. **Validate.** With the note open in Obsidian, run the command "Check this
+   note as a dashboard". It says "The dashboard reads fine: N widgets." or
+   "The dashboard will not open like this:" with the reason, naming the
+   widget ("Tile 3") and the setting. Fix until it reads fine. The same
+   reasons show at the top of the dashboards view for a note that does not
+   read. ("Open as text" on a dashboard opens its note.)
 5. **Open the dashboard and look.** Press "Refresh". The widget must draw
    with no error box in it, and the numbers must match what the query
    returned in step 2. Check a narrow pane too: text that is cut off means
@@ -114,7 +127,7 @@ newest text; it is written again on the next load or on "New dashboard".
    widget. Every setting you wrote must show in a field, the preview must
    draw, and the panel must not say that saving "leaves out what this
    widget had". If it does, you used a field the panel cannot show, or one
-   that does not fit the type; fix the file, not the panel.
+   that does not fit the type; fix the note, not the panel.
 7. **Clean up.** Delete any test dashboard or test widget. Leave the user's
    file as it was apart from the widget they asked for.
 
@@ -249,12 +262,21 @@ build widgets the panel can show in full:
 
 ## 8. The field reference
 
-Every setting of the dashboard file, with an example of each type on an
-invented shop database. The plugin's README on GitHub carries the same
-reference.
+Every setting of the dashboard, with an example of each type on an invented
+shop database. The plugin's README on GitHub carries the same reference.
 
 <!-- field reference -->
-### The file
+### The dashboard note
+
+A dashboard is a Markdown note in the dashboards folder, named after its
+`id` (`shop.md`). The properties mark it as ReadOut's, and the dashboard is
+the JSON in the note's one json code block. Notes are what default Obsidian Sync
+carries to a phone; a `.json` file would stay behind.
+
+````markdown
+---
+readout: dashboard
+---
 
 ```json
 {
@@ -268,8 +290,13 @@ reference.
   ]
 }
 ```
+````
 
-- `id`: lowercase letters, digits and hyphens. Also names the cache file.
+Anything else in the note, such as a line of your own words above or below
+the block, or more properties, is kept and ignored. Below, "the file" means
+this JSON.
+
+- `id`: lowercase letters, digits and hyphens. Also names the cache note.
   Renaming the title is safe; the id stays.
 - `title`: the dashboard's name.
 - `database`: the path of the database inside the vault. Every SQL widget
@@ -278,9 +305,9 @@ reference.
   (`7d`, `30d`, `90d`, `12m`, `all`) or `{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}`.
 - `tiles`: the widgets, in any order; each one's place is its `layout`.
 
-A file the plugin cannot read is listed at the top of the dashboards view
+A note the plugin cannot read is listed at the top of the dashboards view
 with a plain sentence naming the widget and the setting. A setting the
-plugin does not know is dropped the next time the panel saves the file.
+plugin does not know is dropped the next time the panel saves the dashboard.
 
 ### Panel label to file setting
 
@@ -682,7 +709,7 @@ must be read-only.
       "x": "day", "y": "orders", "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day" }
     ```
 
-- By name: `dashboard` is the dashboard's id (its file name without `.json`),
+- By name: `dashboard` is the dashboard's id (its note's file name without `.md`),
   `widget` is a widget's `title` or its number counting from 1 (dividers count).
   The note follows the dashboard; nothing is copied.
 - Written out: not a whole dashboard (no `tiles`), one widget. Use it when the
@@ -707,7 +734,7 @@ such a thing, the shape is the same:
   `Databases/Dashboards/AI-WIDGET-GUIDE.md`, unless your "Dashboards
   folder" setting says otherwise.
 - **Keep the procedure as its spine.** The seven steps of section 3, with
-  the plugin checks of steps 4 to 6 (validate in "Open as text", open the
+  the plugin checks of steps 4 to 6 (check the note, open the
   dashboard and look, open the widget in the edit panel), are what leave a
   widget a person can still edit. The skill runs them in order.
 - **Add only the user's own preferences on top**: their databases, colours,
@@ -716,4 +743,4 @@ such a thing, the shape is the same:
 A prompt to give an agent:
 
     Read Databases/Dashboards/AI-WIDGET-GUIDE.md and make a skill that follows its procedure. Link to the guide, don't copy it, and add my preferences.
-<!-- Written by ReadOut (revision 11, fingerprint c5e2e6fe). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 12, fingerprint 7299ef81). If you edit this file, ReadOut stops updating it. -->

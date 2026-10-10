@@ -387,7 +387,7 @@ Any note can show one widget of a dashboard, read-only, so a project page or a j
     widget: Heart rate, last 90 days
     ```
 
-- "dashboard" is the dashboard's id: its file name in the dashboards folder, without `.json`.
+- "dashboard" is the dashboard's id: its note's file name in the dashboards folder, without `.md`.
 - "widget" is the widget's title, or its number on the dashboard counting from 1 (a section divider counts).
 - The note always shows what the dashboard shows now. Edit the widget on the dashboard and every note follows.
 - On a phone or tablet the note shows the dashboard's last desktop result, with a line saying when it was computed. Open the dashboard once on the desktop and let it sync to refresh it.
@@ -498,4 +498,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by ReadOut (revision 9, fingerprint beeaea95). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 10, fingerprint e0759d50). If you edit this file, ReadOut stops updating it. -->

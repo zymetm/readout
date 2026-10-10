@@ -8,8 +8,9 @@
  * an analytics snapshot store. This plugin opens them where they are. Click
  * a `.db` file and a browser opens: tables with row counts, the schema, the
  * data page by page, and a console for your own read-only SQL. Dashboards
- * are small JSON files in the vault; the plugin runs their queries and draws
- * the charts itself, in the vault's own colors. Nothing is ever written to
+ * are small Markdown notes in the vault (properties plus their JSON in a
+ * block); the plugin runs their queries and draws the charts itself, in the
+ * vault's own colors. Nothing is ever written to
  * a database, by design and by a tested gate.
  *
  * THE ONE RULE: read, never write. Enforced twice. Every database is opened
@@ -30,7 +31,7 @@
  *
  * Databases over the cap still reach the phone through the DASHBOARD CACHE:
  * when a dashboard renders on the desktop, its query results are written as
- * JSON into the vault, Obsidian Sync carries them, and the phone renders
+ * notes into the vault, Obsidian Sync carries them, and the phone renders
  * the same dashboard from the cache with a visible "computed on desktop"
  * line. The big file itself never travels.
  *
@@ -8171,7 +8172,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Dashboards folder')
-      .setDesc('Where dashboard files live. Each dashboard is one JSON file.')
+      .setDesc('Where dashboards live. Each dashboard is one Markdown note, so Obsidian Sync carries it to your phone.')
       .addText((t) => t.setValue(this.plugin.settings.dashboardFolder).onChange(async (v) => {
         this.plugin.settings.dashboardFolder = normalizePath(v || DEFAULT_SETTINGS.dashboardFolder);
         await this.plugin.saveSettings();
@@ -8179,7 +8180,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Dashboard cache folder')
-      .setDesc('Where computed dashboard results are stored so phones and tablets can show them without opening the database.')
+      .setDesc('Where computed dashboard results are stored, as notes, so phones and tablets can show them without opening the database.')
       .addText((t) => t.setValue(this.plugin.settings.cacheFolder).onChange(async (v) => {
         this.plugin.settings.cacheFolder = normalizePath(v || DEFAULT_SETTINGS.cacheFolder);
         await this.plugin.saveSettings();
@@ -8187,7 +8188,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Include category values in the mobile catalog')
-      .setDesc('Off by default. When on, the desktop writes the distinct values of small text columns (200 or fewer values, for example every metric name, workout type or category) into a plain JSON file in the cache folder, so phones can offer them as a picker. That file syncs with the vault and is readable and searchable like any note. Leave this off if a database holds values you would not put in a note, for example health or contact details; the phone picker then asks you to type the value instead.')
+      .setDesc('Off by default. When on, the desktop writes the distinct values of small text columns (200 or fewer values, for example every metric name, workout type or category) into a note in the cache folder, so phones can offer them as a picker. That note syncs with the vault and is readable and searchable like any other. Leave this off if a database holds values you would not put in a note, for example health or contact details; the phone picker then asks you to type the value instead.')
       .addToggle((t) => t.setValue(this.plugin.settings.catalogIncludeValues).onChange(async (v) => {
         this.plugin.settings.catalogIncludeValues = v;
         if (this.plugin.catalogged) this.plugin.catalogged.clear();
@@ -8196,7 +8197,7 @@ class SqliteViewerSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Open JSON files in the vault')
-      .setDesc('When on, clicking a .json file opens it in this plugin: a dashboard file opens as its dashboard, any other JSON in a clean read-only viewer. Turn it off if another plugin should own .json files. Takes effect after the plugin reloads.')
+      .setDesc('Dashboards are notes now, so this is only for .json files: a dashboard made as a .json file, and any other JSON in your vault. When on, clicking a .json file opens it in this plugin: a dashboard opens as its dashboard, any other JSON in a clean read-only viewer. Turn it off if another plugin should own .json files. Takes effect after the plugin reloads.')
       .addToggle((t) => t.setValue(this.plugin.settings.openJsonFiles).onChange(async (v) => {
         this.plugin.settings.openJsonFiles = v;
         await this.plugin.saveSettings();
@@ -9028,7 +9029,7 @@ Any note can show one widget of a dashboard, read-only, so a project page or a j
     widget: Heart rate, last 90 days
     \`\`\`
 
-- "dashboard" is the dashboard's id: its file name in the dashboards folder, without \`.json\`.
+- "dashboard" is the dashboard's id: its note's file name in the dashboards folder, without \`.md\`.
 - "widget" is the widget's title, or its number on the dashboard counting from 1 (a section divider counts).
 - The note always shows what the dashboard shows now. Edit the widget on the dashboard and every note follows.
 - On a phone or tablet the note shows the dashboard's last desktop result, with a line saying when it was computed. Open the dashboard once on the desktop and let it sync to refresh it.
@@ -9170,13 +9171,23 @@ newest text; it is written again on the next load or on "New dashboard".
 
 ## 1. What a dashboard is and where it lives
 
-- A dashboard is one JSON file. The plugin reads every file ending in
-  \`.json\` directly in its dashboards folder (not in subfolders). The folder
-  is the plugin setting "Dashboards folder" (\`dashboardFolder\` in the
-  plugin's settings); this guide is written into that folder, so the
-  folder holding this file is the one.
-- Any \`.json\` file there that does not read as a dashboard is listed as an
-  error at the top of the dashboards view. Never put other JSON there.
+- A dashboard is one Markdown note (\`.md\`), named after its \`id\` (\`shop.md\`),
+  directly in the dashboards folder (not in subfolders). Its properties say
+  \`readout: dashboard\`, and the dashboard itself is the JSON in the note's
+  one json code block; the field reference ("The dashboard note") shows a
+  whole note. The folder is the plugin setting "Dashboards folder"
+  (\`dashboardFolder\` in the plugin's settings); this guide is written into
+  that folder, so the folder holding this file is the one.
+- Create a note, never a \`.json\` file. Obsidian Sync carries notes by
+  default and leaves \`.json\` files behind, so a dashboard saved as \`.json\`
+  does not reach a phone on default settings. A \`.json\` dashboard (from an
+  earlier version, or made by hand) still opens, and the plugin writes its
+  note beside it the next time it loads; from then on the note is the
+  dashboard and the \`.json\` is no longer read.
+- Other notes in that folder, this guide included, are not dashboards and
+  are left alone. A note with \`readout: dashboard\` that does not read as a
+  dashboard is listed as an error at the top of the dashboards view, with
+  the file's name and the reason.
 - A dashboard holds \`id\`, \`title\`, \`database\`, an optional
   \`globalTimeframe\`, and \`tiles\` (the widgets). A widget is a "tile" in the
   file and a "widget" on screen.
@@ -9220,11 +9231,12 @@ newest text; it is written again on the next load or on "New dashboard".
    The plugin itself does this for built widgets. It does no date
    arithmetic for an SQL widget: the dashboard's "Range" picker does not
    reach an SQL widget, so the window is written in the query.
-8. **Only fields the plugin knows.** The edit panel rewrites the whole file
-   on every save, and a key the plugin does not know is dropped then. Use
-   only the fields in the field reference.
+8. **Only fields the plugin knows.** The edit panel rewrites the
+   dashboard's JSON on every save, and a key the plugin does not know is
+   dropped then (what is written around the JSON block stays). Use only the
+   fields in the field reference.
 9. **Never leave test widgets in a user's dashboard.** Test in a copy (a
-   separate dashboard file with its own \`id\`) and delete it when done, or
+   separate dashboard note with its own \`id\`) and delete it when done, or
    remove any test widget before you finish.
 
 ## 3. The procedure
@@ -9245,12 +9257,14 @@ newest text; it is written again on the next load or on "New dashboard".
    plugin place the widget, or give a free spot (\`{"x":0,"y":0,"w":2,"h":2}\`
    in grid cells; the grid is 2 columns wide on a phone and up to 6 on a
    wide pane, about 5 on a typical one; a widget wider than the columns on screen
-   is narrowed to fit). Keep the file valid JSON.
-4. **Validate.** Open the dashboard, press "Edit", then "Open as text". The line
-   under the text says "The dashboard reads fine: N widgets." or "The
-   dashboard will not open like this:" with the reason, naming the widget
-   ("Tile 3") and the setting. Fix until it reads fine. The same reasons
-   show at the top of the dashboards view for a file that does not read.
+   is narrowed to fit). Keep the JSON in the block valid, and leave the
+   properties and the block's fence lines as they are.
+4. **Validate.** With the note open in Obsidian, run the command "Check this
+   note as a dashboard". It says "The dashboard reads fine: N widgets." or
+   "The dashboard will not open like this:" with the reason, naming the
+   widget ("Tile 3") and the setting. Fix until it reads fine. The same
+   reasons show at the top of the dashboards view for a note that does not
+   read. ("Open as text" on a dashboard opens its note.)
 5. **Open the dashboard and look.** Press "Refresh". The widget must draw
    with no error box in it, and the numbers must match what the query
    returned in step 2. Check a narrow pane too: text that is cut off means
@@ -9259,7 +9273,7 @@ newest text; it is written again on the next load or on "New dashboard".
    widget. Every setting you wrote must show in a field, the preview must
    draw, and the panel must not say that saving "leaves out what this
    widget had". If it does, you used a field the panel cannot show, or one
-   that does not fit the type; fix the file, not the panel.
+   that does not fit the type; fix the note, not the panel.
 7. **Clean up.** Delete any test dashboard or test widget. Leave the user's
    file as it was apart from the widget they asked for.
 
@@ -9394,12 +9408,21 @@ build widgets the panel can show in full:
 
 ## 8. The field reference
 
-Every setting of the dashboard file, with an example of each type on an
-invented shop database. The plugin's README on GitHub carries the same
-reference.
+Every setting of the dashboard, with an example of each type on an invented
+shop database. The plugin's README on GitHub carries the same reference.
 
 <!-- field reference -->
-### The file
+### The dashboard note
+
+A dashboard is a Markdown note in the dashboards folder, named after its
+\`id\` (\`shop.md\`). The properties mark it as ReadOut's, and the dashboard is
+the JSON in the note's one json code block. Notes are what default Obsidian Sync
+carries to a phone; a \`.json\` file would stay behind.
+
+\`\`\`\`markdown
+---
+readout: dashboard
+---
 
 \`\`\`json
 {
@@ -9413,8 +9436,13 @@ reference.
   ]
 }
 \`\`\`
+\`\`\`\`
 
-- \`id\`: lowercase letters, digits and hyphens. Also names the cache file.
+Anything else in the note, such as a line of your own words above or below
+the block, or more properties, is kept and ignored. Below, "the file" means
+this JSON.
+
+- \`id\`: lowercase letters, digits and hyphens. Also names the cache note.
   Renaming the title is safe; the id stays.
 - \`title\`: the dashboard's name.
 - \`database\`: the path of the database inside the vault. Every SQL widget
@@ -9423,9 +9451,9 @@ reference.
   (\`7d\`, \`30d\`, \`90d\`, \`12m\`, \`all\`) or \`{"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}\`.
 - \`tiles\`: the widgets, in any order; each one's place is its \`layout\`.
 
-A file the plugin cannot read is listed at the top of the dashboards view
+A note the plugin cannot read is listed at the top of the dashboards view
 with a plain sentence naming the widget and the setting. A setting the
-plugin does not know is dropped the next time the panel saves the file.
+plugin does not know is dropped the next time the panel saves the dashboard.
 
 ### Panel label to file setting
 
@@ -9827,7 +9855,7 @@ must be read-only.
       "x": "day", "y": "orders", "sql": "SELECT day, SUM(orders) AS orders FROM sales GROUP BY day ORDER BY day" }
     \`\`\`
 
-- By name: \`dashboard\` is the dashboard's id (its file name without \`.json\`),
+- By name: \`dashboard\` is the dashboard's id (its note's file name without \`.md\`),
   \`widget\` is a widget's \`title\` or its number counting from 1 (dividers count).
   The note follows the dashboard; nothing is copied.
 - Written out: not a whole dashboard (no \`tiles\`), one widget. Use it when the
@@ -9852,7 +9880,7 @@ such a thing, the shape is the same:
   \`07 Databases/Dashboards/AI-WIDGET-GUIDE.md\`, unless your "Dashboards
   folder" setting says otherwise.
 - **Keep the procedure as its spine.** The seven steps of section 3, with
-  the plugin checks of steps 4 to 6 (validate in "Open as text", open the
+  the plugin checks of steps 4 to 6 (check the note, open the
   dashboard and look, open the widget in the edit panel), are what leave a
   widget a person can still edit. The skill runs them in order.
 - **Add only the user's own preferences on top**: their databases, colours,
@@ -9868,8 +9896,8 @@ A prompt to give an agent:
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 9, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 11, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 10, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 12, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file
@@ -10092,7 +10120,7 @@ function parseWidgetBlock(text) {
     if (key !== 'dashboard' && key !== 'widget') return { ok: false, reason: 'A block knows "dashboard" and "widget", not "' + m[1] + '".' };
     fields[key] = m[2];
   }
-  if (!fields.dashboard) return { ok: false, reason: 'The block needs a "dashboard:" line: the id of a dashboard, which is its file name without .json.' };
+  if (!fields.dashboard) return { ok: false, reason: 'The block needs a "dashboard:" line: the id of a dashboard, which is its note\'s file name without .md.' };
   if (!fields.widget) return { ok: false, reason: 'The block needs a "widget:" line: the title of a widget on the dashboard, or its number counting from 1.' };
   const widget = /^\d+$/.test(fields.widget) ? Number(fields.widget) : fields.widget;
   return { ok: true, kind: 'ref', dashboard: fields.dashboard, widget };
@@ -10166,7 +10194,7 @@ class WidgetBlockChild extends MarkdownRenderChild {
     if (request.kind === 'ref') {
       const { specs } = await plugin.blockSpecs();
       spec = specs.find((d) => d.id === request.dashboard);
-      if (!spec) { this.say('There is no dashboard "' + request.dashboard + '". Use the id of a dashboard in ' + plugin.settings.dashboardFolder + ', which is its file name without .json.'); return; }
+      if (!spec) { this.say('There is no dashboard "' + request.dashboard + '". Use the id of a dashboard in ' + plugin.settings.dashboardFolder + ', which is its note\'s file name without .md.'); return; }
       index = widgetIndexIn(spec, request.widget);
       if (index < 0) {
         this.say('The dashboard "' + spec.title + '" has no widget ' + (typeof request.widget === 'number' ? 'number ' + request.widget : 'titled "' + request.widget + '"') + '.');
