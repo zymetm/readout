@@ -10408,6 +10408,12 @@ class ReadOutPlugin extends Plugin {
     this.registerEvent(this.app.workspace.on('file-open', (file) => {
       this.maybeOpenAsDashboard(file).catch(() => {});
     }));
+    /* A pane that has moved on to something that is not a note (or was
+     * emptied and reused) forgets what it was told about dashboard notes. */
+    this.registerEvent(this.app.workspace.on('layout-change', () => {
+      const ws = this.app.workspace;
+      if (ws && typeof ws.iterateAllLeaves === 'function') ws.iterateAllLeaves((leaf) => this.tidyLeaf(leaf));
+    }));
 
     this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
       if (!(file instanceof TFolder)) return;
@@ -10732,6 +10738,29 @@ class ReadOutPlugin extends Plugin {
    * path and dropped as soon as it shows anything else; `from` holds the
    * paths the pane was converted from, so that Back, which replays the note's
    * own history entry, shows the note once instead of converting it again. */
+  /* What a pane remembers only holds while it stays on the same step:
+   * `from` is for the immediate Back, so it goes as soon as the pane shows
+   * any other note, or anything that is not a dashboard; `note` goes as soon
+   * as the pane shows another file. A pane that has moved on and is later
+   * given a dashboard note is therefore an ordinary open. A pane showing a
+   * dashboard keeps `from`: that is the note Back will replay. */
+  tidyLeaf(leaf) {
+    const st = this.leafStates && leaf ? this.leafStates.get(leaf) : null;
+    if (!st) return;
+    const view = leaf.view;
+    const type = view && typeof view.getViewType === 'function' ? view.getViewType() : null;
+    if (type === VIEW_DASHBOARDS) { st.note = null; return; }
+    const path = type === 'markdown' && view.file ? view.file.path : null;
+    if (path === null) {
+      /* An empty pane may be the one a note is about to be opened in. */
+      if (type !== 'empty') st.note = null;
+      st.from.clear();
+      return;
+    }
+    if (st.note !== null && st.note !== path) st.note = null;
+    for (const p of [...st.from]) if (p !== path) st.from.delete(p);
+  }
+
   leafState(leaf) {
     if (!this.leafStates) this.leafStates = new WeakMap();
     let st = this.leafStates.get(leaf);
@@ -10754,6 +10783,7 @@ class ReadOutPlugin extends Plugin {
     const view = leaf && leaf.view;
     if (!view || typeof view.getViewType !== 'function' || view.getViewType() !== 'markdown') return;
     if (!view.file || view.file.path !== file.path) return;
+    this.tidyLeaf(leaf);
     const mode = this.leafState(leaf);
     if (mode.note !== null) {
       if (mode.note === file.path) return;

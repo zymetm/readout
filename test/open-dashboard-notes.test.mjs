@@ -30,7 +30,7 @@ async function setup(files, saved) {
   const handlers = {};
   const states = [];
   const frontmatter = {};
-  const workspace = { onLayoutReady: () => {}, on: (name, fn) => { handlers[name] = fn; return {}; }, getMostRecentLeaf: () => leaf, getLeaf: () => leaf };
+  const workspace = { iterateAllLeaves: (cb) => cb(leaf), onLayoutReady: () => {}, on: (name, fn) => { handlers[name] = fn; return {}; }, getMostRecentLeaf: () => leaf, getLeaf: () => leaf };
   const app = { vault, workspace, metadataCache: { getFileCache: (f) => (frontmatter[f.path] === undefined ? null : (frontmatter[f.path] === null ? {} : { frontmatter: frontmatter[f.path] })) } };
   const plugin = fresh.makePlugin(app, saved);
   plugin.app = app;
@@ -43,6 +43,7 @@ async function setup(files, saved) {
   let at = -1;
   const leaf = { view: null };
   const note = (path, state) => ({ getViewType: () => 'markdown', file: new fresh.obsidian.TFile(path), getState: () => state || { mode: 'source', source: false } });
+  const layoutChange = async () => { handlers['layout-change'](); await tick(); };
   const fire = async (path) => { await handlers['file-open'](new fresh.obsidian.TFile(path)); await tick(); };
   const show = async (entry) => {
     if (entry.type === 'markdown') { leaf.view = note(entry.path, entry.state); await fire(entry.path); return; }
@@ -57,7 +58,7 @@ async function setup(files, saved) {
   const back = async () => { at--; await show(history[at]); };
   const forward = async () => { at++; await show(history[at]); };
   const open = async (path, state) => { history.length = at + 1; history.push({ type: 'markdown', path, state }); at++; await show(history[at]); return leaf; };
-  return { plugin, adapter, fresh, states, handlers, frontmatter, leaf, open, back, forward, fire, show, reads, tick, history: () => history.map((h) => (h.type === 'markdown' ? h.path : h.type + ':' + (h.state && h.state.activeId))) };
+  return { plugin, adapter, fresh, states, handlers, frontmatter, leaf, open, back, forward, fire, layoutChange, show, reads, tick, history: () => history.map((h) => (h.type === 'markdown' ? h.path : h.type + ':' + (h.state && h.state.activeId))) };
 }
 
 const TWO = () => ({ [DIR + '/shop.md']: dash(), [DIR + '/other.md']: dash(Object.assign({}, SPEC, { id: 'other', title: 'Other' })) });
@@ -193,17 +194,67 @@ test('Back from a dashboard shows the note once, a second Back goes further, For
   assert.equal(ctx.leaf.view.file.path, DIR + '/README.md');
 });
 
-test('Back past two dashboards in a row is not a trap either', async () => {
+test('Back past two dashboards in a row: the older note is converted once more (what is remembered covers one Back step), then Back shows it; never a trap', async () => {
   const ctx = await setup(TWO());
   await ctx.open(DIR + '/shop.md');
   await ctx.open(DIR + '/other.md');
   assert.equal(ctx.states.length, 2);
-  await ctx.back(); /* other.md as a note */
+  await ctx.back(); /* other.md as a note: the immediate step */
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
   await ctx.back(); /* the shop dashboard */
   assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
-  await ctx.back(); /* shop.md as a note, not converted again */
+  await ctx.back(); /* shop.md replayed: forgotten by now, so converted once more */
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+  assert.equal(ctx.states.length, 3);
+  await ctx.back(); /* and now Back shows the note */
   assert.equal(ctx.leaf.view.getViewType(), 'markdown');
-  assert.equal(ctx.states.length, 2);
+  assert.equal(ctx.leaf.view.file.path, DIR + '/shop.md');
+  assert.equal(ctx.states.length, 3);
+});
+
+test('a pane that moved on to another note and is later given the dashboard note again shows the dashboard', async () => {
+  const ctx = await setup(Object.assign(TWO(), { [DIR + '/README.md']: '# Help' }));
+  await ctx.open(DIR + '/shop.md');
+  assert.equal(ctx.states.length, 1);
+  await ctx.open(DIR + '/README.md'); /* the same pane browses on */
+  await ctx.open(DIR + '/other.md'); /* a different dashboard: converted */
+  await ctx.open(DIR + '/README.md');
+  await ctx.open(DIR + '/shop.md'); /* tapped again, much later */
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+  assert.equal(ctx.leaf.view.activeId, 'shop');
+  assert.equal(ctx.states.length, 3);
+  assert.deepEqual(ctx.states.map((s) => s.state.activeId), ['shop', 'other', 'shop']);
+});
+
+test('a pane object that Obsidian reuses (emptied, or showing a view that is not a note) forgets what it was told', async () => {
+  for (const type of ['empty', 'graph']) {
+    const ctx = await setup(TWO());
+    await ctx.open(DIR + '/shop.md');
+    assert.equal(ctx.states.length, 1);
+    /* The pane is emptied or goes to another kind of view, with no file-open. */
+    ctx.leaf.view = { getViewType: () => type };
+    await ctx.layoutChange();
+    await ctx.open(DIR + '/shop.md');
+    assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards', type);
+    assert.equal(ctx.states.length, 2, type);
+  }
+  /* A requested note is forgotten the same way when the pane moves on to a view that is not a note. */
+  const ctx = await setup(TWO());
+  await ctx.plugin.openNoteRaw(DIR + '/shop.md');
+  ctx.leaf.view = { getViewType: () => 'graph' };
+  await ctx.layoutChange();
+  await ctx.open(DIR + '/shop.md');
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+});
+
+test('a layout change while the pane replays the note for Back keeps what Back needs', async () => {
+  const ctx = await setup(TWO());
+  await ctx.open(DIR + '/shop.md');
+  ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  await ctx.layoutChange(); /* the note is back on screen, its file-open not yet handled */
+  await ctx.fire(DIR + '/shop.md');
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown', 'shown once as the note');
+  assert.equal(ctx.states.length, 1);
 });
 
 test('the file menu of a dashboard note offers the dashboard and the note', async () => {
