@@ -10283,11 +10283,28 @@ class ReadOutPlugin extends Plugin {
      * the dashboards view. */
     this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
       if (!file || file instanceof TFolder || typeof file.path !== 'string') return;
-      if (!/\.json$/i.test(file.path) || !file.path.startsWith(this.settings.dashboardFolder + '/')) return;
+      if (!file.path.startsWith(this.settings.dashboardFolder + '/')) return;
+      if (/\.json$/i.test(file.path)) {
+        menu.addItem((item) => {
+          item.setTitle('Open as text');
+          item.setIcon('file-code');
+          item.onClick(() => this.openDashboardAsText(file.path));
+        });
+        return;
+      }
+      /* A dashboard note opens as a note when clicked; this opens it as the
+       * dashboard. Only a note whose properties say it is one is offered. */
+      const cache = this.app.metadataCache && typeof this.app.metadataCache.getFileCache === 'function' ? this.app.metadataCache.getFileCache(file) : null;
+      const mark = cache && cache.frontmatter ? cache.frontmatter[READOUT_NOTE_PROPERTY] : null;
+      if (!/\.md$/i.test(file.path) || String(mark).toLowerCase() !== 'dashboard') return;
       menu.addItem((item) => {
-        item.setTitle('Open as text');
-        item.setIcon('file-code');
-        item.onClick(() => this.openDashboardAsText(file.path));
+        item.setTitle('Open as dashboard');
+        item.setIcon('bar-chart-3');
+        item.onClick(async () => {
+          const { specs } = await this.loadDashboardSpecs();
+          const spec = specs.find((s) => s.path === file.path);
+          await this.openDashboards(spec ? spec.id : undefined);
+        });
       });
     }));
 
@@ -10370,6 +10387,12 @@ class ReadOutPlugin extends Plugin {
       this.settings.searchScope = 'vault';
       try { await this.saveSettings(); } catch (e) { /* the next change saves it */ }
     }
+    /* Folders typed into data.json by hand may carry a trailing slash, a
+     * backslash or a doubled slash; every path the plugin builds from them
+     * assumes the clean form the settings screen saves. */
+    for (const key of ['dashboardFolder', 'cacheFolder']) {
+      if (typeof this.settings[key] === 'string' && this.settings[key].trim()) this.settings[key] = normalizePath(this.settings[key].trim());
+    }
     this.settings.outsideNoteSeen = Object.assign({}, this.settings.outsideNoteSeen);
     this.settings.levels = normalizeLevels(this.settings.levels);
     this.settings.levelLooks = normalizeLevelLooks(this.settings.levelLooks);
@@ -10392,21 +10415,32 @@ class ReadOutPlugin extends Plugin {
   async renameLevelInFiles(from, to) {
     const adapter = this.app.vault.adapter;
     const folders = [
-      { folder: this.settings.dashboardFolder, dashboards: true },
-      { folder: normalizePath(this.settings.cacheFolder + '/dashboards'), dashboards: false },
+      { folder: this.settings.dashboardFolder, kind: 'dashboard', skip: GUIDE_FILES.map((g) => g.file) },
+      { folder: normalizePath(this.settings.cacheFolder + '/dashboards'), kind: 'cache', skip: [] },
     ];
     let widgets = 0;
-    for (const { folder, dashboards } of folders) {
+    for (const { folder, kind, skip } of folders) {
       if (!(await adapter.exists(folder))) continue;
-      const listing = await adapter.list(folder);
-      for (const path of listing.files) {
-        if (!path.toLowerCase().endsWith('.json')) continue;
+      const { notes, jsons } = await this.listStoredFiles(folder, kind, skip);
+      /* A dashboard note is rewritten inside its block, so what a member
+       * wrote around it stays. A .json that has no note beside it (nothing
+       * has migrated it yet) is changed as before. */
+      for (const { path, text, note } of notes) {
+        if (!note.ok) continue;
+        let raw;
+        try { raw = JSON.parse(note.json); } catch (e) { continue; }
+        const changed = renameLevelInDashboard(raw, from, to);
+        if (!changed) continue;
+        await adapter.write(path, rewriteReadoutNote(text, kind, JSON.stringify(raw, null, 2)));
+        if (kind === 'dashboard') widgets += changed;
+      }
+      for (const path of jsons) {
         let raw;
         try { raw = JSON.parse(await adapter.read(path)); } catch (e) { continue; }
         const changed = renameLevelInDashboard(raw, from, to);
         if (!changed) continue;
-        await adapter.write(path, JSON.stringify(raw, null, 2) + (dashboards ? '\n' : ''));
-        if (dashboards) widgets += changed;
+        await adapter.write(path, JSON.stringify(raw, null, 2) + (kind === 'dashboard' ? '\n' : ''));
+        if (kind === 'dashboard') widgets += changed;
       }
     }
     const ws = this.app.workspace;
@@ -10536,6 +10570,21 @@ class ReadOutPlugin extends Plugin {
    * view's own leaf, so "Done editing" comes back to it, or the active one. */
   async openDashboardAsText(path, leaf) {
     const target = leaf || this.app.workspace.getLeaf(false);
+    /* A dashboard is a note: Obsidian's own editor is the text editor. A
+     * dashboard that is still only a .json file (or whose note cannot be
+     * opened) goes to the text editor of the JSON view, as before. */
+    let note = path;
+    if (/\.json$/i.test(path)) {
+      const twin = noteTwinOf(path);
+      note = (await this.app.vault.adapter.exists(twin)) ? twin : '';
+    }
+    if (note) {
+      const file = this.app.vault.getAbstractFileByPath(note);
+      if (file instanceof TFile && typeof target.openFile === 'function') {
+        await target.openFile(file);
+        return;
+      }
+    }
     await target.setViewState({ type: VIEW_JSON, state: { file: path, asText: true }, active: true });
   }
 
@@ -10576,15 +10625,53 @@ class ReadOutPlugin extends Plugin {
     return promise;
   }
 
-  async loadDashboardSpecs() {
+  /* What a folder holds of ReadOut's: the notes (.md files whose
+   * frontmatter says `readout: <kind>`, read once each, so a README or a
+   * member's own note in the same folder is passed over) and the .json files
+   * that have no such note beside them, which are what versions before 1.1
+   * wrote and are still read. Where a note and a .json share a name the note
+   * wins and the .json is not listed. `skip` names files never to read. */
+  async listStoredFiles(folder, kind, skip) {
     const adapter = this.app.vault.adapter;
+    const out = { notes: [], jsons: [] };
+    if (!(await adapter.exists(folder))) return out;
+    const listing = await adapter.list(folder);
+    const files = ((listing && listing.files) || []).slice().sort();
+    const skipped = new Set((skip || []).map((n) => n.toLowerCase()));
+    const marked = new Set();
+    for (const path of files) {
+      if (!/\.md$/i.test(path) || skipped.has(baseName(path).toLowerCase())) continue;
+      let text;
+      try { text = await adapter.read(path); } catch (e) { continue; }
+      const note = readReadoutNote(text, kind);
+      if (!note.marked) continue;
+      marked.add(path.toLowerCase());
+      out.notes.push({ path, text, note });
+    }
+    for (const path of files) {
+      if (!/\.json$/i.test(path) || marked.has(noteTwinOf(path).toLowerCase())) continue;
+      out.jsons.push(path);
+    }
+    return out;
+  }
+
+  async loadDashboardSpecs() {
     const folder = this.settings.dashboardFolder;
     const specs = [];
     const errors = [];
+    const adapter = this.app.vault.adapter;
     if (!(await adapter.exists(folder))) return { specs, errors };
-    const listing = await adapter.list(folder);
-    for (const path of listing.files.sort()) {
-      if (!path.toLowerCase().endsWith('.json')) continue;
+    const { notes, jsons } = await this.listStoredFiles(folder, 'dashboard', GUIDE_FILES.map((g) => g.file));
+    for (const { path, text, note } of notes) {
+      if (!note.ok) { errors.push({ path, reason: note.reason }); continue; }
+      const parsed = parseDashboardSpec(note.json);
+      if (parsed.ok) {
+        parsed.spec.path = path;
+        DASHBOARD_LOADED_TEXT.set(parsed.spec, text);
+        specs.push(parsed.spec);
+      } else errors.push({ path, reason: parsed.reason });
+    }
+    for (const path of jsons) {
       try {
         const text = await adapter.read(path);
         const parsed = parseDashboardSpec(text);
@@ -10597,27 +10684,51 @@ class ReadOutPlugin extends Plugin {
         errors.push({ path, reason: e.message });
       }
     }
-    return { specs, errors };
+    const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+    return { specs: specs.sort(byPath), errors: errors.sort(byPath) };
   }
 
-  /* The builder writes a dashboard back to its own file; a new dashboard
-   * gets a fresh file named after its id. A file that changed on disk
+  /* The builder writes a dashboard back to its own note; a new dashboard
+   * gets a fresh note named after its id. A dashboard that was read from a
+   * .json file is saved as its .md twin (the .json is left as it is), and
+   * from then on the note is the dashboard. A file that changed on disk
    * since this spec was read (an edit as text in another pane, or one that
    * arrived through Sync) is not overwritten: the save is refused with a
    * notice and returns false, so the caller reloads and shows the file as
    * it is now. */
   async saveDashboardSpec(spec) {
     const adapter = this.app.vault.adapter;
-    await ensureFolder(adapter, this.settings.dashboardFolder);
-    if (!spec.path) spec.path = normalizePath(this.settings.dashboardFolder + '/' + spec.id + '.json');
+    const folder = this.settings.dashboardFolder;
+    await ensureFolder(adapter, folder);
+    if (!spec.path) spec.path = normalizePath(folder + '/' + spec.id + '.md');
     const loaded = DASHBOARD_LOADED_TEXT.get(spec);
-    if (loaded !== undefined && (await adapter.exists(spec.path)) && (await adapter.read(spec.path)) !== loaded) {
-      new Notice(spec.path.split('/').pop() + ' changed on disk since this dashboard was loaded, so this change was not saved. The dashboard now shows the file as it is.');
+    const changedNotice = (path) => {
+      new Notice(path.split('/').pop() + ' changed on disk since this dashboard was loaded, so this change was not saved. The dashboard now shows the file as it is.');
       return false;
+    };
+    if (loaded !== undefined && (await adapter.exists(spec.path)) && (await adapter.read(spec.path)) !== loaded) return changedNotice(spec.path);
+    /* A note replaces a .json (or a note) at its own place. */
+    const target = noteTwinOf(spec.path);
+    const json = specToJson(spec).replace(/\n$/, '');
+    let existing = null;
+    if (await adapter.exists(target)) {
+      try { existing = await adapter.read(target); } catch (e) { existing = null; }
     }
-    const text = specToJson(spec);
-    await adapter.write(spec.path, text);
-    DASHBOARD_LOADED_TEXT.set(spec, text);
+    if (target !== spec.path && existing !== null) {
+      /* A dashboard note that appeared beside the .json since this spec was
+       * read is the newer word. One that is not a ReadOut note is someone's
+       * own file and is never written over: the .json stays the dashboard. */
+      if (readReadoutNote(existing, 'dashboard').marked) return changedNotice(target);
+      const text = specToJson(spec);
+      await adapter.write(spec.path, text);
+      DASHBOARD_LOADED_TEXT.set(spec, text);
+      this.blockSpecCache = null;
+      return true;
+    }
+    const note = existing === null ? writeReadoutNote('dashboard', json) : rewriteReadoutNote(existing, 'dashboard', json);
+    await adapter.write(target, note);
+    spec.path = target;
+    DASHBOARD_LOADED_TEXT.set(spec, note);
     this.blockSpecCache = null;
     return true;
   }
@@ -10630,10 +10741,20 @@ class ReadOutPlugin extends Plugin {
   }
 
   async createDashboard() {
-    const { specs } = await this.loadDashboardSpecs();
+    const adapter = this.app.vault.adapter;
+    const folder = this.settings.dashboardFolder;
+    const { specs, errors } = await this.loadDashboardSpecs();
     const taken = new Set(specs.map((s) => s.id));
+    const free = async (id) => {
+      if (taken.has(id)) return false;
+      const stem = normalizePath(folder + '/' + id);
+      for (const ext of ['.md', '.json']) {
+        if (errors.some((e) => e.path === stem + ext) || (await adapter.exists(stem + ext))) return false;
+      }
+      return true;
+    };
     let n = 1;
-    while (taken.has('dashboard-' + n)) n++;
+    while (!(await free('dashboard-' + n))) n++;
     const spec = {
       id: 'dashboard-' + n,
       title: 'New dashboard',

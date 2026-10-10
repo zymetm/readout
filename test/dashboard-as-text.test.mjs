@@ -225,10 +225,14 @@ test('the dashboards view shows a change made as text in another pane, and ignor
   view.reload = async () => { reloads++; return reload(); };
   view.specs[0].title = 'Shop, from the form';
   await view.saveAndRender(view.specs[0]);
-  await ctx.fire(PATH);
+  /* Since 1.1 a dashboard read from a .json is saved as its note. */
+  const TWIN = PATH.replace(/.json$/, '.md');
+  await ctx.fire(TWIN);
   await settle();
   assert.equal(reloads, 0, 'its own save is not a change from elsewhere');
-  assert.equal(JSON.parse(ctx.adapter.files.get(PATH)).title, 'Shop, from the form');
+  assert.equal(ctx.adapter.files.get(PATH), RENAMED, 'the .json is left as it was');
+  const { lib } = loadPlugin();
+  assert.equal(JSON.parse(lib.readReadoutNote(ctx.adapter.files.get(TWIN), 'dashboard').json).title, 'Shop, from the form');
 });
 
 test('a save from the dashboards view never overwrites a change made on disk since it loaded', async () => {
