@@ -11096,8 +11096,10 @@ class ReadOutPlugin extends Plugin {
    * note is there. Only a .json whose .md twin exists, is marked as
    * ReadOut's (the right kind) and holds the same id (dashboardId, or
    * database, for a cache entry that has one) is touched, and only through
-   * the Vault API's trash, so it can be got back. A file that is not in the
-   * vault's index is left. Nothing here is automatic: the command runs it.
+   * Obsidian's own trashing (File Manager, which honours the "Deleted files"
+   * preference), so a file goes where your deleted files go and can be got
+   * back. A file that is not in the vault's index is left, and counted in
+   * unindexedJson. Nothing here is automatic: the command runs it.
    * Returns how many files went. */
   async removeOldJsonFiles() {
     return this.migrateOrRemove(true);
@@ -11105,13 +11107,17 @@ class ReadOutPlugin extends Plugin {
 
   async removeOldJsonWithNotice() {
     const n = await this.removeOldJsonFiles();
-    new Notice(n === 0
-      ? 'No old .json dashboards or cache files have a note beside them yet, so nothing was moved to the trash.'
-      : 'Moved ' + n + ' old .json ' + (n === 1 ? 'file' : 'files') + ' to the trash. Their notes are what ReadOut uses.');
+    const left = this.unindexedJson || 0;
+    const moved = 'Moved ' + n + ' old .json ' + (n === 1 ? 'file' : 'files') + ' to where your deleted files go. Their notes are what ReadOut uses.';
+    const waiting = left + (left === 1 ? ' old .json file has' : ' old .json files have') + ' a note but Obsidian has not listed ' + (left === 1 ? 'it' : 'them') + ' yet; run this again in a moment.';
+    new Notice(n === 0 && left === 0
+      ? 'No old .json dashboards or cache files have a note beside them yet, so nothing was moved.'
+      : (n > 0 ? moved : '') + (n > 0 && left > 0 ? ' ' : '') + (left > 0 ? waiting : ''));
     return n;
   }
 
   async migrateOrRemove(remove) {
+    this.unindexedJson = 0;
     const adapter = this.app.vault.adapter;
     const cache = this.settings.cacheFolder;
     const isObject = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -11144,8 +11150,8 @@ class ReadOutPlugin extends Plugin {
               if (kind === 'dashboard' && !keys.includes('id')) continue;
               if (keys.some((k) => mine[k] !== theirs[k])) continue;
               const file = this.app.vault.getAbstractFileByPath(path);
-              if (!(file instanceof TFile) || typeof this.app.vault.trash !== 'function') continue;
-              try { await this.app.vault.trash(file, true); } catch { await this.app.vault.trash(file, false); }
+              if (!(file instanceof TFile) || !this.app.fileManager || typeof this.app.fileManager.trashFile !== 'function') { this.unindexedJson++; continue; }
+              await this.app.fileManager.trashFile(file);
               written++;
               continue;
             }
