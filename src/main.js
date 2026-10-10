@@ -258,6 +258,9 @@ const DEFAULT_SETTINGS = {
   /* Widgets written in notes (a code block) draw. Off, a block shows its own
    * text as plain code. */
   drawNoteBlocks: true,
+  /* A note whose properties say `readout: dashboard` opens as its dashboard
+   * when it is opened in a pane (the file list, the quick switcher, a link). */
+  openDashboardNotes: true,
   /* The day a calendar's weeks start on, for every calendar widget that
    * does not name its own "weekStart". */
   weekStart: 'sunday',
@@ -8221,6 +8224,14 @@ class SqliteViewerSettingTab extends PluginSettingTab {
       }));
 
     new Setting(containerEl)
+      .setName('Open dashboard notes as dashboards')
+      .setDesc('When on, opening a dashboard note (from the file list, the quick switcher or a link) shows the dashboard instead of the note. To see the note itself, use "Open as note" in the file menu, "Open as text" on the dashboard, or switch the note to source mode.')
+      .addToggle((t) => t.setValue(this.plugin.settings.openDashboardNotes !== false).onChange(async (v) => {
+        this.plugin.settings.openDashboardNotes = v;
+        await this.plugin.saveSettings();
+      }));
+
+    new Setting(containerEl)
       .setName('Week starts on')
       .setDesc('The day each column of weeks starts on in a calendar widget. A widget with its own "Week starts on" keeps it.')
       .addDropdown((d) => {
@@ -10352,6 +10363,18 @@ class ReadOutPlugin extends Plugin {
           await this.openDashboards(spec ? spec.id : undefined);
         });
       });
+      menu.addItem((item) => {
+        item.setTitle('Open as note');
+        item.setIcon('file-code');
+        item.onClick(() => this.openNoteRaw(file.path));
+      });
+    }));
+
+    /* Opening a dashboard note shows the dashboard. The mechanism is the
+     * workspace's own 'file-open' event and leaf.setViewState on the leaf the
+     * note was just opened in; nothing is patched. */
+    this.registerEvent(this.app.workspace.on('file-open', (file) => {
+      this.maybeOpenAsDashboard(file).catch(() => {});
     }));
 
     this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
@@ -10648,6 +10671,7 @@ class ReadOutPlugin extends Plugin {
     if (note) {
       const file = this.app.vault.getAbstractFileByPath(note);
       if (file instanceof TFile && typeof target.openFile === 'function') {
+        this.rawOpen = { path: file.path, until: Date.now() + 5000 };
         await target.openFile(file);
         return;
       }
@@ -10658,6 +10682,49 @@ class ReadOutPlugin extends Plugin {
       }
     }
     await target.setViewState({ type: VIEW_JSON, state: { file: path, asText: true }, active: true });
+  }
+
+  /* A dashboard note in a new pane as the note itself, not the dashboard. */
+  async openNoteRaw(path) {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return;
+    this.rawOpen = { path, until: Date.now() + 5000 };
+    await this.app.workspace.getLeaf(true).openFile(file);
+  }
+
+  /* Called when a file is opened in a pane. A note whose properties say
+   * `readout: dashboard` and that reads as a dashboard is replaced, in that
+   * same pane, by the dashboard. Left alone: a cache note, any other note, a
+   * note that does not read as a dashboard (so it can be fixed), a note the
+   * member asked for as text a moment ago, a note in source mode, a pane
+   * that is not showing this note, and the setting turned off. The pane is
+   * no longer a note once it is converted, so this cannot run twice on it. */
+  async maybeOpenAsDashboard(file) {
+    if (this.settings.openDashboardNotes === false || !file || typeof file.path !== 'string' || !/\.md$/i.test(file.path)) return;
+    if (this.rawOpen && this.rawOpen.path === file.path && Date.now() < this.rawOpen.until) return;
+    const ws = this.app.workspace;
+    const leaf = typeof ws.getMostRecentLeaf === 'function' ? ws.getMostRecentLeaf() : ws.activeLeaf;
+    const view = leaf && leaf.view;
+    if (!view || typeof view.getViewType !== 'function' || view.getViewType() !== 'markdown') return;
+    if (!view.file || view.file.path !== file.path) return;
+    const state = typeof view.getState === 'function' ? view.getState() : null;
+    if (state && state.mode === 'source' && state.source === true) return;
+    const cache = this.app.metadataCache && typeof this.app.metadataCache.getFileCache === 'function' ? this.app.metadataCache.getFileCache(file) : null;
+    if (cache && cache.frontmatter && String(cache.frontmatter[READOUT_NOTE_PROPERTY]).toLowerCase() !== 'dashboard') return;
+    /* Read the note itself: the property cache may not be ready yet, and the
+     * dashboard must read for the pane to be taken over. */
+    const note = readReadoutNote(await this.app.vault.read(file), 'dashboard');
+    if (!note.marked || !note.ok) return;
+    const parsed = parseDashboardSpec(note.json);
+    if (!parsed.ok) return;
+    /* The member may have moved on while this read. */
+    if (leaf.view !== view) return;
+    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
+    const dashboards = leaf.view;
+    if (dashboards && typeof dashboards.reload === 'function') {
+      dashboards.activeId = parsed.spec.id;
+      await dashboards.reload();
+    }
   }
 
   async openDashboards(activeId) {
