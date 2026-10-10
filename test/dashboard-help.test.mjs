@@ -148,11 +148,11 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [11, '206d920e'], 'AI-WIDGET-GUIDE.md': [12, 'b5162686'] };
+  const pinned = { 'README.md': [12, 'c822423e'], 'AI-WIDGET-GUIDE.md': [12, 'b5162686'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /Written by ReadOut \(revision 11, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /Written by ReadOut \(revision 12, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {
@@ -343,10 +343,10 @@ test('at start an existing, unedited guide is brought up to date; an edited one 
 test('a copy that says "Written by the SQLite Viewer plugin" is still recognised, and so is the ReadOut wording', async () => {
   const text = lib.guideTextFor(README_FILE, '07 Databases');
   const old = text.replace(/<!-- Written by[^\n]*\n$/, (m) => m.replace('Written by ReadOut', 'Written by the SQLite Viewer plugin').replace('ReadOut stops', 'the plugin stops'));
-  assert.match(old, /Written by the SQLite Viewer plugin \(revision 11/);
+  assert.match(old, /Written by the SQLite Viewer plugin \(revision 12/);
   assert.equal(lib.guideIsPluginOwn(old, [], '07 Databases'), true, 'the old wording');
   assert.equal(lib.guideIsPluginOwn(text, [], '07 Databases'), true, 'the new wording');
-  assert.equal(lib.guideRevision(old), 11);
+  assert.equal(lib.guideRevision(old), 12);
   /* An old-wording copy of an older revision is refreshed to the new wording. */
   const olderBody = 'Old.\n';
   const olderOld = olderBody + '<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint ' + lib.guideHash(olderBody) + '). If you edit this file, the plugin stops updating it. -->\n';
@@ -459,6 +459,6 @@ test('the phone story and the notes story are in the in-vault help and in the re
     assert.match(text, /Tapping a dashboard note opens the dashboard/, name);
     assert.match(text, /run the command "Remove old \.json\ndashboards and cache files"/, name);
   }
-  assert.match(readme, /Settings →\nCommunity plugins → Browse, search for "ReadOut"/, 'the README leads with the Community plugins install');
+  assert.match(readme, /Settings →\nCommunity plugins\. If Restricted mode is on, turn on community plugins\. Then\nchoose Browse, search for "ReadOut"/, 'the README leads with the Community plugins install');
   assert.ok(readme.indexOf('## Your phone, in short') < readme.indexOf('## What it is for'), 'near the top');
 });

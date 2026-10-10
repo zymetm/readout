@@ -27,7 +27,7 @@ default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
 note" in the file menu, or "Open as text" on the dashboard, shows the note
 itself. After updating from 1.0, each dashboard has an old `.json` file beside
 its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
-dashboards and cache files" and they go to the trash.
+dashboards and cache files" and they go where your deleted files go.
 
 ## What it is for
 
@@ -42,7 +42,8 @@ out of it.
 ## Install
 
 ReadOut is in Obsidian's Community plugins list. In Obsidian, go to Settings →
-Community plugins → Browse, search for "ReadOut", then Install and Enable.
+Community plugins. If Restricted mode is on, turn on community plugins. Then
+choose Browse, search for "ReadOut", and Install and Enable it.
 
 To install it by hand instead, download `main.js`, `manifest.json` and
 `styles.css` from the latest [release](../../releases) and put the three files

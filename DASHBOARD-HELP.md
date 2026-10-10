@@ -26,7 +26,7 @@ default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
 note" in the file menu, or "Open as text" on the dashboard, shows the note
 itself. After updating from 1.0, each dashboard has an old `.json` file beside
 its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
-dashboards and cache files" and they go to the trash.
+dashboards and cache files" and they go where your deleted files go.
 
 ## Line chart and bar chart
 
@@ -513,4 +513,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by ReadOut (revision 11, fingerprint 206d920e). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 12, fingerprint c822423e). If you edit this file, ReadOut stops updating it. -->

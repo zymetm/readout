@@ -8717,7 +8717,7 @@ default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
 note" in the file menu, or "Open as text" on the dashboard, shows the note
 itself. After updating from 1.0, each dashboard has an old \`.json\` file beside
 its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
-dashboards and cache files" and they go to the trash.
+dashboards and cache files" and they go where your deleted files go.
 
 ## Line chart and bar chart
 
@@ -9947,7 +9947,7 @@ A prompt to give an agent:
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 11, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 12, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
   { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 12, legacy: [] },
 ];
 
