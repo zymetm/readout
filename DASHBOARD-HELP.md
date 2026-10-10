@@ -13,6 +13,21 @@ What each widget type shows, what it is good for, and what each of its settings 
 
 Editing dashboard files by hand, or asking an AI to? Use `AI-WIDGET-GUIDE.md` in this folder. If it is missing, press "Create Guide Files for Your AI Team" on the empty dashboards screen, or run the command "Write the guide files".
 
+## Phones, and dashboards as notes
+
+On a phone, ReadOut is a dashboard viewer. Your desktop draws each dashboard
+and saves its answers as notes. Obsidian Sync carries notes with its default
+settings, so your phone draws each dashboard from those saved answers: the last
+ones the desktop saved. Browsing tables and running queries need the database
+file on the device, and default Sync does not carry database files.
+
+Dashboards are notes on every device, not only on the phone. That is what lets
+default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
+note" in the file menu, or "Open as text" on the dashboard, shows the note
+itself. After updating from 1.0, each dashboard has an old `.json` file beside
+its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
+dashboards and cache files" and they go to the trash.
+
 ## Line chart and bar chart
 
 *Sample: a line chart of orders per day, with a dashed goal line. Every number in the samples is invented.*
@@ -498,4 +513,4 @@ A line chart written in SQL: a shaded area between two columns, like a low and a
 ---
 
 Delete this file to get a fresh copy; editing it stops updates.
-<!-- Written by ReadOut (revision 10, fingerprint e0759d50). If you edit this file, ReadOut stops updating it. -->
+<!-- Written by ReadOut (revision 11, fingerprint 206d920e). If you edit this file, ReadOut stops updating it. -->

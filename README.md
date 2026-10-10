@@ -14,6 +14,21 @@ by myICOR, under its MIT licence, and credits its original authors (see
 `LICENSE`). It is an independent project: myICOR and Paperless Movement do
 not make, support or endorse it.
 
+## Your phone, in short
+
+On a phone, ReadOut is a dashboard viewer. Your desktop draws each dashboard
+and saves its answers as notes. Obsidian Sync carries notes with its default
+settings, so your phone draws each dashboard from those saved answers: the last
+ones the desktop saved. Browsing tables and running queries need the database
+file on the device, and default Sync does not carry database files.
+
+Dashboards are notes on every device, not only on the phone. That is what lets
+default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
+note" in the file menu, or "Open as text" on the dashboard, shows the note
+itself. After updating from 1.0, each dashboard has an old `.json` file beside
+its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
+dashboards and cache files" and they go to the trash.
+
 ## What it is for
 
 Notes are for knowledge. Millions of rows are not knowledge, they are data,
@@ -26,11 +41,14 @@ out of it.
 
 ## Install
 
-ReadOut is not in the Community plugins list yet. To install it by hand,
-download `main.js`, `manifest.json` and `styles.css` from the latest
-[release](../../releases) and put the three files in a folder called
-`readout` inside your vault's plugins folder (`.obsidian/plugins/readout`).
-Then turn ReadOut on in Settings, Community plugins.
+ReadOut is in Obsidian's Community plugins list. In Obsidian, go to Settings →
+Community plugins → Browse, search for "ReadOut", then Install and Enable.
+
+To install it by hand instead, download `main.js`, `manifest.json` and
+`styles.css` from the latest [release](../../releases) and put the three files
+in a folder called `readout` inside your vault's plugins folder
+(`.obsidian/plugins/readout`). Then turn ReadOut on in Settings, Community
+plugins.
 
 ## Getting started
 
@@ -105,9 +123,9 @@ saved the last time it drew them.
 
 ## On a phone
 
-On a phone, ReadOut is a dashboard viewer. It draws each dashboard from the
-answers your desktop saved the last time it drew that dashboard, and says
-"Computed on desktop" on the screen. The phone shows the last saved answers: to
+(The short version is at the top.) On a phone, ReadOut draws each dashboard
+from the answers your desktop saved the last time it drew that dashboard, and
+says "Computed on desktop" on the screen. The phone shows the last saved answers: to
 refresh them, open the dashboard on the desktop and let Obsidian Sync finish.
 
 Browsing tables and running queries need the database file itself on the

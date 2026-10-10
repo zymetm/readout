@@ -148,11 +148,11 @@ test('each guide\'s revision is pinned to its text: change the text, raise the r
   /* Two devices on the same revision leave each other's copy alone, so
    * the same revision must mean the same text. When this fails, raise the
    * guide's revision in GUIDE_FILES and pin the new hash here. */
-  const pinned = { 'README.md': [10, 'e0759d50'], 'AI-WIDGET-GUIDE.md': [12, 'b5162686'] };
+  const pinned = { 'README.md': [11, '206d920e'], 'AI-WIDGET-GUIDE.md': [12, 'b5162686'] };
   for (const guide of lib.GUIDE_FILES) {
     assert.deepEqual([guide.revision, lib.guideHash(guide.text)], pinned[guide.file], guide.file);
   }
-  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /Written by ReadOut \(revision 10, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
+  assert.match(lib.guideTextFor(README_FILE, '07 Databases'), /Written by ReadOut \(revision 11, fingerprint [0-9a-f]{8}\)\. If you edit this file, ReadOut stops updating it\. -->\n$/);
 });
 
 test('a guide is refreshed only forward, so two devices sharing a vault never rewrite each other\'s copy', async () => {
@@ -343,10 +343,10 @@ test('at start an existing, unedited guide is brought up to date; an edited one 
 test('a copy that says "Written by the SQLite Viewer plugin" is still recognised, and so is the ReadOut wording', async () => {
   const text = lib.guideTextFor(README_FILE, '07 Databases');
   const old = text.replace(/<!-- Written by[^\n]*\n$/, (m) => m.replace('Written by ReadOut', 'Written by the SQLite Viewer plugin').replace('ReadOut stops', 'the plugin stops'));
-  assert.match(old, /Written by the SQLite Viewer plugin \(revision 10/);
+  assert.match(old, /Written by the SQLite Viewer plugin \(revision 11/);
   assert.equal(lib.guideIsPluginOwn(old, [], '07 Databases'), true, 'the old wording');
   assert.equal(lib.guideIsPluginOwn(text, [], '07 Databases'), true, 'the new wording');
-  assert.equal(lib.guideRevision(old), 10);
+  assert.equal(lib.guideRevision(old), 11);
   /* An old-wording copy of an older revision is refreshed to the new wording. */
   const olderBody = 'Old.\n';
   const olderOld = olderBody + '<!-- Written by the SQLite Viewer plugin (revision 7, fingerprint ' + lib.guideHash(olderBody) + '). If you edit this file, the plugin stops updating it. -->\n';
@@ -447,4 +447,18 @@ test('the AI guide ends with a short section on turning it into a skill: point a
   assert.match(section, /Read 07 Databases\/Dashboards\/AI-WIDGET-GUIDE\.md and make a skill that follows its procedure\. Link to the guide, don't copy it, and add my preferences\./);
   assert.doesNotMatch(section, /SKILL\.md|Claude|Codex|Gemini|Cursor/, 'no one vendor\'s format');
   assert.equal(lib.GUIDE_FILES.find((g) => g.file === 'AI-WIDGET-GUIDE.md').revision, 12);
+});
+
+test('the phone story and the notes story are in the in-vault help and in the repository README, in the same words', () => {
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  for (const [name, text] of [['the in-vault help', HELP], ['the README', readme]]) {
+    assert.match(text, /On a phone, ReadOut is a dashboard viewer\. Your desktop draws each dashboard\nand saves its answers as notes\./, name);
+    assert.match(text, /Obsidian Sync carries notes with its default\nsettings/, name);
+    assert.match(text, /database\nfile on the device, and default Sync does not carry database files\./, name);
+    assert.match(text, /Dashboards are notes on every device, not only on the phone\./, name);
+    assert.match(text, /Tapping a dashboard note opens the dashboard/, name);
+    assert.match(text, /run the command "Remove old \.json\ndashboards and cache files"/, name);
+  }
+  assert.match(readme, /Settings →\nCommunity plugins → Browse, search for "ReadOut"/, 'the README leads with the Community plugins install');
+  assert.ok(readme.indexOf('## Your phone, in short') < readme.indexOf('## What it is for'), 'near the top');
 });
