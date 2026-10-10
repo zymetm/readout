@@ -62,8 +62,10 @@ from a table with a few clicks, or you can write the SQL yourself.
 - The first time ReadOut runs it picks the folders: `Databases`,
   `Databases/Dashboards` and `Databases/Dashboard Cache`. In a vault that has
   the ICOR for Life scaffold it picks the vault's own Databases room
-  (`07 Databases`) instead. That choice is only made once, on a fresh
-  install. After that, whatever is in Settings wins.
+  (`07 Databases`) instead. On a synced phone, where the scaffold's hidden
+  folder does not sync, a `07 Databases` folder with no `Databases` folder
+  beside it counts too. That choice is only made once, on a fresh install.
+  After that, whatever is in Settings wins.
 - ReadOut does not open `.json` files by default. Switch on "Open JSON files in the vault"
   in the settings if you want a dashboard file to open as its
   dashboard.

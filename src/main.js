@@ -212,6 +212,22 @@ async function detectIcorScaffold(adapter) {
   }
 }
 
+/* Whether this is an ICOR for Life vault, read in a way that also works on a
+ * phone. The scaffold manifest sits in a dot folder, which Obsidian Sync never
+ * copies, so a synced phone vault has no manifest. There the Databases room
+ * itself is the sign: a "07 Databases" folder and no plain "Databases" one.
+ * Never throws. */
+async function detectIcorVault(adapter) {
+  if (await detectIcorScaffold(adapter)) return true;
+  try {
+    return !!(await adapter.exists(ICOR_FOLDERS.dataFolder)) && !(await adapter.exists(PLAIN_FOLDERS.dataFolder));
+  } catch (e) {
+    return false;
+  }
+}
+
+const sameFolders = (a, b) => !!a && a.dataFolder === b.dataFolder && a.dashboardFolder === b.dashboardFolder && a.cacheFolder === b.cacheFolder;
+
 /* The three folder defaults for a vault. Pure. */
 function folderDefaultsFor(isIcorVault) {
   return Object.assign({}, isIcorVault ? ICOR_FOLDERS : PLAIN_FOLDERS);
@@ -10232,8 +10248,23 @@ class ReadOutPlugin extends Plugin {
      * Whatever is saved always wins; a key the file lacks takes the vault's
      * default. */
     const saved = await this.loadData();
-    const seeded = folderDefaultsFor(await detectIcorScaffold(this.app.vault.adapter));
+    const adapter = this.app.vault.adapter;
+    const isIcor = await detectIcorVault(adapter);
+    const seeded = folderDefaultsFor(isIcor);
     this.settings = Object.assign({}, DEFAULT_SETTINGS, seeded, saved);
+    /* Up to 1.0.9 a synced phone could not see the scaffold manifest (a dot
+     * folder Sync skips), so it saved the plain folders in an ICOR vault and
+     * showed no dashboards. Move such an install to the Databases room, but
+     * only while it still has the plain defaults and no plain "Databases"
+     * folder exists, so nothing anyone made is left behind. */
+    let healed = false;
+    try {
+      healed = !!saved && isIcor && sameFolders(saved, PLAIN_FOLDERS) && !(await adapter.exists(PLAIN_FOLDERS.dataFolder));
+    } catch (e) { healed = false; }
+    if (healed) {
+      Object.assign(this.settings, ICOR_FOLDERS);
+      try { await this.saveSettings(); } catch (e) { /* the next change saves it */ }
+    }
     /* 1.0.6 stored the vault root as the databases folder to mean "search the
      * whole vault". The two are separate settings now: restore this vault's
      * default databases folder and search the whole vault. */
@@ -10823,7 +10854,7 @@ ReadOutPlugin.lib = {
   checkRangeColumn, checkCaptions, statCaptionSteps, CAPTIONS_MAX, checkValueSize, fitStatValue, nextFitSize, VALUE_SIZE_PRESETS,
   LEVEL_THEME_COLORS, DEFAULT_LEVELS, LEVEL_LOOKS, DEFAULT_LEVEL_LOOKS,
   rowTracks, rowsForOffset, DIVIDER_ROW_PX, renderDivider,
-  detectIcorScaffold, folderDefaultsFor, PLAIN_FOLDERS, ICOR_FOLDERS,
+  detectIcorScaffold, detectIcorVault, folderDefaultsFor, PLAIN_FOLDERS, ICOR_FOLDERS,
   shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, READ_PRAGMAS, READ_PRAGMA_FUNCS,
   ensureFolder, csvExportName,
   bytesOfB64, EMBEDDED_SQL_WASM_B64,

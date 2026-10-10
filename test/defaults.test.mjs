@@ -68,13 +68,45 @@ test('a vault that happens to hold a folder called 07 Data is not adopted: there
   assert.equal(plugin.settings.dataFolder, 'Databases');
 });
 
-test('the fresh choice is saved, so it never flips when the vault changes later', async () => {
+test('the fresh choice is saved, so it never flips while its plain folder is in use', async () => {
   const first = await boot({}, null);
   assert.ok(first.plugin.saved, 'saved on first load');
   assert.deepEqual(trio(first.plugin.saved), ['Databases', 'Databases/Dashboards', 'Databases/Dashboard Cache']);
-  /* The same install, later, in a vault that now carries the scaffold. */
-  const second = await boot({ [MANIFEST]: SCAFFOLD }, first.plugin.saved);
+  /* The same install, later, in a vault that now carries the scaffold, with
+   * its plain folder holding something. */
+  const second = await boot({ [MANIFEST]: SCAFFOLD, 'Databases/mine.db': 'x' }, first.plugin.saved);
   assert.equal(second.plugin.settings.dataFolder, 'Databases', 'saved settings win');
+});
+
+/* A synced phone: Obsidian Sync skips dot folders, so the manifest is not
+ * there, but the Databases room is. */
+const PHONE = { '07 Databases/Dashboards/health.json': '{}', '07 Databases/README.md': 'room' };
+
+test('a fresh install on a synced phone finds the Databases room without the manifest', async () => {
+  const { plugin } = await boot(PHONE, null);
+  assert.deepEqual(trio(plugin.settings), ['07 Databases', '07 Databases/Dashboards', '07 Databases/Dashboard Cache']);
+});
+
+test('a phone that saved the plain folders before 1.0.10 moves to the Databases room', async () => {
+  const { plugin } = await boot(PHONE, { dataFolder: 'Databases', dashboardFolder: 'Databases/Dashboards', cacheFolder: 'Databases/Dashboard Cache', weekStart: 'monday' });
+  assert.deepEqual(trio(plugin.settings), ['07 Databases', '07 Databases/Dashboards', '07 Databases/Dashboard Cache']);
+  assert.deepEqual(trio(plugin.saved), ['07 Databases', '07 Databases/Dashboards', '07 Databases/Dashboard Cache'], 'and saves it');
+  assert.equal(plugin.settings.weekStart, 'monday', 'other settings are kept');
+});
+
+test('the move never happens when a plain Databases folder exists, or the folders were chosen by hand', async () => {
+  const plain = { dataFolder: 'Databases', dashboardFolder: 'Databases/Dashboards', cacheFolder: 'Databases/Dashboard Cache' };
+  const used = await boot(Object.assign({ 'Databases/mine.db': 'x' }, PHONE), plain);
+  assert.equal(used.plugin.settings.dataFolder, 'Databases');
+  const mine = await boot(PHONE, { dataFolder: 'Databases', dashboardFolder: 'Boards', cacheFolder: 'Databases/Dashboard Cache' });
+  assert.equal(mine.plugin.settings.dashboardFolder, 'Boards');
+  const notIcor = await boot({ 'notes/a.md': 'x' }, plain);
+  assert.equal(notIcor.plugin.settings.dataFolder, 'Databases');
+});
+
+test('a vault with both a plain Databases folder and a 07 Databases folder, and no manifest, stays plain', async () => {
+  const { plugin } = await boot(Object.assign({ 'Databases/x.db': 'x' }, PHONE), null);
+  assert.equal(plugin.settings.dataFolder, 'Databases');
 });
 
 test('saved settings win over detection, in both directions', async () => {
