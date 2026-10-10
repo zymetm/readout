@@ -6,6 +6,16 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.0.10] - 2026-10-09
+
+### Fixed
+- **Dashboards show up on a synced phone in an ICOR for Life vault.** The
+  phone could not see the scaffold's hidden folder (Obsidian Sync skips it),
+  so a fresh install there looked in a plain `Databases` folder and found
+  nothing. ReadOut now also knows the vault by its `07 Databases` room, and a
+  phone that already saved the plain folders moves to the room on its next
+  start, as long as no plain `Databases` folder exists.
+
 ## [1.0.9] - 2026-10-09
 
 ### Fixed
