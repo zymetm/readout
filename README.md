@@ -1,6 +1,6 @@
 # ReadOut
 
-**Read the databases in your vault: browse and query on the desktop, view dashboards on your phone.**
+**Read the databases in your Obsidian vault: browse and query on the desktop, view dashboards on your phone.**
 
 ReadOut opens the SQLite files that live next to your notes: browse the
 tables, run your own read-only queries, and keep charts, tables and big
