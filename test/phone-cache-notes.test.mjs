@@ -222,3 +222,24 @@ test('a cache note over about 4 MB adds a plain line to the desktop status; a sm
   const small = await statusFor(1000);
   assert.doesNotMatch(small.all, /Obsidian Sync Standard/);
 });
+
+test('when a note and a .json both read, the one computed last is used; a tie goes to the note', async () => {
+  const at = (iso, title) => Object.assign({}, CACHED, { computedAt: iso, title });
+  const md = CACHE + '/dashboards/shop.md';
+  const json = CACHE + '/dashboards/shop.json';
+  /* A desktop still on 1.0.x keeps writing the .json, newer than the note. */
+  const a = await boot({ [md]: cacheNote(at('2026-10-01T00:00:00.000Z', 'Note')), [json]: JSON.stringify(at('2026-10-05T00:00:00.000Z', 'Newer json')) });
+  assert.equal((await a.plugin.readDashboardCache(SPEC)).title, 'Newer json');
+  const b = await boot({ [md]: cacheNote(at('2026-10-05T00:00:00.000Z', 'Newer note')), [json]: JSON.stringify(at('2026-10-01T00:00:00.000Z', 'Json')) });
+  assert.equal((await b.plugin.readDashboardCache(SPEC)).title, 'Newer note');
+  const c = await boot({ [md]: cacheNote(at('2026-10-01T00:00:00.000Z', 'Note')), [json]: JSON.stringify(at('2026-10-01T00:00:00.000Z', 'Json')) });
+  assert.equal((await c.plugin.readDashboardCache(SPEC)).title, 'Note');
+
+  const block = (iso, n) => ({ computedAt: iso, result: { columns: ['n'], rows: [[n]] } });
+  const d = await boot({ [lib.blockCachePath(CACHE, 'k')]: cacheNote(block('2026-10-01T00:00:00.000Z', 1)), [lib.blockCachePath(CACHE, 'k', 'json')]: JSON.stringify(block('2026-10-05T00:00:00.000Z', 2)) });
+  assert.equal((await d.plugin.readBlockCache('k')).result.rows[0][0], 2);
+
+  const cat = (iso, name) => ({ database: DB, computedAt: iso, tables: [{ name, columns: [] }], values: {} });
+  const e = await boot({ [lib.catalogPathFor(CACHE, DB, 'md')]: cacheNote(cat('2026-10-01T00:00:00.000Z', 'from_note')), [lib.catalogPathFor(CACHE, DB, 'json')]: JSON.stringify(cat('2026-10-05T00:00:00.000Z', 'from_json')) }, { desktop: false });
+  assert.equal((await e.plugin.readCatalog(DB)).tables[0].name, 'from_json');
+});

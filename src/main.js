@@ -10158,6 +10158,12 @@ const BLOCK_SPEC_PASS_MS = 2000;
 /* How long a note-block cache file may sit unused before it is removed. */
 const BLOCK_CACHE_MAX_AGE_DAYS = 60;
 
+/* When a cache entry was computed, as a number; 0 when it does not say. */
+function cachedAt(entry) {
+  const t = Date.parse(entry && entry.computedAt);
+  return Number.isFinite(t) ? t : 0;
+}
+
 /* A cache note this big is warned about on the desktop: Obsidian Sync
  * Standard carries files up to 5 MB. */
 const CACHE_NOTE_WARN_BYTES = 4 * MB;
@@ -11038,26 +11044,32 @@ class ReadOutPlugin extends Plugin {
     return removed;
   }
 
-  async readBlockCache(key) {
-    for (const ext of ['md', 'json']) {
-      const c = await this.readCachedJson(blockCachePath(this.settings.cacheFolder, key, ext));
-      if (c && typeof c.computedAt === 'string' && c.result && Array.isArray(c.result.columns) && Array.isArray(c.result.rows)) return c;
+  /* The cache entry among these paths that was computed last. A note and a
+   * .json of the same entry can both be there (a desktop still on an earlier
+   * version keeps writing the .json); a tie goes to the first, the note. */
+  async newestCached(paths, accept) {
+    let best = null;
+    for (const path of paths) {
+      const c = await this.readCachedJson(path);
+      if (!c || !accept(c)) continue;
+      if (!best || cachedAt(c) > cachedAt(best)) best = c;
     }
-    return null;
+    return best;
+  }
+
+  async readBlockCache(key) {
+    const folder = this.settings.cacheFolder;
+    return this.newestCached([blockCachePath(folder, key, 'md'), blockCachePath(folder, key, 'json')],
+      (c) => typeof c.computedAt === 'string' && c.result && Array.isArray(c.result.columns) && Array.isArray(c.result.rows));
   }
 
   async readDashboardCache(spec) {
     /* The note first, then what versions before 1.1 wrote. */
-    const candidates = [
-      dashCachePath(this.settings.cacheFolder, spec.id, 'md'),
-      dashCachePath(this.settings.cacheFolder, spec.id, 'json'),
-    ];
-    if (spec.database) candidates.push(cachePathFor(this.settings.cacheFolder, spec.database, spec.id));
-    for (const path of candidates) {
-      const cache = await this.readCachedJson(path);
-      if (cache && Array.isArray(cache.tiles) && typeof cache.computedAt === 'string') return cache;
-    }
-    return null;
+    const accept = (c) => Array.isArray(c.tiles) && typeof c.computedAt === 'string';
+    const folder = this.settings.cacheFolder;
+    const found = await this.newestCached([dashCachePath(folder, spec.id, 'md'), dashCachePath(folder, spec.id, 'json')], accept);
+    if (found || !spec.database) return found;
+    return this.newestCached([cachePathFor(folder, spec.database, spec.id)], accept);
   }
 
   /* Says in a notice whether a note reads as a dashboard, and returns what
@@ -11184,18 +11196,12 @@ class ReadOutPlugin extends Plugin {
   }
 
   async readCatalog(dbPath) {
-    const candidates = [
-      catalogPathFor(this.settings.cacheFolder, dbPath, 'md'),
-      catalogPathFor(this.settings.cacheFolder, dbPath, 'json'),
-      legacyCatalogPathFor(this.settings.cacheFolder, dbPath),
-    ];
-    for (const path of candidates) {
-      const catalog = await this.readCachedJson(path);
-      /* A legacy stem-keyed file may belong to a same-named database in
-       * another folder; trust it only when it names this database. */
-      if (catalog && Array.isArray(catalog.tables) && (!catalog.database || catalog.database === dbPath)) return catalog;
-    }
-    return null;
+    /* A legacy stem-keyed file may belong to a same-named database in
+     * another folder; trust it only when it names this database. */
+    const accept = (c) => Array.isArray(c.tables) && (!c.database || c.database === dbPath);
+    const folder = this.settings.cacheFolder;
+    const found = await this.newestCached([catalogPathFor(folder, dbPath, 'md'), catalogPathFor(folder, dbPath, 'json')], accept);
+    return found || this.newestCached([legacyCatalogPathFor(folder, dbPath)], accept);
   }
 
   /* On the desktop, after a database was successfully touched, write the
