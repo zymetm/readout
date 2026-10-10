@@ -8726,9 +8726,7 @@ file on the device, and default Sync does not carry database files.
 Dashboards are notes on every device, not only on the phone. That is what lets
 default Sync carry them. Tapping a dashboard note opens the dashboard; "Open as
 note" in the file menu, or "Open as text" on the dashboard, shows the note
-itself. After updating from 1.0, each dashboard has an old \`.json\` file beside
-its note. Once every device runs ReadOut 1.1, run the command "Remove old .json
-dashboards and cache files" and they go where your deleted files go.
+itself.
 
 ## Line chart and bar chart
 
@@ -9242,10 +9240,7 @@ newest text; it is written again on the next load or on "New dashboard".
   that folder, so the folder holding this file is the one.
 - Create a note, never a \`.json\` file. Obsidian Sync carries notes by
   default and leaves \`.json\` files behind, so a dashboard saved as \`.json\`
-  does not reach a phone on default settings. A \`.json\` dashboard (from an
-  earlier version, or made by hand) still opens, and the plugin writes its
-  note beside it the next time it loads; from then on the note is the
-  dashboard and the \`.json\` is no longer read.
+  does not reach a phone on default settings.
 - Other notes in that folder, this guide included, are not dashboards and
   are left alone. A note with \`readout: dashboard\` that does not read as a
   dashboard is listed as an error at the top of the dashboards view, with
@@ -9471,15 +9466,14 @@ build widgets the panel can show in full:
 ## 8. The field reference
 
 Every setting of the dashboard, with an example of each type on an invented
-shop database. The plugin's README on GitHub carries the same reference.
+shop database.
 
 <!-- field reference -->
 ### The dashboard note
 
 A dashboard is a Markdown note in the dashboards folder, named after its
 \`id\` (\`shop.md\`). The properties mark it as ReadOut's, and the dashboard is
-the JSON in the note's one json code block. Notes are what default Obsidian Sync
-carries to a phone; a \`.json\` file would stay behind.
+the JSON in the note's one json code block.
 
 \`\`\`\`markdown
 ---
@@ -9876,7 +9870,7 @@ column where a heatmap reads a row and a column.
   day with data is grey.
 - \`weekStart\`: \`"sunday"\` or \`"monday"\`, the day each column of weeks
   starts on. Left out, the calendar follows the plugin setting "Week starts on"
-  (Sunday unless the member changed it), so one choice covers every calendar.
+  (Sunday unless you changed it), so one choice covers every calendar.
 - \`year\`: a whole calendar year like \`2026\`. Left out, the calendar shows the
   last 53 weeks up to the newest day in the data, never "today".
 
@@ -9958,8 +9952,8 @@ A prompt to give an agent:
  * fingerprint line, so an unedited old copy is still recognised and
  * refreshed. */
 const GUIDE_FILES = [
-  { file: 'README.md', text: DASHBOARD_README, revision: 12, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
-  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 12, legacy: [] },
+  { file: 'README.md', text: DASHBOARD_README, revision: 13, legacy: ['ac2ce38f', '110587e1', '187f3e85', '9b05f8bf'] },
+  { file: 'AI-WIDGET-GUIDE.md', text: AI_WIDGET_GUIDE, revision: 13, legacy: [] },
 ];
 
 /* Live samples in the help file. Each widget section of the help file

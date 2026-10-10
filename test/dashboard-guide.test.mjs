@@ -2,14 +2,14 @@
  *
  * The reference for the dashboard file (every type and every setting, with
  * examples on an invented shop database) lives in the AI widget guide the
- * plugin writes beside the help file, and the repository README carries
- * the same reference. It used to be the help file's appendix; the help file
+ * plugin writes beside the help file; the repository README links to it.
+ * It used to be the help file's appendix; the help file
  * is now for people and describes the edit panel only. These gates keep
  * the reference true: every widget type is named; every setting the plugin
  * writes back to a file appears in it (a widget of each type with every
  * setting set, sent through the save path's serializer); every example in
- * it reads as a valid widget; and the repository README's reference is the
- * same text.
+ * it reads as a valid widget; and the repository README links to it rather
+ * than keeping a copy.
  */
 
 import test from 'node:test';
@@ -63,14 +63,11 @@ test('the guide says the text widget is plain text and where the levels live', (
   assert.match(GUIDE, /shared with someone else needs its levels in their settings too/);
 });
 
-test('the repository README carries the same field reference', () => {
-  const block = (text) => {
-    const a = text.indexOf('<!-- field reference -->');
-    const b = text.indexOf('<!-- /field reference -->');
-    assert.ok(a >= 0 && b > a, 'the reference is marked');
-    return text.slice(a, b).replace(/^#+ /gm, '# ');
-  };
-  assert.equal(block(README), block(GUIDE));
+test('the repository README links to the field reference instead of carrying a copy', () => {
+  assert.ok(GUIDE.includes('<!-- field reference -->') && GUIDE.includes('<!-- /field reference -->'), 'the guide\'s reference is marked');
+  assert.ok(!README.includes('<!-- field reference -->'), 'no second copy to drift');
+  assert.match(README, /AI-WIDGET-GUIDE\.md/);
+  assert.match(README, /DASHBOARD-HELP\.md/);
 });
 
 test('the guide does not claim a fixed six-column grid: it is 2 to 6 columns, by pane width', () => {
