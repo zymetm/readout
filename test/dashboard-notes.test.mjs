@@ -276,3 +276,26 @@ test('"Open as text" on a note Obsidian has not listed yet says so, and never ha
   assert.deepEqual(opened, []);
   assert.equal(notices.some((n) => /has not listed new.md yet/.test(n)), true);
 });
+
+test('a Sync conflict copy (same id, other name) is an error naming the file that is kept, not a second dashboard', async () => {
+  const copy = DIR + '/shop (Conflicted copy Pixel 20261009 1432).md';
+  const { plugin } = await setup({
+    [copy]: note(lib, Object.assign({}, SPEC, { title: 'The other device\'s edit' })),
+    [DIR + '/shop.md']: note(lib, SPEC),
+    [DIR + '/other.md']: note(lib, Object.assign({}, SPEC, { id: 'other', title: 'Other' })),
+  });
+  const { specs, errors } = await plugin.loadDashboardSpecs();
+  assert.deepEqual(unwrap(specs.map((s) => [s.id, s.path])), [['other', DIR + '/other.md'], ['shop', DIR + '/shop.md']], 'the file named after the id is kept although the copy sorts first');
+  assert.deepEqual(unwrap(errors), [{ path: copy, reason: 'Has the same id as shop.md; it may be a Sync conflict copy. Merge what you need into shop.md and delete this one.' }]);
+});
+
+test('with no file named after the id, the first of the files with that id is kept', async () => {
+  const { plugin } = await setup({
+    [DIR + '/a-board.md']: note(lib, SPEC),
+    [DIR + '/b-board.md']: note(lib, SPEC),
+  });
+  const { specs, errors } = await plugin.loadDashboardSpecs();
+  assert.deepEqual(unwrap(specs.map((s) => s.path)), [DIR + '/a-board.md']);
+  assert.match(errors[0].reason, /^Has the same id as a-board\.md; /);
+  assert.equal(errors[0].path, DIR + '/b-board.md');
+});

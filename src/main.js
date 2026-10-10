@@ -10740,7 +10740,23 @@ class ReadOutPlugin extends Plugin {
       }
     }
     const byPath = (a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
-    return { specs: specs.sort(byPath), errors: errors.sort(byPath) };
+    specs.sort(byPath);
+    /* Two files with one id: Sync's conflict copies ("shop (Conflicted copy
+     * ...).md") carry the id of the note they copy and sort ahead of it. The
+     * one named after the id is kept, else the first; the rest are errors. */
+    const kept = new Map();
+    for (const spec of specs) {
+      const k = kept.get(spec.id);
+      if (!k || (stemOf(spec.path) === spec.id && stemOf(k.path) !== spec.id)) kept.set(spec.id, spec);
+    }
+    const unique = [];
+    for (const spec of specs) {
+      const k = kept.get(spec.id);
+      if (k === spec) { unique.push(spec); continue; }
+      const name = baseName(k.path);
+      errors.push({ path: spec.path, reason: 'Has the same id as ' + name + '; it may be a Sync conflict copy. Merge what you need into ' + name + ' and delete this one.' });
+    }
+    return { specs: unique, errors: errors.sort(byPath) };
   }
 
   /* The builder writes a dashboard back to its own note; a new dashboard
