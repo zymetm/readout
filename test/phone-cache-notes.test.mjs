@@ -159,3 +159,27 @@ test('pruning removes old cache notes and old .json files, never a note of the m
     CACHE + '/notes/recent.md',
   ]);
 });
+
+test('a cache write never replaces a note that is not ReadOut\'s, and the dashboards view says so in its status line', async () => {
+  const mine = '# shop\n\nMy own note, named like a cache entry.\n';
+  const path = CACHE + '/dashboards/shop.md';
+  const { plugin, adapter } = await boot({ [path]: mine, '07 Databases/Dashboards/shop.md': lib.writeReadoutNote('dashboard', JSON.stringify(SPEC)) });
+  await assert.rejects(() => plugin.writeDashboardCache(SPEC, TILES), /shop\.md is not a ReadOut note/);
+  assert.equal(adapter.files.get(path), mine, 'not written over');
+  /* In the view: a live, healthy desktop run tries to freeze its cache. */
+  plugin.query.engineFor = async () => ({ engine: 'cli', size: 1 });
+  plugin.query.query = async () => ({ columns: ['n'], rows: [[3]], ms: 1 });
+  const view = plugin.viewFactories['readout-dashboards']({ app: plugin.app });
+  view.app = plugin.app;
+  await view.onOpen();
+  await new Promise((r) => setTimeout(r, 30));
+  const text = [];
+  const walk = (el) => { text.push(el.textContent || ''); for (const c of el.children || []) walk(c); };
+  walk(view.contentEl);
+  assert.match(text.join(' '), /The cache could not be written: shop\.md is not a ReadOut note/);
+  assert.equal(adapter.files.get(path), mine);
+  /* A ReadOut cache note, and a path with nothing there, are written as before. */
+  adapter.files.set(path, cacheNote(CACHED));
+  await plugin.writeDashboardCache(SPEC, TILES);
+  assert.equal(noteJson(adapter.files.get(path)).dashboardId, 'shop');
+});

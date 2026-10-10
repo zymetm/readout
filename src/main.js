@@ -1884,7 +1884,7 @@ function writeReadoutNote(kind, jsonText) {
  * text with line endings made "\n" and lines what follows the frontmatter.
  * Pure; never throws. */
 function locateReadoutNote(text, kind) {
-  const raw = String(text === undefined || text === null ? '' : text).replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  const raw = String(text === undefined || text === null ? '' : text).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
   const fm = /^---\n(?:([\s\S]*?)\n)?---[ \t]*(?:\n|$)/.exec(raw);
   if (!fm) return { marked: false };
   const mark = /^readout[ \t]*:[ \t]*["']?([A-Za-z]+)["']?[ \t]*$/m.exec(fm[1] || '');
@@ -10478,7 +10478,7 @@ class ReadOutPlugin extends Plugin {
       for (const { path, text, note } of notes) {
         if (!note.ok) continue;
         let raw;
-        try { raw = JSON.parse(note.json); } catch (e) { continue; }
+        try { raw = JSON.parse(note.json); } catch { continue; }
         const changed = renameLevelInDashboard(raw, from, to);
         if (!changed) continue;
         await adapter.write(path, rewriteReadoutNote(text, kind, JSON.stringify(raw, null, 2)));
@@ -10697,7 +10697,7 @@ class ReadOutPlugin extends Plugin {
     for (const path of files) {
       if (!/\.md$/i.test(path) || skipped.has(baseName(path).toLowerCase())) continue;
       let text;
-      try { text = await adapter.read(path); } catch (e) { continue; }
+      try { text = await adapter.read(path); } catch { continue; }
       const note = readReadoutNote(text, kind);
       if (!note.marked) continue;
       marked.add(path.toLowerCase());
@@ -10767,7 +10767,7 @@ class ReadOutPlugin extends Plugin {
     const json = specToJson(spec).replace(/\n$/, '');
     let existing = null;
     if (await adapter.exists(target)) {
-      try { existing = await adapter.read(target); } catch (e) { existing = null; }
+      try { existing = await adapter.read(target); } catch { existing = null; }
     }
     if (target !== spec.path && existing !== null) {
       /* A dashboard note that appeared beside the .json since this spec was
@@ -10822,7 +10822,6 @@ class ReadOutPlugin extends Plugin {
   }
 
   async writeDashboardCache(spec, tiles) {
-    const adapter = this.app.vault.adapter;
     const path = dashCachePath(this.settings.cacheFolder, spec.id);
     const payload = {
       dashboardId: spec.id,
@@ -10834,10 +10833,17 @@ class ReadOutPlugin extends Plugin {
   }
 
   /* A cache entry is a ReadOut note (kind cache), so default Obsidian Sync
-   * carries it. It is machine-written: always written afresh. */
+   * carries it. It is machine-written, so it is written afresh, but never
+   * over a note that is not ReadOut's: that throws, and the dashboards view
+   * says so in its status line. */
   async writeCacheNote(path, jsonText) {
     const adapter = this.app.vault.adapter;
     await ensureFolder(adapter, path.slice(0, path.lastIndexOf('/')));
+    if (await adapter.exists(path)) {
+      let existing = null;
+      try { existing = await adapter.read(path); } catch { existing = null; }
+      if (existing !== null && !readReadoutNote(existing, 'cache').marked) throw new Error(path.split('/').pop() + ' is not a ReadOut note');
+    }
     await adapter.write(path, writeReadoutNote('cache', jsonText));
   }
 
@@ -10854,7 +10860,7 @@ class ReadOutPlugin extends Plugin {
         return note.ok ? JSON.parse(note.json) : null;
       }
       return JSON.parse(text);
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -10919,9 +10925,9 @@ class ReadOutPlugin extends Plugin {
             if (await adapter.exists(twin)) continue;
             await adapter.write(twin, writeReadoutNote(kind, text.replace(/\s+$/, '')));
             written++;
-          } catch (e) { /* this file is left for the next start */ }
+          } catch { /* this file is left for the next start */ }
         }
-      } catch (e) { /* this folder is left for the next start */ }
+      } catch { /* this folder is left for the next start */ }
     }
     if (written) this.blockSpecCache = null;
     return written;
