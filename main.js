@@ -10704,7 +10704,7 @@ class ReadOutPlugin extends Plugin {
     if (note) {
       const file = this.app.vault.getAbstractFileByPath(note);
       if (file instanceof TFile && typeof target.openFile === 'function') {
-        this.rawOpen = { path: file.path, until: Date.now() + 5000 };
+        this.leafState(target).note = file.path;
         await target.openFile(file);
         return;
       }
@@ -10721,43 +10721,60 @@ class ReadOutPlugin extends Plugin {
   async openNoteRaw(path) {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
-    this.rawOpen = { path, until: Date.now() + 5000 };
-    await this.app.workspace.getLeaf(true).openFile(file);
+    const leaf = this.app.workspace.getLeaf(true);
+    this.leafState(leaf).note = file.path;
+    await leaf.openFile(file);
+  }
+
+  /* What each pane has been told about dashboard notes, kept on the pane
+   * itself (a WeakMap, gone with the pane): `note` is the path the member
+   * asked to see as a note in it, honoured for as long as the pane shows that
+   * path and dropped as soon as it shows anything else; `from` holds the
+   * paths the pane was converted from, so that Back, which replays the note's
+   * own history entry, shows the note once instead of converting it again. */
+  leafState(leaf) {
+    if (!this.leafStates) this.leafStates = new WeakMap();
+    let st = this.leafStates.get(leaf);
+    if (!st) { st = { note: null, from: new Set() }; this.leafStates.set(leaf, st); }
+    return st;
   }
 
   /* Called when a file is opened in a pane. A note whose properties say
    * `readout: dashboard` and that reads as a dashboard is replaced, in that
    * same pane, by the dashboard. Left alone: a cache note, any other note, a
    * note that does not read as a dashboard (so it can be fixed), a note the
-   * member asked for as text a moment ago, a note in source mode, a pane
-   * that is not showing this note, and the setting turned off. The pane is
-   * no longer a note once it is converted, so this cannot run twice on it. */
+   * member asked for as a note in this pane (for as long as the pane shows
+   * it, tab switches included), a note this pane was converted from when it
+   * is replayed by Back (shown once, as the note), a note in source mode, a
+   * pane that is not showing this note, and the setting turned off. */
   async maybeOpenAsDashboard(file) {
     if (this.settings.openDashboardNotes === false || !file || typeof file.path !== 'string' || !/\.md$/i.test(file.path)) return;
-    if (this.rawOpen && this.rawOpen.path === file.path && Date.now() < this.rawOpen.until) return;
     const ws = this.app.workspace;
-    const leaf = typeof ws.getMostRecentLeaf === 'function' ? ws.getMostRecentLeaf() : ws.activeLeaf;
+    const leaf = typeof ws.getMostRecentLeaf === 'function' ? ws.getMostRecentLeaf() : null;
     const view = leaf && leaf.view;
     if (!view || typeof view.getViewType !== 'function' || view.getViewType() !== 'markdown') return;
     if (!view.file || view.file.path !== file.path) return;
+    const mode = this.leafState(leaf);
+    if (mode.note !== null) {
+      if (mode.note === file.path) return;
+      mode.note = null;
+    }
+    if (mode.from.delete(file.path)) { mode.note = file.path; return; }
     const state = typeof view.getState === 'function' ? view.getState() : null;
     if (state && state.mode === 'source' && state.source === true) return;
+    /* The property cache says at once whether this is a dashboard note; only
+     * when it has nothing yet is the note's own text the judge. */
     const cache = this.app.metadataCache && typeof this.app.metadataCache.getFileCache === 'function' ? this.app.metadataCache.getFileCache(file) : null;
-    if (cache && cache.frontmatter && String(cache.frontmatter[READOUT_NOTE_PROPERTY]).toLowerCase() !== 'dashboard') return;
-    /* Read the note itself: the property cache may not be ready yet, and the
-     * dashboard must read for the pane to be taken over. */
-    const note = readReadoutNote(await this.app.vault.read(file), 'dashboard');
+    if (cache && (!cache.frontmatter || String(cache.frontmatter[READOUT_NOTE_PROPERTY]).toLowerCase() !== 'dashboard')) return;
+    const vault = this.app.vault;
+    const note = readReadoutNote(await (typeof vault.cachedRead === 'function' ? vault.cachedRead(file) : vault.read(file)), 'dashboard');
     if (!note.marked || !note.ok) return;
     const parsed = parseDashboardSpec(note.json);
     if (!parsed.ok) return;
     /* The member may have moved on while this read. */
     if (leaf.view !== view) return;
-    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true });
-    const dashboards = leaf.view;
-    if (dashboards && typeof dashboards.reload === 'function') {
-      dashboards.activeId = parsed.spec.id;
-      await dashboards.reload();
-    }
+    mode.from.add(file.path);
+    await leaf.setViewState({ type: VIEW_DASHBOARDS, active: true, state: { activeId: parsed.spec.id } });
   }
 
   async openDashboards(activeId) {

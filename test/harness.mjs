@@ -259,6 +259,7 @@ export function makeFakeVault(adapter, TFile) {
       return t.children.length ? t : null;
     },
     read: async (f) => adapter.read(f.path),
+    cachedRead: async (f) => adapter.read(f.path),
     async create(p, text) {
       if (adapter.files.has(p)) throw new Error('File already exists.');
       await adapter.write(p, text);

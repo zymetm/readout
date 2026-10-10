@@ -4,8 +4,11 @@
  * JSON. Now a note whose properties say `readout: dashboard` shows its
  * dashboard in the pane it was opened in. The mechanism is the workspace's
  * 'file-open' event and leaf.setViewState; nothing is patched. These gates
- * hold the edges: nothing else is taken over, there is no loop, and the
- * note stays one step away. */
+ * hold the edges: nothing else is taken over, there is no loop, the note
+ * stays one step away (and stays itself when the member asked for it, tab
+ * switches included), and Back shows the note once instead of converting it
+ * again. The pane here is a model of Obsidian's: it keeps a history, Back
+ * replays an entry, and a replayed note fires 'file-open' again. */
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,46 +24,58 @@ async function setup(files, saved) {
   const fresh = loadPlugin();
   const adapter = makeFakeAdapter(files);
   const vault = makeFakeVault(adapter, fresh.obsidian.TFile);
+  const reads = [];
+  const cachedRead = vault.cachedRead;
+  vault.cachedRead = async (f) => { reads.push(f.path); return cachedRead(f); };
   const handlers = {};
   const states = [];
-  const reloads = [];
   const frontmatter = {};
-  /* A pane showing a note: what Obsidian's workspace hands back. */
-  const pane = (path, state) => {
-    const leaf = { view: null, setViewState: async (s) => { states.push(unwrap(s)); leaf.view = { getViewType: () => s.type, reload: async () => { reloads.push(leaf.view.activeId); } }; } };
-    leaf.view = { getViewType: () => 'markdown', file: new fresh.obsidian.TFile(path), getState: () => state || { mode: 'source', source: false } };
-    return leaf;
-  };
-  const workspace = { onLayoutReady: () => {}, on: (name, fn) => { handlers[name] = fn; return {}; }, getMostRecentLeaf: () => workspace.leaf, getLeaf: () => workspace.leaf };
-  const app = { vault, workspace, metadataCache: { getFileCache: (f) => ({ frontmatter: frontmatter[f.path] }) } };
+  const workspace = { onLayoutReady: () => {}, on: (name, fn) => { handlers[name] = fn; return {}; }, getMostRecentLeaf: () => leaf, getLeaf: () => leaf };
+  const app = { vault, workspace, metadataCache: { getFileCache: (f) => (frontmatter[f.path] === undefined ? null : (frontmatter[f.path] === null ? {} : { frontmatter: frontmatter[f.path] })) } };
   const plugin = fresh.makePlugin(app, saved);
   plugin.app = app;
   await plugin.onload();
-  const open = async (path, state) => {
-    workspace.leaf = pane(path, state);
-    await handlers['file-open'](new fresh.obsidian.TFile(path));
-    await new Promise((r) => setTimeout(r, 10));
-    return workspace.leaf;
+  plugin.query.cli = { ok: false, reason: 'gate' };
+  const tick = () => new Promise((r) => setTimeout(r, 12));
+
+  /* One pane, with a history. */
+  const history = [];
+  let at = -1;
+  const leaf = { view: null };
+  const note = (path, state) => ({ getViewType: () => 'markdown', file: new fresh.obsidian.TFile(path), getState: () => state || { mode: 'source', source: false } });
+  const fire = async (path) => { await handlers['file-open'](new fresh.obsidian.TFile(path)); await tick(); };
+  const show = async (entry) => {
+    if (entry.type === 'markdown') { leaf.view = note(entry.path, entry.state); await fire(entry.path); return; }
+    const view = plugin.viewFactories['readout-dashboards'](leaf);
+    view.app = app;
+    leaf.view = view;
+    await view.onOpen();
+    await view.setState(entry.state || {}, {});
   };
-  return { plugin, adapter, fresh, states, reloads, handlers, frontmatter, workspace, open, pane };
+  leaf.setViewState = async (s) => { states.push(unwrap(s)); history.length = at + 1; history.push(unwrap(s)); at++; await show(s); };
+  leaf.openFile = async (f) => { history.length = at + 1; history.push({ type: 'markdown', path: f.path }); at++; await show(history[at]); };
+  const back = async () => { at--; await show(history[at]); };
+  const forward = async () => { at++; await show(history[at]); };
+  const open = async (path, state) => { history.length = at + 1; history.push({ type: 'markdown', path, state }); at++; await show(history[at]); return leaf; };
+  return { plugin, adapter, fresh, states, handlers, frontmatter, leaf, open, back, forward, fire, show, reads, tick, history: () => history.map((h) => (h.type === 'markdown' ? h.path : h.type + ':' + (h.state && h.state.activeId))) };
 }
 
+const TWO = () => ({ [DIR + '/shop.md']: dash(), [DIR + '/other.md']: dash(Object.assign({}, SPEC, { id: 'other', title: 'Other' })) });
+
 test('opening a dashboard note shows its dashboard in the same pane, on the dashboard the note holds', async () => {
-  const ctx = await setup({ [DIR + '/shop.md']: dash(), [DIR + '/other.md']: dash(Object.assign({}, SPEC, { id: 'other', title: 'Other' })) });
+  const ctx = await setup(TWO());
   const leaf = await ctx.open(DIR + '/other.md');
-  assert.deepEqual(ctx.states, [{ type: 'readout-dashboards', active: true }]);
+  assert.deepEqual(ctx.states, [{ type: 'readout-dashboards', active: true, state: { activeId: 'other' } }]);
+  assert.equal(leaf.view.getViewType(), 'readout-dashboards');
   assert.equal(leaf.view.activeId, 'other');
-  assert.deepEqual(ctx.reloads, ['other']);
 });
 
 test('no loop: once the pane shows the dashboard, the same event does nothing more', async () => {
   const ctx = await setup({ [DIR + '/shop.md']: dash() });
-  const leaf = await ctx.open(DIR + '/shop.md');
-  await ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
-  await ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
-  await new Promise((r) => setTimeout(r, 10));
+  await ctx.open(DIR + '/shop.md');
+  await ctx.fire(DIR + '/shop.md');
+  await ctx.fire(DIR + '/shop.md');
   assert.equal(ctx.states.length, 1);
-  assert.equal(leaf.view.getViewType(), 'readout-dashboards');
 });
 
 test('other notes, cache notes, notes that do not read as a dashboard, and non-notes are left alone', async () => {
@@ -73,60 +88,135 @@ test('other notes, cache notes, notes that do not read as a dashboard, and non-n
   });
   for (const path of [DIR + '/README.md', DIR + '/mine.md', '07 Databases/Dashboard Cache/dashboards/shop.md', DIR + '/broken.md', DIR + '/no-tiles.md']) await ctx.open(path);
   assert.deepEqual(ctx.states, []);
-  ctx.workspace.leaf = ctx.pane(DIR + '/shop.json');
-  await ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.json'));
+  await ctx.open(DIR + '/shop.json');
   assert.deepEqual(ctx.states, []);
 });
 
-test('the setting turns it off', async () => {
+test('the property cache decides when it has an answer: no read for a note it says is not a dashboard; the note\'s own text when it has nothing yet', async () => {
+  const ctx = await setup({ [DIR + '/plain.md']: '# plain\n', [DIR + '/bare.md']: '# no properties\n', [DIR + '/shop.md']: dash(), [DIR + '/fresh.md']: dash(Object.assign({}, SPEC, { id: 'fresh' })) });
+  ctx.frontmatter[DIR + '/plain.md'] = { tags: ['x'] };
+  ctx.frontmatter[DIR + '/bare.md'] = null; /* a cache with no frontmatter at all */
+  ctx.frontmatter[DIR + '/shop.md'] = { readout: 'dashboard' };
+  await ctx.open(DIR + '/plain.md');
+  await ctx.open(DIR + '/bare.md');
+  assert.deepEqual(ctx.reads, [], 'nothing was read');
+  assert.deepEqual(ctx.states, []);
+  await ctx.open(DIR + '/shop.md'); /* cache says dashboard: the text is read (cachedRead) for its id */
+  await ctx.open(DIR + '/fresh.md'); /* cache not ready: the text decides */
+  assert.deepEqual(ctx.reads, [DIR + '/shop.md', DIR + '/fresh.md']);
+  assert.deepEqual(ctx.states.map((s) => s.state.activeId), ['shop', 'fresh']);
+});
+
+test('the setting turns it off, and is on by default', async () => {
   const ctx = await setup({ [DIR + '/shop.md']: dash() }, { openDashboardNotes: false });
   await ctx.open(DIR + '/shop.md');
   assert.deepEqual(ctx.states, []);
   const on = await setup({ [DIR + '/shop.md']: dash() });
-  assert.equal(on.plugin.settings.openDashboardNotes, true, 'on by default');
+  assert.equal(on.plugin.settings.openDashboardNotes, true);
 });
 
-test('a note in source mode, or in a pane that is not showing it, is not taken over', async () => {
+test('a note in source mode, or in a pane that is not showing it, is not taken over; reading mode is', async () => {
   const ctx = await setup({ [DIR + '/shop.md']: dash() });
   await ctx.open(DIR + '/shop.md', { mode: 'source', source: true });
   assert.deepEqual(ctx.states, [], 'source mode is a choice to see the note');
-  ctx.workspace.leaf = ctx.pane(DIR + '/elsewhere.md');
-  await ctx.handlers['file-open'](new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
-  assert.deepEqual(ctx.states, [], 'the active pane shows another file');
+  ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/elsewhere.md'), getState: () => ({}) };
+  await ctx.fire(DIR + '/shop.md');
+  assert.deepEqual(ctx.states, [], 'the pane shows another file');
   await ctx.open(DIR + '/shop.md', { mode: 'preview' });
-  assert.equal(ctx.states.length, 1, 'reading mode is not a choice, it is the default on a phone');
+  assert.equal(ctx.states.length, 1, 'reading mode is the default on a phone');
 });
 
-test('"Open as text" and "Open as note" show the note itself, once; the next open is a dashboard again', async () => {
-  const ctx = await setup({ [DIR + '/shop.md']: dash() });
-  const opened = [];
-  const leaf = { openFile: async (f) => { opened.push(f.path); ctx.workspace.leaf = ctx.pane(f.path); await ctx.handlers['file-open'](f); } };
-  await ctx.plugin.openDashboardAsText(DIR + '/shop.md', leaf);
-  await new Promise((r) => setTimeout(r, 10));
-  assert.deepEqual(opened, [DIR + '/shop.md']);
-  assert.deepEqual(ctx.states, [], 'not converted back');
-
-  ctx.workspace.getLeaf = () => leaf;
+test('"Open as note" and "Open as text" keep the note a note for as long as the pane shows it, tab switches included', async () => {
+  const ctx = await setup(TWO());
   await ctx.plugin.openNoteRaw(DIR + '/shop.md');
-  await new Promise((r) => setTimeout(r, 10));
   assert.deepEqual(ctx.states, []);
+  /* file-open fires again whenever the member comes back to the tab, and the
+   * old timed rule would have lapsed by now. */
+  const realNow = Date.now;
+  Date.now = () => realNow() + 10 * 60 * 1000;
+  try {
+    for (let i = 0; i < 3; i++) await ctx.fire(DIR + '/shop.md');
+  } finally { Date.now = realNow; }
+  assert.deepEqual(ctx.states, [], 'still the note, ten minutes later');
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
 
-  ctx.plugin.rawOpen = null;
+  /* The pane goes to another note: the request is over. Opening the first
+   * again is an ordinary open, so it is a dashboard. */
+  await ctx.open(DIR + '/README.md');
   await ctx.open(DIR + '/shop.md');
   assert.equal(ctx.states.length, 1);
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+
+  const text = await setup(TWO());
+  await text.plugin.openDashboardAsText(DIR + '/other.md', text.leaf);
+  await text.fire(DIR + '/other.md');
+  await text.fire(DIR + '/other.md');
+  assert.deepEqual(text.states, [], 'Open as text, then a tab switch');
+});
+
+test('the request belongs to its own pane: another pane opening the same note still gets the dashboard', async () => {
+  const ctx = await setup(TWO());
+  await ctx.plugin.openNoteRaw(DIR + '/shop.md');
+  const second = { view: null };
+  ctx.leaf.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  const saved = ctx.leaf;
+  ctx.plugin.app.workspace.getMostRecentLeaf = () => second;
+  second.view = { getViewType: () => 'markdown', file: new ctx.fresh.obsidian.TFile(DIR + '/shop.md'), getState: () => ({}) };
+  second.setViewState = async (s) => { ctx.states.push(unwrap(s)); };
+  await ctx.fire(DIR + '/shop.md');
+  assert.equal(ctx.states.length, 1);
+  assert.ok(saved);
+});
+
+test('Back from a dashboard shows the note once, a second Back goes further, Forward returns to the dashboard: no trap', async () => {
+  const ctx = await setup(Object.assign(TWO(), { [DIR + '/README.md']: '# Help\n' }));
+  await ctx.open(DIR + '/README.md');
+  await ctx.open(DIR + '/shop.md');
+  assert.deepEqual(ctx.history(), [DIR + '/README.md', DIR + '/shop.md', 'readout-dashboards:shop']);
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+
+  await ctx.back(); /* the note's own history entry: shown as the note */
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
+  assert.equal(ctx.leaf.view.file.path, DIR + '/shop.md');
+  assert.equal(ctx.states.length, 1, 'not converted again');
+  await ctx.fire(DIR + '/shop.md'); /* the member switches tabs and returns */
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
+
+  await ctx.back(); /* a second Back goes further */
+  assert.equal(ctx.leaf.view.file.path, DIR + '/README.md');
+  await ctx.forward(); /* the note's entry again: an ordinary open of a dashboard note, so the dashboard */
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+  assert.equal(ctx.leaf.view.activeId, 'shop');
+  await ctx.back(); /* and Back still shows the note, once */
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
+  await ctx.back();
+  assert.equal(ctx.leaf.view.file.path, DIR + '/README.md');
+});
+
+test('Back past two dashboards in a row is not a trap either', async () => {
+  const ctx = await setup(TWO());
+  await ctx.open(DIR + '/shop.md');
+  await ctx.open(DIR + '/other.md');
+  assert.equal(ctx.states.length, 2);
+  await ctx.back(); /* other.md as a note */
+  await ctx.back(); /* the shop dashboard */
+  assert.equal(ctx.leaf.view.getViewType(), 'readout-dashboards');
+  await ctx.back(); /* shop.md as a note, not converted again */
+  assert.equal(ctx.leaf.view.getViewType(), 'markdown');
+  assert.equal(ctx.states.length, 2);
 });
 
 test('the file menu of a dashboard note offers the dashboard and the note', async () => {
   const menus = [];
   const ctx = await setup({ [DIR + '/shop.md']: dash() });
-  const real = ctx.workspace.on;
   ctx.frontmatter[DIR + '/shop.md'] = { readout: 'dashboard' };
-  ctx.workspace.on = (name, fn) => { if (name === 'file-menu') menus.push(fn); return {}; };
+  const real = ctx.plugin.app.workspace.on;
+  ctx.plugin.app.workspace.on = (name, fn) => { if (name === 'file-menu') menus.push(fn); return {}; };
   await ctx.plugin.onload();
+  ctx.plugin.app.workspace.on = real;
   const titles = [];
   const menu = { addItem(fn) { const it = {}; const api = { setTitle(t) { it.title = t; return api; }, setIcon() { return api; }, setSection() { return api; }, onClick() { return api; } }; fn(api); titles.push(it.title); return this; } };
   for (const fn of menus) fn(menu, new ctx.fresh.obsidian.TFile(DIR + '/shop.md'));
   assert.equal(titles.includes('Open as dashboard'), true);
   assert.equal(titles.includes('Open as note'), true);
-  assert.ok(real);
 });
