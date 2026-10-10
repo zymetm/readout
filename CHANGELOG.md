@@ -6,6 +6,31 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-09
+
+### Changed
+- **Dashboards work on a phone with Obsidian Sync's default settings.**
+  Dashboards and the answers the desktop saves for the phone are now
+  Markdown notes, which Sync carries by default, instead of .json files,
+  which it does not. On a phone ReadOut is a dashboard viewer: it shows the
+  last answers your desktop saved. Browsing tables and running queries need
+  the database file on the device.
+- **Your old .json files get their notes once, on the desktop.** ReadOut says
+  how many it wrote, in one line. The .json files are left unchanged, and a
+  .json dashboard still opens.
+- **A new description** says what the phone does.
+
+### Fixed
+- A cache write never replaces a note that is not ReadOut's.
+- A Sync "conflicted copy" of a dashboard is shown as an error that names the
+  file kept, and is never opened in place of the real dashboard.
+
+### Added
+- Saved answers are written compact, and a cache note over about 4 MB is named
+  on the desktop, since Obsidian Sync Standard carries files up to 5 MB.
+- The command "Check this note as a dashboard", and "Open as dashboard" on a
+  dashboard note's file menu.
+
 ## [1.0.10] - 2026-10-09
 
 ### Fixed
