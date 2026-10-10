@@ -12,7 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadPlugin, makeFakeAdapter, makeFakeVault, noteJson, unwrap } from './harness.mjs';
+import { loadPlugin, makeFakeAdapter, makeFakeVault, noteJson, unwrap, notices } from './harness.mjs';
 
 const DASH = '07 Databases/Dashboards';
 const CACHE = '07 Databases/Dashboard Cache';
@@ -183,13 +183,25 @@ test('a phone migrates too: it holds .json files it was given, and then draws fr
   assert.deepEqual(unwrap(cache.tiles), CACHED.tiles);
 });
 
-test('it runs when the workspace is ready, on a desktop and on a phone', async () => {
-  for (const desktop of [true, false]) {
-    const { adapter } = await boot(everything(), { desktop, onLayoutReady: (fn) => fn() });
-    await new Promise((r) => setTimeout(r, 50));
-    assert.equal(adapter.files.has(DASH + '/shop.md'), true, desktop ? 'desktop' : 'phone');
-    assert.equal(adapter.files.has(CACHE + '/dashboards/shop.md'), true, desktop ? 'desktop' : 'phone');
-  }
+test('it runs when the workspace is ready on the desktop, once, with one line saying what it did; a phone writes nothing at start', async () => {
+  const desk = await boot(everything(), { desktop: true, onLayoutReady: (fn) => fn() });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(desk.adapter.files.has(DASH + '/shop.md'), true);
+  assert.equal(desk.adapter.files.has(CACHE + '/dashboards/shop.md'), true);
+  assert.deepEqual(notices.filter((n) => /^ReadOut wrote/.test(n)), ['ReadOut wrote 4 notes beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged; you can delete them once every device runs ReadOut 1.1.']);
+
+  /* Nothing left to write: no notice. */
+  notices.length = 0;
+  const again = await boot(Object.fromEntries(desk.adapter.files), { desktop: true, onLayoutReady: (fn) => fn() });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(notices.filter((n) => /^ReadOut wrote/.test(n)), []);
+  assert.equal(again.adapter.log.filter(([op]) => op === 'write').length, 0);
+
+  notices.length = 0;
+  const phone = await boot(everything(), { desktop: false, onLayoutReady: (fn) => fn() });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(phone.adapter.log.filter(([op]) => op === 'write'), [], 'a phone writes no note at start');
+  assert.deepEqual(notices.filter((n) => /^ReadOut wrote/.test(n)), []);
 });
 
 test('it never throws: a folder that cannot be listed, a file that cannot be read or written, a missing folder', async () => {

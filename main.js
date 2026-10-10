@@ -10406,9 +10406,13 @@ class ReadOutPlugin extends Plugin {
      * button in the settings). */
     this.app.workspace.onLayoutReady(() => {
       this.refreshExistingGuideFiles().catch(() => {});
-      /* Whichever device holds the .json files writes their notes, so the
-       * other devices (a phone on default Sync) can have them. */
-      this.migrateJsonToNotes().catch(() => {});
+      /* The desktop writes the notes for the .json files it holds, so a phone
+       * on default Sync can have them. A phone writes nothing. */
+      if (Platform.isDesktopApp) {
+        this.migrateJsonToNotes().then((n) => {
+          if (n > 0) new Notice('ReadOut wrote ' + n + (n === 1 ? ' note' : ' notes') + ' beside your old .json dashboards and cache so your phone gets them. The .json files are unchanged; you can delete them once every device runs ReadOut 1.1.');
+        }).catch(() => {});
+      }
       /* The desktop is the only writer of the note-block cache, so it is the
        * only one that tidies it. */
       if (Platform.isDesktopApp) this.pruneBlockCache().catch(() => {});
