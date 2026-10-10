@@ -1,7 +1,7 @@
 {
   "id": "readout",
   "name": "ReadOut",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "minAppVersion": "1.7.2",
   "description": "Read-only dashboards and a database browser for the SQLite databases in your vault. On desktop, browse tables, run your own queries and build charts, tables and big numbers. On your phone, view those dashboards, kept current by your desktop.",
   "author": "Matt Zymet",

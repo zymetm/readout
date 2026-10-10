@@ -6,6 +6,14 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-10-10
+
+### Changed
+- The README is rewritten to be shorter and easier to scan. The full
+  dashboard-file reference now lives only in `AI-WIDGET-GUIDE.md`, and the
+  README links to it.
+- The in-vault guides no longer describe the old `.json` dashboard files.
+
 ## [1.1.1] - 2026-10-10
 
 ### Added
