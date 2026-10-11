@@ -6,6 +6,17 @@ kept here as they were written.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-10-11
+
+### Added
+- **The command "Add example dashboard"**, and a button of the same name on the
+  empty dashboards screen. It builds a made-up coffee shop database (three
+  invented stores, no real people) in your databases folder, with a dashboard
+  note for it in your dashboards folder, and opens the dashboard. The data is
+  made fresh and ends on the day you run it. It is there to open and take
+  apart. Nothing already in your vault is replaced: if the names are taken,
+  the new files get the next number. It only runs when you ask.
+
 ## [1.1.2] - 2026-10-10
 
 ### Changed
