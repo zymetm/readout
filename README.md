@@ -49,7 +49,7 @@ Other commands:
 | "List databases" | Lists every database ReadOut found. |
 | "Open database browser" | Opens the browser without a file. |
 | "Create new dashboard" | Creates an empty dashboard and opens it. |
-| "Add example dashboard" | Builds a made-up coffee shop database and a dashboard for it, then opens it. Nothing already in your vault is replaced. |
+| "Add example dashboard" | Builds a made-up coffee shop database and a dashboard for it, then opens it. Works on a phone too. Nothing already in your vault is replaced. |
 | "Write the guide files" | Writes the two guide files (see [Reference](https://github.com/zymetm/readout#reference)). |
 | "Check this note as a dashboard" | Checks the open note after you edit a dashboard by hand. |
 

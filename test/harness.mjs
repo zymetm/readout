@@ -265,6 +265,11 @@ export function makeFakeVault(adapter, TFile) {
       await adapter.write(p, text);
       return new TFile(p);
     },
+    async createBinary(p, data) {
+      if (adapter.files.has(p) || adapter.binaries.has(p)) throw new Error('File already exists.');
+      await adapter.writeBinary(p, data);
+      return new TFile(p);
+    },
     async process(f, fn) {
       const next = fn(await adapter.read(f.path));
       await adapter.write(f.path, next);

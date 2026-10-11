@@ -11303,9 +11303,21 @@ class ReadOutPlugin extends Plugin {
    * number together (coffee-shop-demo-2.db and coffee-shop-2.md). Returns the
    * new spec, or null after saying why it could not. */
   async addExampleDashboard(now) {
+    /* One run at a time: two at once could both pick the same free name. */
+    if (this.addingExample) return null;
+    this.addingExample = true;
+    try {
+      return await this.addExampleDashboardNow(now);
+    } finally {
+      this.addingExample = false;
+    }
+  }
+
+  async addExampleDashboardNow(now) {
     const adapter = this.app.vault.adapter;
     const dataFolder = normalizePath(this.settings.dataFolder);
     const dashFolder = normalizePath(this.settings.dashboardFolder);
+    let dbWritten = null;
     try {
       const { specs, errors } = await this.loadDashboardSpecs();
       const taken = new Set(specs.map((s) => s.id));
@@ -11324,13 +11336,18 @@ class ReadOutPlugin extends Plugin {
       await this.query.wasm.init();
       const bytes = buildCoffeeDemo(this.query.wasm.SQL, localTodayIso(now));
       await ensureFolder(adapter, dataFolder);
-      await adapter.writeBinary(dbPath, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      /* Through the vault, so Obsidian lists the file at once and the dashboard
+       * finds it on its first draw; it also refuses a name that is taken. */
+      await this.app.vault.createBinary(dbPath, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      dbWritten = dbPath;
       const parsed = parseDashboardSpec(JSON.stringify(coffeeDashboardSpec(id, n > 1 ? 'Coffee Shop ' + n : 'Coffee Shop', dbPath)));
       if (!parsed.ok) throw new Error(parsed.reason);
-      if (!(await this.saveDashboardSpec(parsed.spec))) return null;
+      if (!(await this.saveDashboardSpec(parsed.spec))) throw new Error('the dashboard note could not be saved');
       new Notice('Added the example dashboard "' + parsed.spec.title + '". Its database is ' + dbPath + '.');
       return parsed.spec;
     } catch (e) {
+      /* A database written for a dashboard that never got saved is removed. */
+      if (dbWritten) { try { await adapter.remove(dbWritten); } catch { /* left; the notice says nothing more */ } }
       new Notice('Could not add the example dashboard: ' + (e && e.message ? e.message : e));
       return null;
     }

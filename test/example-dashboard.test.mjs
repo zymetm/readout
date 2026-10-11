@@ -211,3 +211,30 @@ test('the empty dashboards screen offers the button beside the guide files butto
   assert.equal(view.activeId, 'coffee-shop');
   assert.equal(view.specs.length, 1);
 });
+
+test('the database goes in through the vault, so the file list has it when the dashboard opens', async () => {
+  const { plugin, adapter } = await setup();
+  const made = [];
+  const real = plugin.app.vault.createBinary;
+  plugin.app.vault.createBinary = async (p, d) => { made.push(p); return real(p, d); };
+  await plugin.addExampleDashboard();
+  assert.deepEqual(made, ['Databases/coffee-shop-demo.db']);
+  assert.ok(adapter.binaries.has('Databases/coffee-shop-demo.db'));
+});
+
+test('two runs at once make one example, not two on the same name', async () => {
+  const { plugin, adapter } = await setup();
+  const [a, b] = await Promise.all([plugin.addExampleDashboard(), plugin.addExampleDashboard()]);
+  assert.equal([a, b].filter(Boolean).length, 1);
+  assert.deepEqual([...adapter.binaries.keys()], ['Databases/coffee-shop-demo.db']);
+  assert.ok(await plugin.addExampleDashboard(), 'free again afterwards');
+});
+
+test('a failure after the database is written removes the database', async () => {
+  const { plugin, adapter } = await setup();
+  plugin.saveDashboardSpec = async () => false;
+  const spec = await plugin.addExampleDashboard();
+  assert.equal(spec, null);
+  assert.deepEqual([...adapter.binaries.keys()], []);
+  assert.ok(notices.some((n) => n.includes('Could not add the example dashboard')));
+});

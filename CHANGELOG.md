@@ -15,7 +15,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
   note for it in your dashboards folder, and opens the dashboard. The data is
   made fresh and ends on the day you run it. It is there to open and take
   apart. Nothing already in your vault is replaced: if the names are taken,
-  the new files get the next number. It only runs when you ask.
+  the new files get the next number. It works on a phone too. It only runs when you ask.
 
 ## [1.1.2] - 2026-10-10
 
