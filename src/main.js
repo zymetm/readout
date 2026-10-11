@@ -3913,6 +3913,218 @@ async function ensureFolder(adapter, folder) {
   }
 }
 
+/* ======================================================================
+ * The example dashboard
+ * ====================================================================== */
+
+/* "Add example dashboard" builds a small invented coffee-shop database (three
+ * made-up stores, no real people) with the built-in sql.js engine, so a new
+ * member has something to open and take apart. The data is made fresh each
+ * time and always ends on the day it is made, so the dashboard never looks
+ * stale. It is seeded: the same end date always gives the same rows.
+ *
+ * Every fixed date of the original shape is held as a distance from its last
+ * day (2026-10-08) and moves with the end date. The calendar holidays and the
+ * seasons stay on the real calendar. */
+const COFFEE_REF_END = '2026-10-08';
+const coffeeDayNum = (iso) => Math.round(Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 86400000);
+const coffeeIso = (n) => new Date(n * 86400000).toISOString().slice(0, 10);
+
+/* A small seeded generator (mulberry32). */
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const COFFEE_STORES = [['Harbour Street', 'Waterfront', 38, '2021-03-15', 1.28], ['Market Square', 'Old town', 26, '2022-09-01', 1.0], ['Station Road', 'Commuter hub', 18, '2024-02-12', 0.82]];
+const COFFEE_PRODUCTS = [['Espresso', 'Coffee', 2.8, 0.55], ['Flat white', 'Coffee', 3.9, 0.85], ['Latte', 'Coffee', 4.2, 0.95], ['Cappuccino', 'Coffee', 4.0, 0.9], ['Filter coffee', 'Coffee', 2.9, 0.4],
+  ['Cold brew', 'Iced', 4.4, 0.8], ['Iced latte', 'Iced', 4.6, 1.0], ['Iced tea', 'Iced', 3.6, 0.6], ['Chai latte', 'Tea', 4.3, 0.9], ['Green tea', 'Tea', 3.0, 0.45],
+  ['Croissant', 'Bakery', 3.2, 1.0], ['Banana bread', 'Bakery', 3.5, 1.1], ['Cookie', 'Bakery', 2.6, 0.7], ['Cheese toastie', 'Food', 6.5, 2.2]];
+const COFFEE_TARGETS = [['weekly_revenue', 25000, 'Revenue per week, all stores'], ['weekly_orders', 4500, 'Orders per week, all stores'], ['avg_order', 6.0, 'Average order value'],
+  ['rating', 4.6, 'Average review score out of 5'], ['loyalty_members', 5000, 'Loyalty programme members'], ['loyalty_share', 40, 'Share of orders placed with a loyalty card, percent'],
+  ['weekly_bakery', 3000, 'Bakery revenue per week'], ['weekly_iced', 3600, 'Iced drinks revenue per week'], ['weekly_tea', 1500, 'Tea revenue per week'],
+  ['weekly_food', 1100, 'Food revenue per week'], ['monthly_revenue', 100000, 'Revenue per month, all stores']];
+const COFFEE_SCHEMA = [
+  'CREATE TABLE stores(store TEXT PRIMARY KEY, area TEXT, seats INTEGER, opened TEXT)',
+  'CREATE TABLE products(product TEXT PRIMARY KEY, category TEXT, price REAL, unit_cost REAL)',
+  'CREATE TABLE weather(day TEXT PRIMARY KEY, temp_c REAL, rain_mm REAL)',
+  'CREATE TABLE daily_store(day TEXT, store TEXT, weekday TEXT, orders INTEGER, items INTEGER, revenue REAL, loyalty_orders INTEGER, hot_items INTEGER, iced_items INTEGER, bakery_items INTEGER, food_items INTEGER, PRIMARY KEY (day, store))',
+  'CREATE TABLE hourly_orders(day TEXT, store TEXT, hour INTEGER, orders INTEGER, PRIMARY KEY (day, store, hour))',
+  'CREATE TABLE product_daily(day TEXT, product TEXT, category TEXT, units INTEGER, revenue REAL, PRIMARY KEY (day, product))',
+  'CREATE TABLE ratings(day TEXT, store TEXT, avg_rating REAL, reviews INTEGER, PRIMARY KEY (day, store))',
+  'CREATE TABLE loyalty_daily(day TEXT PRIMARY KEY, new_members INTEGER, redemptions INTEGER, total_members INTEGER, active_members INTEGER)',
+  'CREATE TABLE targets(metric TEXT PRIMARY KEY, target REAL, note TEXT)',
+].join(';\n');
+const COFFEE_INDEXES = [
+  'CREATE INDEX ds_day ON daily_store(day)',
+  'CREATE INDEX ho_day ON hourly_orders(day)',
+  'CREATE INDEX pd_day ON product_daily(day)',
+  'CREATE INDEX rt_day ON ratings(day)',
+  'CREATE VIEW v_daily AS SELECT d.day, d.weekday, SUM(d.orders) AS orders, SUM(d.items) AS items, ROUND(SUM(d.revenue),2) AS revenue, SUM(d.loyalty_orders) AS loyalty_orders, SUM(d.iced_items) AS iced_items, SUM(d.hot_items) AS hot_items, w.temp_c, w.rain_mm FROM daily_store d JOIN weather w ON w.day = d.day GROUP BY d.day',
+].join(';\n');
+
+/* The database file's bytes, with 465 days of invented sales ending on
+ * `endIso` (YYYY-MM-DD). `SQL` is the sql.js module. */
+function buildCoffeeDemo(SQL, endIso) {
+  const endN = coffeeDayNum(endIso);
+  const shift = endN - coffeeDayNum(COFFEE_REF_END);
+  const at = (iso) => coffeeDayNum(iso) + shift;
+  const rnd = seededRandom((20261009 + endN * 7919) >>> 0);
+  const gauss = (mu, sigma) => mu + sigma * Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd());
+  const uniform = (a, b) => a + (b - a) * rnd();
+  const choices = (weights, k) => {
+    const cum = [];
+    let sum = 0;
+    for (const w of weights) { sum += w; cum.push(sum); }
+    const out = [];
+    for (let i = 0; i < k; i++) {
+      const x = rnd() * sum;
+      let lo = 0;
+      let hi = cum.length - 1;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] > x) hi = mid; else lo = mid + 1; }
+      out.push(lo);
+    }
+    return out;
+  };
+  const r1 = (x) => Math.round(x * 10) / 10;
+  const r2 = (x) => Math.round(x * 100) / 100;
+
+  const startN = at('2025-07-01');
+  const launchN = at('2026-02-01');
+  const autumnN = at('2026-09-28');
+  const dipFrom = at('2026-03-09');
+  const dipTo = at('2026-03-26');
+  const dipMid = at('2026-03-17');
+  const promoDays = new Set(['2025-09-20', '2025-11-29', '2026-03-14', '2026-05-23', '2026-08-08', '2026-09-12', '2026-10-03'].map(at));
+  const quiet = { '12-24': 0.55, '12-25': 0.15, '12-26': 0.5, '01-01': 0.35, '12-31': 0.6 };
+  const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  const profWd = [.7, 1.0, .85, .55, .5, .8, .65, .4, .4, .3, .2];
+  const profWe = [.2, .4, .7, .95, 1.0, .85, .7, .55, .5, .35, .2];
+  const profStation = [1.0, 1.0, .5, .3, .3, .5, .4, .3, .5, .5, .3];
+  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const dowF = [.93, .97, 1.0, 1.02, 1.1, 1.12, .92];
+  const catW = { Coffee: 3.0, Iced: 0.5, Tea: 0.8, Bakery: 1.3, Food: 0.6 };
+
+  const weather = []; const daily = []; const hourly = []; const prod = []; const rating = []; const loyalty = [];
+  let totalMembers = 0;
+  for (let dn = startN; dn <= endN; dn++) {
+    const iso = coffeeIso(dn);
+    const t = dn - startN;
+    const wk = (new Date(dn * 86400000).getUTCDay() + 6) % 7;
+    const doy = dn - coffeeDayNum(iso.slice(0, 4) + '-01-01') + 1;
+    const temp = r1(12.5 + 10.5 * Math.sin((doy - 105) / 365 * 2 * Math.PI) + gauss(0, 2.8));
+    const rain = rnd() < (temp < 14 ? 0.38 : 0.22) ? r1(-Math.log(1 - rnd()) * 5.0) : 0.0;
+    weather.push([iso, temp, rain]);
+    const growth = 1 + 0.17 * t / 466;
+    const loyaltyBoost = dn >= launchN ? 1 + 0.07 * Math.min(1, (dn - launchN) / 90) : 1.0;
+    let special = quiet[iso.slice(5)] || 1.0;
+    if (dn >= autumnN) special *= 1.08; /* autumn menu launch */
+    const promo = promoDays.has(dn) ? 1.28 : 1.0;
+    const wet = 1 - Math.min(0.12, rain / 70);
+    const season = 1 + 0.05 * Math.sin((doy - 120) / 365 * 2 * Math.PI);
+    /* a short dip in ratings (a broken grinder) */
+    const dip = dn >= dipFrom && dn <= dipTo ? 0.35 * (1 - Math.abs(dn - dipMid) / 9) : 0.0;
+    const prodDay = COFFEE_PRODUCTS.map((p) => [0, 0.0, p[1]]);
+    let dayOrders = 0;
+    for (const [sname, , , , sf] of COFFEE_STORES) {
+      const sfs = sf * (sname === 'Harbour Street' && temp > 18 ? 1.1 : 1.0);
+      let mean = 150 * sfs * growth * loyaltyBoost * dowF[wk] * special * promo * wet * season;
+      if (sname === 'Station Road') mean *= (wk < 5 ? 1.15 : 0.7);
+      const nOrders = Math.max(0, Math.round(gauss(mean, mean * 0.07)));
+      const prof = sname === 'Station Road' && wk < 5 ? profStation : (wk < 5 ? profWd : profWe);
+      const counts = hours.map(() => 0);
+      for (const h of choices(prof, nOrders)) counts[h]++;
+      hours.forEach((h, i) => hourly.push([iso, sname, h, counts[i]]));
+      let nItems = nOrders;
+      for (let i = 0; i < nOrders; i++) if (rnd() < 0.46) nItems++;
+      for (let i = 0; i < nOrders; i++) if (rnd() < 0.06) nItems++;
+      const wts = COFFEE_PRODUCTS.map(([p, cat]) => {
+        let w = catW[cat];
+        if (cat === 'Iced') w *= Math.max(0.1, (temp + 3) / 11);
+        if (cat === 'Coffee') w *= Math.max(0.55, 1.65 - (temp - 5) / 20);
+        if (cat === 'Tea') w *= Math.max(0.7, 1.4 - temp / 30);
+        if (p === 'Espresso' && sname === 'Station Road') w *= 1.8;
+        return w;
+      });
+      let rev = 0.0;
+      const catItems = { Coffee: 0, Iced: 0, Tea: 0, Bakery: 0, Food: 0 };
+      const loyalShare = dn < launchN ? 0.0 : Math.min(0.38, 0.02 + 0.38 * (dn - launchN) / 160);
+      for (const i of choices(wts, nItems)) {
+        const [, cat, pr] = COFFEE_PRODUCTS[i];
+        let size = 1.0;
+        if (cat === 'Coffee' || cat === 'Iced' || cat === 'Tea') size = [0.85, 1.0, 1.2][choices([20, 55, 25], 1)[0]];
+        const r = pr * size;
+        prodDay[i][0]++;
+        prodDay[i][1] += r;
+        rev += r;
+        catItems[cat]++;
+      }
+      const loyOrders = loyalShare ? Math.round(nOrders * Math.max(0, gauss(loyalShare, 0.03))) : 0;
+      daily.push([iso, sname, weekdays[wk], nOrders, nItems, Math.round(rev), loyOrders, catItems.Coffee + catItems.Tea, catItems.Iced, catItems.Bakery, catItems.Food]);
+      const base = { 'Harbour Street': 4.62, 'Market Square': 4.48, 'Station Road': 4.35 }[sname];
+      const rr = Math.max(3.4, Math.min(5.0, base + 0.08 * Math.sin(t / 30) - dip + gauss(0, 0.07)));
+      rating.push([iso, sname, r2(rr), Math.max(2, Math.round(gauss(nOrders / 14, 2.5)))]);
+      dayOrders += nOrders;
+    }
+    COFFEE_PRODUCTS.forEach((p, i) => prod.push([iso, p[0], prodDay[i][2], prodDay[i][0], r2(prodDay[i][1])]));
+    if (dn >= launchN) {
+      const k = dn - launchN;
+      const newM = Math.max(2, Math.round(gauss(0.6 * (58 * Math.exp(-k / 60) + 17) + (promoDays.has(dn) ? 15 : 0), 3)));
+      totalMembers += newM;
+      const red = Math.round(dayOrders * Math.min(0.2, 0.01 + k / 1400) * uniform(.8, 1.2));
+      loyalty.push([iso, newM, red, totalMembers, Math.floor(totalMembers * (0.34 + 0.05 * Math.sin(k / 40)))]);
+    }
+  }
+
+  const db = new SQL.Database();
+  try {
+    db.exec(COFFEE_SCHEMA);
+    db.exec('BEGIN');
+    const put = (table, rows) => {
+      const st = db.prepare('INSERT INTO ' + table + ' VALUES (' + rows[0].map(() => '?').join(',') + ')');
+      for (const r of rows) st.run(r);
+      st.free();
+    };
+    put('stores', COFFEE_STORES.map((s) => s.slice(0, 4)));
+    put('products', COFFEE_PRODUCTS);
+    put('weather', weather);
+    put('daily_store', daily);
+    put('hourly_orders', hourly);
+    put('product_daily', prod);
+    put('ratings', rating);
+    put('loyalty_daily', loyalty);
+    put('targets', COFFEE_TARGETS);
+    db.exec('COMMIT');
+    db.exec(COFFEE_INDEXES);
+    return db.export();
+  } finally {
+    db.close();
+  }
+}
+
+/* The example dashboard, as a spec, for an id, a title and a database path.
+ * Its timeframes are presets, which read from the newest row the table has,
+ * so no date is written in it. */
+const COFFEE_DASHBOARD = {"title":"Coffee Shop","globalTimeframe":{"preset":"90d"},"tiles":[{"title":"Revenue, 7 days","viz":"stat","unit":"USD","layout":{"x":0,"y":0,"w":1,"h":1},"compare":"previous","ranges":[{"low":25000,"level":"Good","label":"on target"},{"low":20000,"level":"Watch","label":"near target"},{"level":"Alert","label":"low"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"meter":{"min":0,"max":30000,"target":25000},"source":{"table":"daily_store","metric":"revenue","agg":"sum","timeColumn":"day","timeframe":{"preset":"7d"}}},{"title":"Orders, 7 days","viz":"stat","layout":{"x":2,"y":4,"w":1,"h":1},"compare":"previous","ranges":[{"low":4500,"level":"Good","label":"on target"},{"low":3500,"level":"Watch","label":"near target"},{"level":"Alert","label":"low"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"meter":{"min":0,"max":6000,"target":4500},"source":{"table":"daily_store","metric":"orders","agg":"sum","timeColumn":"day","timeframe":{"preset":"7d"}}},{"title":"Average order","viz":"stat","unit":"USD","layout":{"x":3,"y":4,"w":1,"h":1},"ranges":[{"low":6,"level":"Good","label":"on target"},{"low":5,"level":"Watch","label":"near target"},{"level":"Alert","label":"low"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"captions":["basket"],"meter":{"min":4,"max":7,"target":6},"sql":"SELECT ROUND(SUM(revenue) / SUM(orders), 2) AS avg_order, ROUND(1.0 * SUM(items) / SUM(orders), 2) || ' items each' AS basket FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day')","y":"avg_order"},{"title":"Loyalty members","viz":"stat","layout":{"x":0,"y":8,"w":1,"h":1},"ranges":[{"low":4500,"level":"Good","label":"nearly there"},{"low":3000,"level":"Watch","label":"growing"},{"level":"Alert","label":"early days"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"captions":["joined"],"meter":{"min":0,"max":6000,"target":5000},"sql":"SELECT total_members AS members, '+' || (SELECT SUM(new_members) FROM loyalty_daily WHERE day > date((SELECT MAX(day) FROM loyalty_daily), '-7 day')) || ' this week' AS joined FROM loyalty_daily ORDER BY day DESC LIMIT 1","y":"members"},{"title":"Review score","viz":"stat","unit":"/ 5","layout":{"x":0,"y":6,"w":4,"h":1},"ranges":[{"low":4.6,"level":"Good","label":"loved"},{"low":4.3,"level":"Watch","label":"steady"},{"level":"Alert","label":"slipping"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"captions":["n"],"meter":{"min":3,"max":5,"target":4.6},"sql":"SELECT ROUND(SUM(avg_rating * reviews) / SUM(reviews), 2) AS score, SUM(reviews) || ' reviews' AS n FROM ratings WHERE day > date((SELECT MAX(day) FROM ratings), '-7 day')","y":"score"},{"title":"Loyalty orders","viz":"stat","unit":"%","layout":{"x":0,"y":7,"w":1,"h":1},"ranges":[{"low":35,"level":"Good","label":"strong"},{"low":20,"level":"Watch","label":"growing"},{"level":"Alert","label":"low"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"captions":["note"],"meter":{"min":0,"max":60,"target":40},"sql":"SELECT ROUND(100.0 * SUM(loyalty_orders) / SUM(orders), 1) AS share, 'of orders use a card' AS note FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day')","y":"share"},{"title":"Revenue per store, daily","viz":"line","unit":"USD","layout":{"x":1,"y":0,"w":3,"h":2},"hint":"Past year, weekly average - with the weakest to strongest","footnote":"The line is the average store; the band runs from the weakest to the strongest store. The green zone is the daily goal per store.","headerDelta":true,"headerDeltaAverageDays":4,"color":"var(--ink-marker)","yMin":400,"yMax":1700,"yTicks":[400,800,1200,1600],"xLabelEvery":8,"zones":[{"from":1100,"to":1700,"color":"var(--ink-success-dot)","opacity":0.2}],"sql":"WITH w AS (SELECT date(day, 'weekday 0', '-6 days') AS week, store, SUM(revenue) / COUNT(*) AS r, COUNT(*) AS n FROM daily_store WHERE day >= date((SELECT MAX(day) FROM daily_store), '-370 day') GROUP BY week, store) SELECT week, ROUND(AVG(r)) AS avg, ROUND(MIN(r)) AS lo, ROUND(MAX(r)) AS hi FROM w WHERE n = 7 GROUP BY week ORDER BY week","x":"week","y":"avg","band":{"low":"lo","high":"hi","opacity":0.2}},{"title":"Orders and the loyalty card","viz":"combo","layout":{"x":1,"y":7,"w":3,"h":2},"hint":"the card launched on 1 February","yMin":0,"yMax":5000,"yTicks":[0,2000,4000],"xLabelEvery":8,"yTickCompact":true,"sql":"WITH w AS (SELECT date(day, 'weekday 0', '-6 days') AS week, SUM(orders) AS orders, ROUND(100.0 * SUM(loyalty_orders) / SUM(orders), 1) AS share, COUNT(DISTINCT day) AS n FROM v_daily WHERE day >= date((SELECT MAX(day) FROM v_daily), '-370 day') GROUP BY week) SELECT week, orders, share FROM w WHERE n = 7 ORDER BY week","x":"week","series":[{"column":"orders","kind":"bar","color":"#d48516","label":"Orders per week"},{"column":"share","kind":"line","axis":"right","color":"var(--color-green)","label":"Loyalty card share"}],"y2Min":0,"y2Max":50,"y2Ticks":[0,20,40],"y2Unit":"%","y2TickSuffix":"%"},{"title":"Busiest hours","viz":"heatmap","layout":{"x":0,"y":9,"w":4,"h":2},"hint":"orders per hour, all stores","ranges":[{"high":30,"level":"Alert","label":"Quiet"},{"high":45,"level":"Watch","label":"Light"},{"high":60,"level":"Good - Watch","label":"Steady"},{"high":80,"level":"Good - Medium","label":"Busy"},{"high":100,"level":"Good - Low","label":"Rush"},{"level":"Good","label":"Peak"}],"levelColors":{"Alert":"#2a1f1b","Watch":"#4d2b20","Good - Watch":"#7f3823","Good - Medium":"#b8431f","Good - Low":"#ff5a2d","Good":"#ffb48f"},"sql":"SELECT CASE dow WHEN 1 THEN 'Mon' WHEN 2 THEN 'Tue' WHEN 3 THEN 'Wed' WHEN 4 THEN 'Thu' WHEN 5 THEN 'Fri' WHEN 6 THEN 'Sat' ELSE 'Sun' END AS weekday, printf('%02d', hour) AS hr, ROUND(AVG(o)) AS orders FROM (SELECT day, hour, CASE CAST(strftime('%w', day) AS INTEGER) WHEN 0 THEN 7 ELSE CAST(strftime('%w', day) AS INTEGER) END AS dow, SUM(orders) AS o FROM hourly_orders WHERE day > date((SELECT MAX(day) FROM hourly_orders), '-84 day') GROUP BY day, hour) GROUP BY dow, hour ORDER BY dow, hour","row":"weekday","column":"hr","value":"orders","cells":"fill"},{"title":"Iced drinks vs temperature","viz":"scatter","layout":{"x":0,"y":12,"w":4,"h":2},"hint":"one dot per day, last year","yMin":0,"xMin":-5,"xMax":30,"sql":"SELECT temp_c AS temp, iced_items AS iced, CASE WHEN weekday IN ('Saturday', 'Sunday') THEN 'Weekend' ELSE 'Weekday' END AS kind FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-364 day')","x":"temp","y":"iced","colorBy":"kind","trend":true},{"title":"Every day of the year","viz":"calendar","unit":"USD","layout":{"x":0,"y":11,"w":4,"h":1},"hint":"revenue per day, all stores","ranges":[{"high":2200,"level":"Alert","label":"Slow"},{"high":2600,"level":"Watch","label":"Soft"},{"high":3000,"level":"Good - Watch","label":"Typical"},{"high":3400,"level":"Good - Medium","label":"Good"},{"high":3800,"level":"Good - Low","label":"Strong"},{"level":"Good","label":"Record"}],"levelColors":{"Alert":"#22343a","Watch":"#2f4f58","Good - Watch":"#3f6f7c","Good - Medium":"#5b95a4","Good - Low":"#86bccb","Good":"#c4e6ef"},"sql":"SELECT day, ROUND(SUM(revenue)) AS revenue FROM daily_store WHERE day > date((SELECT MAX(day) FROM daily_store), '-371 day') GROUP BY day ORDER BY day","date":"day","value":"revenue","weekStart":"monday"},{"title":"Revenue by category","viz":"pie","layout":{"x":0,"y":1,"w":1,"h":1},"hint":"last 7 days","segmentColors":{"Coffee":"var(--ink-marker)","Bakery":"var(--ink-hue-yellow)","Iced":"var(--ink-hue-cyan)","Tea":"var(--ink-hue-indigo)","Food":"var(--ink-hue-burgundy)"},"sql":"SELECT category, ROUND(SUM(revenue)) AS revenue FROM product_daily WHERE day > date((SELECT MAX(day) FROM product_daily), '-7 day') GROUP BY category ORDER BY revenue DESC","x":"category","y":"revenue","doughnut":true},{"title":"Against target","viz":"bullet","unit":"%","layout":{"x":0,"y":4,"w":2,"h":1},"hint":"% of weekly goal","ranges":[{"low":100,"level":"Good","label":"on target"},{"low":85,"level":"Watch","label":"close"},{"level":"Alert","label":"behind"}],"levelColors":{"Good":"var(--ink-success-dot)","Watch":"var(--ink-warning)","Alert":"var(--ink-destructive-text)"},"sql":"SELECT 'Revenue' AS metric, ROUND(100.0 * SUM(revenue) / (SELECT target FROM targets WHERE metric = 'weekly_revenue')) AS pct, 100 AS goal FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day') UNION ALL SELECT 'Orders', ROUND(100.0 * SUM(orders) / (SELECT target FROM targets WHERE metric = 'weekly_orders')), 100 FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day') UNION ALL SELECT 'Average order', ROUND(100.0 * SUM(revenue) / SUM(orders) / (SELECT target FROM targets WHERE metric = 'avg_order')), 100 FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day') UNION ALL SELECT 'Review score', ROUND(100.0 * SUM(avg_rating * reviews) / SUM(reviews) / (SELECT target FROM targets WHERE metric = 'rating')), 100 FROM ratings WHERE day > date((SELECT MAX(day) FROM ratings), '-7 day') UNION ALL SELECT 'Loyalty members', ROUND(100.0 * (SELECT total_members FROM loyalty_daily ORDER BY day DESC LIMIT 1) / (SELECT target FROM targets WHERE metric = 'loyalty_members')), 100 UNION ALL SELECT 'Loyalty orders', ROUND(10000.0 * SUM(loyalty_orders) / SUM(orders) / (SELECT target FROM targets WHERE metric = 'loyalty_share')), 100 FROM v_daily WHERE day > date((SELECT MAX(day) FROM v_daily), '-7 day') UNION ALL SELECT 'Bakery sales', ROUND(100.0 * SUM(revenue) / (SELECT target FROM targets WHERE metric = 'weekly_bakery')), 100 FROM product_daily WHERE category = 'Bakery' AND day > date((SELECT MAX(day) FROM product_daily), '-7 day') UNION ALL SELECT 'Iced sales', ROUND(100.0 * SUM(revenue) / (SELECT target FROM targets WHERE metric = 'weekly_iced')), 100 FROM product_daily WHERE category = 'Iced' AND day > date((SELECT MAX(day) FROM product_daily), '-7 day') ","x":"metric","y":"pct","target":"goal","scaleMin":40,"scaleMax":120},{"title":"Monthly revenue","viz":"bar","unit":"USD","layout":{"x":0,"y":2,"w":4,"h":2},"hint":"last 12 months","color":"#6bb3c4","yMin":0,"yMax":120000,"yTicks":[0,40000,80000,120000],"yTickCompact":true,"refLines":[{"y":100000,"color":"var(--ink-marker)","dash":"4 3","label":"monthly goal"}],"sql":"SELECT substr('JanFebMarAprMayJunJulAugSepOctNovDec', (CAST(substr(day, 6, 2) AS INTEGER) - 1) * 3 + 1, 3) AS month, ROUND(SUM(revenue)) AS revenue FROM daily_store WHERE day >= date((SELECT MAX(day) FROM daily_store), 'start of month', '-12 months') AND day < date((SELECT MAX(day) FROM daily_store), 'start of month') GROUP BY substr(day, 1, 7) ORDER BY substr(day, 1, 7)","x":"month","y":"revenue"},{"title":"Best seller in each category","viz":"table","layout":{"x":0,"y":5,"w":4,"h":1},"hint":"last 30 days","sparklines":["Units, 10 weeks","Revenue, 10 weeks"],"sql":"WITH m AS (SELECT MAX(day) AS d FROM product_daily), cur AS (SELECT product, category, SUM(units) AS units, ROUND(SUM(revenue)) AS revenue FROM product_daily WHERE day > date((SELECT d FROM m), '-30 day') GROUP BY product), prev AS (SELECT product, SUM(units) AS units FROM product_daily WHERE day <= date((SELECT d FROM m), '-30 day') AND day > date((SELECT d FROM m), '-60 day') GROUP BY product), wk AS (SELECT product, CAST((julianday(day) - julianday((SELECT d FROM m), '-69 day')) / 7 AS INTEGER) AS k, SUM(units) AS u, ROUND(SUM(revenue)) AS r FROM product_daily WHERE day > date((SELECT d FROM m), '-70 day') GROUP BY product, k ORDER BY product, k), sp AS (SELECT product, group_concat(u) AS us, group_concat(r) AS rs FROM wk GROUP BY product), rk AS (SELECT cur.product, cur.category, cur.units, cur.revenue, ROW_NUMBER() OVER (PARTITION BY cur.category ORDER BY cur.revenue DESC) AS n FROM cur) SELECT rk.product AS Product, rk.category AS Category, printf('%,d', rk.units) AS \"Units, 30 days\", printf('%,d', rk.revenue) AS \"Revenue, USD\", printf('%+.1f%%', 100.0 * (rk.units - prev.units) / prev.units) AS \"vs previous 30 days\", sp.us AS \"Units, 10 weeks\", sp.rs AS \"Revenue, 10 weeks\" FROM rk JOIN prev ON prev.product = rk.product JOIN sp ON sp.product = rk.product WHERE rk.n = 1 ORDER BY rk.revenue DESC LIMIT 5"}]};
+
+function coffeeDashboardSpec(id, title, database) {
+  return Object.assign({}, JSON.parse(JSON.stringify(COFFEE_DASHBOARD)), { id, title, database });
+}
+
+/* Today as YYYY-MM-DD on the member's own clock. */
+function localTodayIso(now) {
+  const d = now || new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+
 /* ========================================================================
  * 3. THE OBSIDIAN SURFACE
  * ====================================================================== */
@@ -5545,6 +5757,16 @@ class SqliteDashboardsView extends ItemView {
       const start = empty.createEl('button', { text: 'Create your first dashboard', cls: 'mod-cta' });
       start.addEventListener('click', async () => {
         const spec = await this.plugin.createDashboard();
+        this.activeId = spec.id;
+        await this.reload();
+      });
+      const example = empty.createEl('button', { text: 'Add example dashboard' });
+      example.addEventListener('click', async () => {
+        if (example.disabled) return;
+        example.disabled = true;
+        const spec = await this.plugin.addExampleDashboard();
+        example.disabled = false;
+        if (!spec) return;
         this.activeId = spec.id;
         await this.reload();
       });
@@ -10446,6 +10668,14 @@ class ReadOutPlugin extends Plugin {
         await this.openDashboards(spec.id);
       },
     });
+    this.addCommand({
+      id: 'add-example-dashboard',
+      name: 'Add example dashboard',
+      callback: async () => {
+        const spec = await this.addExampleDashboard();
+        if (spec) await this.openDashboards(spec.id);
+      },
+    });
     this.addCommand({ id: 'list-databases', name: 'List databases', callback: () => new DatabaseIndexModal(this).open() });
     this.addCommand({ id: 'open-browser', name: 'Open database browser', callback: () => this.openBrowserFor(null) });
     this.addCommand({ id: 'write-guide-files', name: 'Write the guide files', callback: () => this.writeGuideFilesWithNotice() });
@@ -11067,6 +11297,45 @@ class ReadOutPlugin extends Plugin {
     return spec;
   }
 
+  /* "Add example dashboard": a fresh coffee-shop database in the databases
+   * folder and its dashboard note in the dashboards folder. Nothing that is
+   * already there is touched: when a name is taken, both files take the next
+   * number together (coffee-shop-demo-2.db and coffee-shop-2.md). Returns the
+   * new spec, or null after saying why it could not. */
+  async addExampleDashboard(now) {
+    const adapter = this.app.vault.adapter;
+    const dataFolder = normalizePath(this.settings.dataFolder);
+    const dashFolder = normalizePath(this.settings.dashboardFolder);
+    try {
+      const { specs, errors } = await this.loadDashboardSpecs();
+      const taken = new Set(specs.map((s) => s.id));
+      let n = 1;
+      let id;
+      let dbPath;
+      for (;; n++) {
+        const tail = n > 1 ? '-' + n : '';
+        id = 'coffee-shop' + tail;
+        dbPath = normalizePath(dataFolder + '/coffee-shop-demo' + tail + '.db');
+        const stem = normalizePath(dashFolder + '/' + id);
+        const used = taken.has(id) || (await adapter.exists(dbPath)) || errors.some((e) => e.path === stem + '.md' || e.path === stem + '.json')
+          || (await adapter.exists(stem + '.md')) || (await adapter.exists(stem + '.json'));
+        if (!used) break;
+      }
+      await this.query.wasm.init();
+      const bytes = buildCoffeeDemo(this.query.wasm.SQL, localTodayIso(now));
+      await ensureFolder(adapter, dataFolder);
+      await adapter.writeBinary(dbPath, bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      const parsed = parseDashboardSpec(JSON.stringify(coffeeDashboardSpec(id, n > 1 ? 'Coffee Shop ' + n : 'Coffee Shop', dbPath)));
+      if (!parsed.ok) throw new Error(parsed.reason);
+      if (!(await this.saveDashboardSpec(parsed.spec))) return null;
+      new Notice('Added the example dashboard "' + parsed.spec.title + '". Its database is ' + dbPath + '.');
+      return parsed.spec;
+    } catch (e) {
+      new Notice('Could not add the example dashboard: ' + (e && e.message ? e.message : e));
+      return null;
+    }
+  }
+
   async writeDashboardCache(spec, tiles) {
     const path = dashCachePath(this.settings.cacheFolder, spec.id);
     const payload = {
@@ -11555,6 +11824,7 @@ ReadOutPlugin.lib = {
   detectIcorScaffold, detectIcorVault, folderDefaultsFor, PLAIN_FOLDERS, ICOR_FOLDERS,
   shortHash, dbKeyOf, legacyCatalogPathFor, safeLogLine, READ_PRAGMAS, READ_PRAGMA_FUNCS,
   ensureFolder, csvExportName,
+  buildCoffeeDemo, coffeeDashboardSpec, localTodayIso, seededRandom,
   bytesOfB64, EMBEDDED_SQL_WASM_B64,
   DEFAULT_SETTINGS, PRESET_LABELS, AGG_LABELS, DEFAULT_GLOBAL_TIMEFRAME,
   checkChartAxis, chartScaleFor, ceilToTwoFigures, keepUneditedKeys,

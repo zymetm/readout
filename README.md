@@ -35,6 +35,8 @@ By hand:
    "Data", "Schema" and "SQL console".
 3. To build a dashboard, run the command "Open dashboards" or select the
    bar-chart icon in the left ribbon, then select "Create your first dashboard".
+   To see how a finished one is put together first, run the command "Add
+   example dashboard".
 
 ReadOut also finds database files anywhere else in the vault. When you open one
 that is outside the databases folder, it offers to move it there (see
@@ -47,6 +49,7 @@ Other commands:
 | "List databases" | Lists every database ReadOut found. |
 | "Open database browser" | Opens the browser without a file. |
 | "Create new dashboard" | Creates an empty dashboard and opens it. |
+| "Add example dashboard" | Builds a made-up coffee shop database and a dashboard for it, then opens it. Nothing already in your vault is replaced. |
 | "Write the guide files" | Writes the two guide files (see [Reference](https://github.com/zymetm/readout#reference)). |
 | "Check this note as a dashboard" | Checks the open note after you edit a dashboard by hand. |
 
@@ -137,6 +140,7 @@ Each folder below is created the first time ReadOut saves something into it.
 | Catalog notes | `catalogs` inside the cache folder, one per database | Desktop only, when a dashboard draws from that database |
 | Note-widget caches | `notes` inside the cache folder | Desktop only, for widgets written out as JSON in a `readout` block; removed after 60 days unused |
 | CSV exports | `Exports` inside the databases folder | When you select "Save as CSV" on a query result |
+| Example database | Databases folder, `coffee-shop-demo.db` (and a dashboard note) | Only when you run "Add example dashboard" |
 | Guide files | Dashboards folder | Only when you ask (see [Reference](https://github.com/zymetm/readout#reference)) |
 
 The default folders:

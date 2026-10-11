@@ -299,6 +299,7 @@ export function makeFakeAdapter(initialFiles = {}, initialBinaries = {}) {
     async mkdir(p) { folders.add(p); log.push(['mkdir', p]); },
     async read(p) { if (!files.has(p)) throw new Error('not found: ' + p); return files.get(p); },
     async write(p, text) { files.set(p, text); log.push(['write', p]); },
+    async writeBinary(p, data) { binaries.set(p, new Uint8Array(data)); log.push(['writeBinary', p]); },
     async rename(from, to) {
       if (binaries.has(from)) {
         if (binaries.has(to) || files.has(to)) throw new Error('already exists: ' + to);
